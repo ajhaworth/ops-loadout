@@ -1,7 +1,51 @@
 {
-  "model": "claude-opus-4-6",
   "permissions": {
     "defaultMode": "bypassPermissions"
+  },
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "permission_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/scripts/claude-notify-matrix.sh permission",
+            "timeout": 10000
+          }
+        ]
+      },
+      {
+        "matcher": "idle_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/scripts/claude-notify-matrix.sh idle",
+            "timeout": 10000
+          }
+        ]
+      },
+      {
+        "matcher": "elicitation_dialog",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/scripts/claude-notify-matrix.sh elicitation",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/scripts/claude-notify-matrix.sh stopped",
+            "timeout": 10000
+          }
+        ]
+      }
+    ]
   },
   "statusLine": {
     "type": "command",
@@ -11,7 +55,17 @@
     "context7@claude-plugins-official": true,
     "commit-commands@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
-    "everything-claude-code@everything-claude-code": true,
-    "frontend-design@claude-plugins-official": true
-  }
+    "frontend-design@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "gopls-lsp@claude-plugins-official": true,
+    "feature-dev@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "explanatory-output-style@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true,
+    "hookify@claude-plugins-official": true,
+    "plugin-dev@claude-plugins-official": true,
+    "github@claude-plugins-official": true
+  },
+  "skipDangerousModePermissionPrompt": true
 }

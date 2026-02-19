@@ -42,7 +42,10 @@ macos_setup() {
     # 2. Claude Code
     install_claude_code
 
-    # 3. Dotfiles symlinking
+    # 3. OpenAI Codex CLI
+    install_codex
+
+    # 4. Dotfiles symlinking
     if [[ "$SKIP_DOTFILES" != "true" ]] && [[ "${PROFILE_DOTFILES:-true}" == "true" ]]; then
         source "$MACOS_DIR/dotfiles.sh"
         setup_dotfiles
@@ -50,7 +53,7 @@ macos_setup() {
         log_info "Skipping dotfiles setup"
     fi
 
-    # 4. System preferences
+    # 5. System preferences
     if [[ "$SKIP_DEFAULTS" != "true" ]] && [[ "${PROFILE_APPLY_DEFAULTS:-true}" == "true" ]]; then
         source "$MACOS_DIR/defaults.sh"
         setup_defaults

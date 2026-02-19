@@ -27,6 +27,7 @@
 #
 #   All platforms:
 #   claude-code         Install Claude Code (native installer)
+#   codex               Install OpenAI Codex CLI (npm)
 #   shell-title         Configure shell to set terminal title (for tmux hostname)
 #
 # Options:
@@ -49,6 +50,7 @@ source "$SCRIPT_DIR/lib/symlink.sh"
 source "$SCRIPT_DIR/lib/packages.sh"
 source "$SCRIPT_DIR/lib/dotfiles.sh"
 source "$SCRIPT_DIR/lib/claude-code.sh"
+source "$SCRIPT_DIR/lib/codex.sh"
 
 # Default options
 PROFILE=""
@@ -87,6 +89,7 @@ Commands:
 
   All platforms:
     claude-code         Install Claude Code (native installer)
+    codex               Install OpenAI Codex CLI (npm)
     shell-title         Configure shell to set terminal title (for tmux hostname)
 
 Options:
@@ -106,6 +109,7 @@ Examples:
     ./setup.sh packages                 # Install system packages (Linux)
     ./setup.sh packages ls              # List system packages (Linux)
     ./setup.sh claude-code              # Install Claude Code
+    ./setup.sh codex                    # Install OpenAI Codex CLI
     ./setup.sh shell-title              # Configure terminal title for tmux
 
 Available profiles:
@@ -811,6 +815,11 @@ handle_subcommand() {
         claude-code)
             PROFILE_CLAUDE_CODE="true"
             install_claude_code
+            exit 0
+            ;;
+        codex)
+            PROFILE_CODEX="true"
+            install_codex
             exit 0
             ;;
         shell-title)

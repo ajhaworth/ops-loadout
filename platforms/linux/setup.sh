@@ -31,7 +31,10 @@ linux_setup() {
     # 5. Claude Code
     install_claude_code
 
-    # 6. Dotfiles
+    # 6. OpenAI Codex CLI
+    install_codex
+
+    # 7. Dotfiles
     if [[ "${PROFILE_DOTFILES:-true}" == "true" ]]; then
         setup_dotfiles
     else

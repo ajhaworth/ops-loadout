@@ -1,0 +1,26 @@
+{
+  "claude-plugins-official": {
+    "source": {
+      "source": "github",
+      "repo": "anthropics/claude-plugins-official"
+    },
+    "installLocation": "/home/alx/.claude/plugins/marketplaces/claude-plugins-official",
+    "lastUpdated": "2026-02-17T17:57:51.982Z"
+  },
+  "everything-claude-code": {
+    "source": {
+      "source": "github",
+      "repo": "affaan-m/everything-claude-code"
+    },
+    "installLocation": "/home/alx/.claude/plugins/marketplaces/everything-claude-code",
+    "lastUpdated": "2026-02-15T05:23:28.266Z"
+  },
+  "superpowers-marketplace": {
+    "source": {
+      "source": "github",
+      "repo": "obra/superpowers-marketplace"
+    },
+    "installLocation": "/home/alx/.claude/plugins/marketplaces/superpowers-marketplace",
+    "lastUpdated": "2026-02-15T05:23:28.739Z"
+  }
+}

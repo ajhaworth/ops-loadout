@@ -26,3 +26,6 @@ config/dotfiles/ghostty/config|~/.config/ghostty/config||DOTFILES_GHOSTTY
 # Claude Code
 config/dotfiles/claude/settings.macos.json|~/.claude/settings.json||DOTFILES_CLAUDE
 config/dotfiles/claude/statusline-command.sh|~/.claude/statusline-command.sh||DOTFILES_CLAUDE
+config/dotfiles/claude/scripts/claude-notify-matrix.sh|~/.claude/scripts/claude-notify-matrix.sh||DOTFILES_CLAUDE
+config/dotfiles/claude/plugins/installed_plugins.json|~/.claude/plugins/installed_plugins.json||DOTFILES_CLAUDE
+config/dotfiles/claude/plugins/known_marketplaces.json|~/.claude/plugins/known_marketplaces.json||DOTFILES_CLAUDE
