@@ -12,6 +12,15 @@ Pop-Location -ErrorAction SilentlyContinue
 $dirDisplay = $cwd -replace [regex]::Escape($env:USERPROFILE), '~'
 $status = "$model | $dirDisplay"
 if ($gitBranch) { $status += " | git:$gitBranch" }
-if ($contextRemaining) { $status += " | context:$contextRemaining%" }
+if ($contextRemaining) {
+    $barWidth = 10
+    $filled = [math]::Floor($contextRemaining * $barWidth / 100)
+    $empty = $barWidth - $filled
+
+    $filledBar = "$([char]0x2588)" * $filled
+    $emptyBar = "$([char]0x2591)" * $empty
+
+    $status += " | ${filledBar}${emptyBar} ${contextRemaining}%"
+}
 
 Write-Output $status
