@@ -51,6 +51,7 @@ source "$SCRIPT_DIR/lib/packages.sh"
 source "$SCRIPT_DIR/lib/dotfiles.sh"
 source "$SCRIPT_DIR/lib/claude-code.sh"
 source "$SCRIPT_DIR/lib/codex.sh"
+source "$SCRIPT_DIR/lib/claude-plugins.sh"
 
 # Default options
 PROFILE=""

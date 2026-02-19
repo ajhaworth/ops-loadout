@@ -53,7 +53,10 @@ macos_setup() {
         log_info "Skipping dotfiles setup"
     fi
 
-    # 5. System preferences
+    # 5. Claude plugins (after dotfiles so symlinks exist)
+    setup_claude_plugins
+
+    # 6. System preferences
     if [[ "$SKIP_DEFAULTS" != "true" ]] && [[ "${PROFILE_APPLY_DEFAULTS:-true}" == "true" ]]; then
         source "$MACOS_DIR/defaults.sh"
         setup_defaults

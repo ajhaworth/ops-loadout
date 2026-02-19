@@ -62,10 +62,10 @@
     "claude-md-management@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
     "explanatory-output-style@claude-plugins-official": true,
-    "claude-code-setup@claude-plugins-official": true,
     "hookify@claude-plugins-official": true,
     "plugin-dev@claude-plugins-official": true,
-    "github@claude-plugins-official": true
+    "github@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true
   },
   "skipDangerousModePermissionPrompt": true
 }

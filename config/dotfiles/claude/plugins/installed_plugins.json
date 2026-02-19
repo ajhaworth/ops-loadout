@@ -4,27 +4,27 @@
     "context7@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/context7/2cd88e7947b7",
-        "version": "2cd88e7947b7",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/context7/8deab8460a9d",
+        "version": "8deab8460a9d",
         "installedAt": "2026-02-01T18:18:59.724Z",
-        "lastUpdated": "2026-02-07T12:14:46.880Z",
+        "lastUpdated": "2026-02-19T18:49:14.512Z",
         "gitCommitSha": "27d2b86d72da27c64585150857cee8472ad47abb"
       }
     ],
     "commit-commands@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/commit-commands/2cd88e7947b7",
-        "version": "2cd88e7947b7",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/commit-commands/8deab8460a9d",
+        "version": "8deab8460a9d",
         "installedAt": "2026-02-01T18:18:59.835Z",
-        "lastUpdated": "2026-02-07T12:14:46.887Z",
+        "lastUpdated": "2026-02-19T18:49:14.513Z",
         "gitCommitSha": "27d2b86d72da27c64585150857cee8472ad47abb"
       }
     ],
     "code-simplifier@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/code-simplifier/1.0.0",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/code-simplifier/1.0.0",
         "version": "1.0.0",
         "installedAt": "2026-02-01T18:18:59.869Z",
         "lastUpdated": "2026-02-06T00:28:29.189Z",
@@ -34,17 +34,17 @@
     "frontend-design@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/frontend-design/2cd88e7947b7",
-        "version": "2cd88e7947b7",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/frontend-design/8deab8460a9d",
+        "version": "8deab8460a9d",
         "installedAt": "2026-02-06T00:28:29.189Z",
-        "lastUpdated": "2026-02-07T12:14:46.894Z",
+        "lastUpdated": "2026-02-19T18:49:14.513Z",
         "gitCommitSha": "27d2b86d72da27c64585150857cee8472ad47abb"
       }
     ],
     "typescript-lsp@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/typescript-lsp/1.0.0",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/typescript-lsp/1.0.0",
         "version": "1.0.0",
         "installedAt": "2026-02-14T04:50:11.534Z",
         "lastUpdated": "2026-02-14T04:50:11.534Z",
@@ -54,7 +54,7 @@
     "gopls-lsp@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/gopls-lsp/1.0.0",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/gopls-lsp/1.0.0",
         "version": "1.0.0",
         "installedAt": "2026-02-14T04:50:11.565Z",
         "lastUpdated": "2026-02-14T04:50:11.565Z",
@@ -64,17 +64,17 @@
     "feature-dev@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/feature-dev/2cd88e7947b7",
-        "version": "2cd88e7947b7",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/feature-dev/8deab8460a9d",
+        "version": "8deab8460a9d",
         "installedAt": "2026-02-14T05:33:17.384Z",
-        "lastUpdated": "2026-02-14T05:33:17.384Z",
+        "lastUpdated": "2026-02-19T18:49:14.512Z",
         "gitCommitSha": "2cd88e7947b7382e045666abee790c7f55f669f3"
       }
     ],
     "claude-md-management@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/claude-md-management/1.0.0",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/claude-md-management/1.0.0",
         "version": "1.0.0",
         "installedAt": "2026-02-14T05:33:44.449Z",
         "lastUpdated": "2026-02-14T05:33:44.449Z",
@@ -84,61 +84,61 @@
     "security-guidance@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/security-guidance/2cd88e7947b7",
-        "version": "2cd88e7947b7",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/security-guidance/8deab8460a9d",
+        "version": "8deab8460a9d",
         "installedAt": "2026-02-15T06:07:14.923Z",
-        "lastUpdated": "2026-02-15T06:07:14.923Z",
+        "lastUpdated": "2026-02-19T18:49:14.512Z",
         "gitCommitSha": "2cd88e7947b7382e045666abee790c7f55f669f3"
       }
     ],
     "explanatory-output-style@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/explanatory-output-style/2cd88e7947b7",
-        "version": "2cd88e7947b7",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/explanatory-output-style/8deab8460a9d",
+        "version": "8deab8460a9d",
         "installedAt": "2026-02-15T06:07:14.984Z",
-        "lastUpdated": "2026-02-15T06:07:14.984Z",
-        "gitCommitSha": "2cd88e7947b7382e045666abee790c7f55f669f3"
-      }
-    ],
-    "claude-code-setup@claude-plugins-official": [
-      {
-        "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/claude-code-setup/1.0.0",
-        "version": "1.0.0",
-        "installedAt": "2026-02-15T06:07:15.097Z",
-        "lastUpdated": "2026-02-15T06:07:15.097Z",
+        "lastUpdated": "2026-02-19T18:49:14.512Z",
         "gitCommitSha": "2cd88e7947b7382e045666abee790c7f55f669f3"
       }
     ],
     "hookify@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/hookify/2cd88e7947b7",
-        "version": "2cd88e7947b7",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/hookify/8deab8460a9d",
+        "version": "8deab8460a9d",
         "installedAt": "2026-02-15T06:07:15.207Z",
-        "lastUpdated": "2026-02-15T06:07:15.207Z",
+        "lastUpdated": "2026-02-19T18:49:14.512Z",
         "gitCommitSha": "2cd88e7947b7382e045666abee790c7f55f669f3"
       }
     ],
     "plugin-dev@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/plugin-dev/2cd88e7947b7",
-        "version": "2cd88e7947b7",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/plugin-dev/8deab8460a9d",
+        "version": "8deab8460a9d",
         "installedAt": "2026-02-15T12:28:48.549Z",
-        "lastUpdated": "2026-02-15T12:28:48.549Z",
+        "lastUpdated": "2026-02-19T18:49:14.511Z",
         "gitCommitSha": "2cd88e7947b7382e045666abee790c7f55f669f3"
       }
     ],
     "github@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/github/2cd88e7947b7",
-        "version": "2cd88e7947b7",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/github/8deab8460a9d",
+        "version": "8deab8460a9d",
         "installedAt": "2026-02-16T13:05:03.149Z",
-        "lastUpdated": "2026-02-16T13:05:03.149Z",
+        "lastUpdated": "2026-02-19T18:49:14.513Z",
         "gitCommitSha": "2cd88e7947b7382e045666abee790c7f55f669f3"
+      }
+    ],
+    "claude-code-setup@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/claude-code-setup/1.0.0",
+        "version": "1.0.0",
+        "installedAt": "2026-02-19T18:19:48.973Z",
+        "lastUpdated": "2026-02-19T18:19:48.973Z",
+        "gitCommitSha": "8deab8460a9d4df5a01315ef722a5ca6b061c074"
       }
     ]
   }

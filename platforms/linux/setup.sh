@@ -41,5 +41,8 @@ linux_setup() {
         log_info "Skipping dotfiles (disabled in profile)"
     fi
 
+    # 8. Claude plugins (after dotfiles so symlinks exist)
+    setup_claude_plugins
+
     log_success "Linux setup complete"
 }
