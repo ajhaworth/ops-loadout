@@ -7,28 +7,11 @@ $contextRemaining = $input.context_window.remaining_percentage
 Push-Location $cwd -ErrorAction SilentlyContinue
 $gitBranch = git branch --show-current 2>$null
 
-$gitStatus = ""
-if ($gitBranch) {
-    $diffStats = git diff --numstat HEAD 2>$null
-    if ($diffStats) {
-        $additions = 0
-        $deletions = 0
-        $diffStats | ForEach-Object {
-            $parts = $_ -split '\s+'
-            if ($parts[0] -match '^\d+$') { $additions += [int]$parts[0] }
-            if ($parts[1] -match '^\d+$') { $deletions += [int]$parts[1] }
-        }
-        if ($additions -gt 0 -or $deletions -gt 0) {
-            $gitStatus = " +$additions -$deletions"
-        }
-    }
-}
-
 Pop-Location -ErrorAction SilentlyContinue
 
 $dirDisplay = $cwd -replace [regex]::Escape($env:USERPROFILE), '~'
 $status = "$model | $dirDisplay"
-if ($gitBranch) { $status += " | git:$gitBranch$gitStatus" }
+if ($gitBranch) { $status += " | git:$gitBranch" }
 if ($contextRemaining) { $status += " | context:$contextRemaining%" }
 
 Write-Output $status
