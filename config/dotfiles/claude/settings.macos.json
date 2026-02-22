@@ -64,8 +64,8 @@
     "explanatory-output-style@claude-plugins-official": true,
     "hookify@claude-plugins-official": true,
     "plugin-dev@claude-plugins-official": true,
-    "github@claude-plugins-official": true,
-    "claude-code-setup@claude-plugins-official": true
+    "claude-code-setup@claude-plugins-official": true,
+    "fullstack-dev-skills@fullstack-dev-skills": true
   },
   "skipDangerousModePermissionPrompt": true
 }
