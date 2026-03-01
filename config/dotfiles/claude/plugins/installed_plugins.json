@@ -7,7 +7,7 @@
         "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/context7/aa296ec81e8c",
         "version": "aa296ec81e8c",
         "installedAt": "2026-02-01T18:18:59.724Z",
-        "lastUpdated": "2026-02-20T17:37:31.697Z",
+        "lastUpdated": "2026-02-25T16:25:18.783Z",
         "gitCommitSha": "27d2b86d72da27c64585150857cee8472ad47abb"
       }
     ],
@@ -17,7 +17,7 @@
         "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/commit-commands/aa296ec81e8c",
         "version": "aa296ec81e8c",
         "installedAt": "2026-02-01T18:18:59.835Z",
-        "lastUpdated": "2026-02-20T17:37:31.699Z",
+        "lastUpdated": "2026-02-25T16:25:18.784Z",
         "gitCommitSha": "27d2b86d72da27c64585150857cee8472ad47abb"
       }
     ],
@@ -37,7 +37,7 @@
         "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/frontend-design/aa296ec81e8c",
         "version": "aa296ec81e8c",
         "installedAt": "2026-02-06T00:28:29.189Z",
-        "lastUpdated": "2026-02-20T17:37:31.698Z",
+        "lastUpdated": "2026-02-25T16:25:18.785Z",
         "gitCommitSha": "27d2b86d72da27c64585150857cee8472ad47abb"
       }
     ],
@@ -67,7 +67,7 @@
         "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/feature-dev/aa296ec81e8c",
         "version": "aa296ec81e8c",
         "installedAt": "2026-02-14T05:33:17.384Z",
-        "lastUpdated": "2026-02-20T17:37:31.699Z",
+        "lastUpdated": "2026-02-25T16:25:18.786Z",
         "gitCommitSha": "2cd88e7947b7382e045666abee790c7f55f669f3"
       }
     ],
@@ -87,7 +87,7 @@
         "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/security-guidance/aa296ec81e8c",
         "version": "aa296ec81e8c",
         "installedAt": "2026-02-15T06:07:14.923Z",
-        "lastUpdated": "2026-02-20T17:37:31.698Z",
+        "lastUpdated": "2026-02-25T16:25:18.784Z",
         "gitCommitSha": "2cd88e7947b7382e045666abee790c7f55f669f3"
       }
     ],
@@ -97,7 +97,7 @@
         "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/explanatory-output-style/aa296ec81e8c",
         "version": "aa296ec81e8c",
         "installedAt": "2026-02-15T06:07:14.984Z",
-        "lastUpdated": "2026-02-20T17:37:31.699Z",
+        "lastUpdated": "2026-02-25T16:25:18.785Z",
         "gitCommitSha": "2cd88e7947b7382e045666abee790c7f55f669f3"
       }
     ],
@@ -107,7 +107,7 @@
         "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/hookify/aa296ec81e8c",
         "version": "aa296ec81e8c",
         "installedAt": "2026-02-15T06:07:15.207Z",
-        "lastUpdated": "2026-02-20T17:37:31.702Z",
+        "lastUpdated": "2026-02-25T16:25:18.789Z",
         "gitCommitSha": "2cd88e7947b7382e045666abee790c7f55f669f3"
       }
     ],
@@ -117,7 +117,7 @@
         "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/plugin-dev/aa296ec81e8c",
         "version": "aa296ec81e8c",
         "installedAt": "2026-02-15T12:28:48.549Z",
-        "lastUpdated": "2026-02-20T17:37:31.709Z",
+        "lastUpdated": "2026-02-25T16:25:18.799Z",
         "gitCommitSha": "2cd88e7947b7382e045666abee790c7f55f669f3"
       }
     ],
@@ -139,6 +139,26 @@
         "installedAt": "2026-02-22T20:07:02.325Z",
         "lastUpdated": "2026-02-22T20:07:02.325Z",
         "gitCommitSha": "77037f2d384baea59d97fdd7b43d9a855babc444"
+      }
+    ],
+    "superpowers@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/superpowers/4.3.1",
+        "version": "4.3.1",
+        "installedAt": "2026-02-24T13:15:59.753Z",
+        "lastUpdated": "2026-02-24T13:15:59.753Z",
+        "gitCommitSha": "e4a2375cb705ca5800f0833528ce36a3faf9017a"
+      }
+    ],
+    "playwright@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/playwright/55b58ec6e564",
+        "version": "55b58ec6e564",
+        "installedAt": "2026-02-27T15:10:17.418Z",
+        "lastUpdated": "2026-02-27T15:10:17.418Z",
+        "gitCommitSha": "55b58ec6e5649104f926ba7558b567dc8d33c5ff"
       }
     ]
   }
