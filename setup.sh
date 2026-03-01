@@ -26,6 +26,9 @@
 #   packages ls         List system packages and status
 #
 #   All platforms:
+#   plugins             Deploy Claude Code plugin configs
+#   plugins save        Save current plugin state back to repo
+#   plugins ls          List installed plugins and status
 #   claude-code         Install Claude Code (native installer)
 #   codex               Install OpenAI Codex CLI (npm)
 #   shell-title         Configure shell to set terminal title (for tmux hostname)
@@ -89,6 +92,9 @@ Commands:
     packages ls         List system packages and status
 
   All platforms:
+    plugins             Deploy Claude Code plugin configs
+    plugins save        Save current plugin state back to repo
+    plugins ls          List installed plugins and status
     claude-code         Install Claude Code (native installer)
     codex               Install OpenAI Codex CLI (npm)
     shell-title         Configure shell to set terminal title (for tmux hostname)
@@ -369,6 +375,67 @@ cmd_packages_install() {
 
     echo ""
     log_success "Package installation complete"
+}
+
+# ============================================================================
+# Subcommand: plugins (Claude Code)
+# ============================================================================
+
+cmd_plugins_ls() {
+    echo ""
+    log_step "Claude Code Plugins"
+    echo ""
+
+    local plugins_file="$HOME/.claude/plugins/installed_plugins.json"
+
+    if [[ ! -f "$plugins_file" ]]; then
+        log_warn "No installed plugins file found at $plugins_file"
+        log_info "Run './setup.sh plugins' to deploy plugin configs"
+        echo ""
+        return 0
+    fi
+
+    printf "  ${BOLD}%-45s  %-15s  %s${RESET}\n" "PLUGIN" "MARKETPLACE" "STATUS"
+    printf "  ${DIM}%-45s  %-15s  %s${RESET}\n" "$(printf '─%.0s' {1..45})" "$(printf '─%.0s' {1..15})" "$(printf '─%.0s' {1..12})"
+
+    local total_count=0
+    local cached_count=0
+    local missing_count=0
+
+    local keys
+    keys=$(grep -oE '"[^"]+@[^"]+"' "$plugins_file" | tr -d '"' | sort -u)
+
+    while IFS= read -r key; do
+        [[ -z "$key" ]] && continue
+        local plugin_name="${key%@*}"
+        local marketplace="${key#*@}"
+        local cache_dir="$HOME/.claude/plugins/cache/$marketplace/$plugin_name"
+
+        ((total_count++))
+
+        local status status_color
+        if [[ -d "$cache_dir" ]]; then
+            status="cached"
+            status_color="${GREEN}"
+            ((cached_count++))
+        else
+            status="missing"
+            status_color="${RED}"
+            ((missing_count++))
+        fi
+
+        printf "  %-45s  %-15s  ${status_color}%s${RESET}\n" "$plugin_name" "$marketplace" "$status"
+    done <<< "$keys"
+
+    echo ""
+    printf "  ${DIM}%-45s  %-15s  %s${RESET}\n" "$(printf '─%.0s' {1..45})" "$(printf '─%.0s' {1..15})" "$(printf '─%.0s' {1..12})"
+    echo -e "  ${BOLD}Summary:${RESET} ${GREEN}$cached_count cached${RESET}, ${RED}$missing_count missing${RESET} (of $total_count total)"
+    echo ""
+
+    if [[ $missing_count -gt 0 ]]; then
+        log_info "Run './setup.sh plugins' to install missing plugins"
+        echo ""
+    fi
 }
 
 # ============================================================================
@@ -808,6 +875,25 @@ handle_subcommand() {
                 *)
                     log_error "Unknown subcommand: defaults $subcmd"
                     log_info "Available: apply (default)"
+                    exit 1
+                    ;;
+            esac
+            exit 0
+            ;;
+        plugins)
+            case "$subcmd" in
+                save)
+                    save_claude_plugins
+                    ;;
+                ls|list)
+                    cmd_plugins_ls
+                    ;;
+                ""|install)
+                    setup_claude_plugins
+                    ;;
+                *)
+                    log_error "Unknown subcommand: plugins $subcmd"
+                    log_info "Available: ls, save, install (default)"
                     exit 1
                     ;;
             esac

@@ -1,40 +1,88 @@
 #!/usr/bin/env bash
 # lib/claude-plugins.sh - Claude Code plugin sync
 #
-# Reads symlinked plugin JSON configs and ensures marketplaces are registered
-# and plugins are installed on the current machine. Fixes absolute home directory
-# paths that differ between machines (e.g., /home/alx vs /Users/alx).
+# Deploys plugin JSON configs from repo templates to ~/.claude/plugins/,
+# fixing platform-specific home directory paths at copy time.
+# Also provides a "save" function to export runtime state back to the repo.
 
-# Fix hardcoded home directory paths in a JSON file.
-# Detects any /home/<user> or /Users/<user> prefix that doesn't match $HOME
-# and replaces it with the current $HOME.
-_fix_plugin_paths() {
-    local file="$1"
+PLUGIN_DIR="$HOME/.claude/plugins"
+PLUGIN_REPO_DIR="config/dotfiles/claude/plugins"
 
-    # Find any home dir in the file that isn't our current $HOME
+# Deploy a single plugin JSON file from repo to ~/.claude/plugins/.
+# Replaces any stale home directory paths with current $HOME.
+# Removes old symlinks (migration from previous approach).
+# Skips write if destination content already matches.
+_deploy_plugin_json() {
+    local filename="$1"
+    local repo_root
+    repo_root="$(get_repo_root)"
+    local src="$repo_root/$PLUGIN_REPO_DIR/$filename"
+    local dest="$PLUGIN_DIR/$filename"
+
+    if [[ ! -f "$src" ]]; then
+        log_warn "Template not found: $src"
+        return 1
+    fi
+
+    # Read source content and fix stale home paths
+    local content
+    content="$(<"$src")"
+
+    # Find any /home/<user> or /Users/<user> that doesn't match $HOME
     local stale_home
-    stale_home=$(grep -oE '"(/home/[^/]+|/Users/[^/]+)/' "$file" \
-        | tr -d '"' | sort -u | grep -v "^$HOME/" | head -1) || true
+    stale_home=$(echo "$content" | grep -oE '(/home/[^/]+|/Users/[^/]+)' \
+        | sort -u | grep -v "^$HOME$" | head -1) || true
 
-    if [[ -z "$stale_home" ]]; then
+    if [[ -n "$stale_home" ]]; then
+        log_info "Fixing paths: $stale_home → $HOME"
+        content="${content//$stale_home/$HOME}"
+    fi
+
+    # Check if destination already has identical content
+    if [[ -f "$dest" ]] && [[ ! -L "$dest" ]]; then
+        local existing
+        existing="$(<"$dest")"
+        if [[ "$content" == "$existing" ]]; then
+            log_info "Already up-to-date: $filename"
+            return 0
+        fi
+    fi
+
+    if is_dry_run; then
+        log_dry "Deploy $filename → $dest"
         return 0
     fi
 
-    # Remove trailing slash for clean replacement
-    stale_home="${stale_home%/}"
-
-    log_info "Fixing paths: $stale_home → $HOME"
-    if is_dry_run; then
-        log_dry "sed -i '' 's|$stale_home|$HOME|g' $file"
-    else
-        if [[ "$(uname)" == "Darwin" ]]; then
-            sed -i '' "s|${stale_home}|${HOME}|g" "$file"
-        else
-            sed -i "s|${stale_home}|${HOME}|g" "$file"
-        fi
+    # Remove old symlink if present (migration from symlink approach)
+    if [[ -L "$dest" ]]; then
+        log_info "Removing old symlink: $dest"
+        rm "$dest"
     fi
+
+    mkdir -p "$(dirname "$dest")"
+    printf '%s\n' "$content" > "$dest"
+    log_success "Deployed $filename"
 }
 
+# Copy a runtime plugin JSON file back to the repo.
+_save_plugin_json() {
+    local filename="$1"
+    local repo_root
+    repo_root="$(get_repo_root)"
+    local src="$PLUGIN_DIR/$filename"
+    local dest="$repo_root/$PLUGIN_REPO_DIR/$filename"
+
+    if [[ ! -f "$src" ]]; then
+        log_warn "Runtime file not found: $src"
+        return 1
+    fi
+
+    mkdir -p "$(dirname "$dest")"
+    cp "$src" "$dest"
+    log_success "Saved $filename → $PLUGIN_REPO_DIR/$filename"
+}
+
+# Deploy plugin configs and sync plugins with Claude Code CLI.
 setup_claude_plugins() {
     log_step "Syncing Claude Code plugins"
 
@@ -43,20 +91,18 @@ setup_claude_plugins() {
         return 0
     fi
 
+    # Deploy JSON configs (doesn't need the CLI)
+    log_substep "Deploying plugin configs"
+    _deploy_plugin_json "known_marketplaces.json"
+    _deploy_plugin_json "installed_plugins.json"
+
     if ! command_exists claude; then
         log_warn "Claude Code not installed, skipping plugin sync"
         return 0
     fi
 
-    local repo_root
-    repo_root="$(get_repo_root)"
-    local marketplaces_file="$repo_root/config/dotfiles/claude/plugins/known_marketplaces.json"
-    local plugins_file="$repo_root/config/dotfiles/claude/plugins/installed_plugins.json"
-
-    # Fix home directory paths in JSON files
-    log_substep "Checking paths"
-    [[ -f "$marketplaces_file" ]] && _fix_plugin_paths "$marketplaces_file"
-    [[ -f "$plugins_file" ]] && _fix_plugin_paths "$plugins_file"
+    local marketplaces_file="$PLUGIN_DIR/known_marketplaces.json"
+    local plugins_file="$PLUGIN_DIR/installed_plugins.json"
 
     # Register marketplaces
     if [[ -f "$marketplaces_file" ]]; then
@@ -66,7 +112,7 @@ setup_claude_plugins() {
 
         while IFS= read -r repo; do
             [[ -z "$repo" ]] && continue
-            if [[ -d "$HOME/.claude/plugins/marketplaces/$(basename "$repo")" ]]; then
+            if [[ -d "$PLUGIN_DIR/marketplaces/$(basename "$repo")" ]]; then
                 log_info "Marketplace already registered: $repo"
             else
                 log_info "Adding marketplace: $repo"
@@ -87,7 +133,7 @@ setup_claude_plugins() {
             [[ -z "$key" ]] && continue
             local plugin_name="${key%@*}"
             local marketplace="${key#*@}"
-            local cache_dir="$HOME/.claude/plugins/cache/$marketplace/$plugin_name"
+            local cache_dir="$PLUGIN_DIR/cache/$marketplace/$plugin_name"
 
             if [[ -d "$cache_dir" ]]; then
                 log_info "Already cached: $key"
@@ -108,4 +154,14 @@ setup_claude_plugins() {
     fi
 
     log_success "Claude plugin sync complete"
+}
+
+# Save current plugin state from ~/.claude/plugins/ back to the repo.
+save_claude_plugins() {
+    log_step "Saving Claude plugin state to repo"
+
+    _save_plugin_json "installed_plugins.json"
+    _save_plugin_json "known_marketplaces.json"
+
+    log_success "Plugin state saved — commit changes in $PLUGIN_REPO_DIR/"
 }

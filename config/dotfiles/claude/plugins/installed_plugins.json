@@ -4,7 +4,7 @@
     "context7@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/context7/aa296ec81e8c",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/context7/aa296ec81e8c",
         "version": "aa296ec81e8c",
         "installedAt": "2026-02-01T18:18:59.724Z",
         "lastUpdated": "2026-02-25T16:25:18.783Z",
@@ -14,7 +14,7 @@
     "commit-commands@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/commit-commands/aa296ec81e8c",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/commit-commands/aa296ec81e8c",
         "version": "aa296ec81e8c",
         "installedAt": "2026-02-01T18:18:59.835Z",
         "lastUpdated": "2026-02-25T16:25:18.784Z",
@@ -24,7 +24,7 @@
     "code-simplifier@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/code-simplifier/1.0.0",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/code-simplifier/1.0.0",
         "version": "1.0.0",
         "installedAt": "2026-02-01T18:18:59.869Z",
         "lastUpdated": "2026-02-06T00:28:29.189Z",
@@ -34,7 +34,7 @@
     "frontend-design@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/frontend-design/aa296ec81e8c",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/frontend-design/aa296ec81e8c",
         "version": "aa296ec81e8c",
         "installedAt": "2026-02-06T00:28:29.189Z",
         "lastUpdated": "2026-02-25T16:25:18.785Z",
@@ -44,7 +44,7 @@
     "typescript-lsp@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/typescript-lsp/1.0.0",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/typescript-lsp/1.0.0",
         "version": "1.0.0",
         "installedAt": "2026-02-14T04:50:11.534Z",
         "lastUpdated": "2026-02-14T04:50:11.534Z",
@@ -54,7 +54,7 @@
     "gopls-lsp@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/gopls-lsp/1.0.0",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/gopls-lsp/1.0.0",
         "version": "1.0.0",
         "installedAt": "2026-02-14T04:50:11.565Z",
         "lastUpdated": "2026-02-14T04:50:11.565Z",
@@ -64,7 +64,7 @@
     "feature-dev@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/feature-dev/aa296ec81e8c",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/feature-dev/aa296ec81e8c",
         "version": "aa296ec81e8c",
         "installedAt": "2026-02-14T05:33:17.384Z",
         "lastUpdated": "2026-02-25T16:25:18.786Z",
@@ -74,7 +74,7 @@
     "claude-md-management@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/claude-md-management/1.0.0",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/claude-md-management/1.0.0",
         "version": "1.0.0",
         "installedAt": "2026-02-14T05:33:44.449Z",
         "lastUpdated": "2026-02-14T05:33:44.449Z",
@@ -84,7 +84,7 @@
     "security-guidance@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/security-guidance/aa296ec81e8c",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/security-guidance/aa296ec81e8c",
         "version": "aa296ec81e8c",
         "installedAt": "2026-02-15T06:07:14.923Z",
         "lastUpdated": "2026-02-25T16:25:18.784Z",
@@ -94,7 +94,7 @@
     "explanatory-output-style@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/explanatory-output-style/aa296ec81e8c",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/explanatory-output-style/aa296ec81e8c",
         "version": "aa296ec81e8c",
         "installedAt": "2026-02-15T06:07:14.984Z",
         "lastUpdated": "2026-02-25T16:25:18.785Z",
@@ -104,7 +104,7 @@
     "hookify@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/hookify/aa296ec81e8c",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/hookify/aa296ec81e8c",
         "version": "aa296ec81e8c",
         "installedAt": "2026-02-15T06:07:15.207Z",
         "lastUpdated": "2026-02-25T16:25:18.789Z",
@@ -114,7 +114,7 @@
     "plugin-dev@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/plugin-dev/aa296ec81e8c",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/plugin-dev/aa296ec81e8c",
         "version": "aa296ec81e8c",
         "installedAt": "2026-02-15T12:28:48.549Z",
         "lastUpdated": "2026-02-25T16:25:18.799Z",
@@ -124,7 +124,7 @@
     "claude-code-setup@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/claude-code-setup/1.0.0",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/claude-code-setup/1.0.0",
         "version": "1.0.0",
         "installedAt": "2026-02-19T18:19:48.973Z",
         "lastUpdated": "2026-02-19T18:19:48.973Z",
@@ -134,7 +134,7 @@
     "fullstack-dev-skills@fullstack-dev-skills": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/fullstack-dev-skills/fullstack-dev-skills/0.4.8",
+        "installPath": "/Users/alx/.claude/plugins/cache/fullstack-dev-skills/fullstack-dev-skills/0.4.8",
         "version": "0.4.8",
         "installedAt": "2026-02-22T20:07:02.325Z",
         "lastUpdated": "2026-02-22T20:07:02.325Z",
@@ -144,7 +144,7 @@
     "superpowers@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/superpowers/4.3.1",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/superpowers/4.3.1",
         "version": "4.3.1",
         "installedAt": "2026-02-24T13:15:59.753Z",
         "lastUpdated": "2026-02-24T13:15:59.753Z",
@@ -154,7 +154,7 @@
     "playwright@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/alx/.claude/plugins/cache/claude-plugins-official/playwright/55b58ec6e564",
+        "installPath": "/Users/alx/.claude/plugins/cache/claude-plugins-official/playwright/55b58ec6e564",
         "version": "55b58ec6e564",
         "installedAt": "2026-02-27T15:10:17.418Z",
         "lastUpdated": "2026-02-27T15:10:17.418Z",
