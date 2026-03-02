@@ -88,6 +88,14 @@
     "superpowers@claude-plugins-official": true,
     "playwright@claude-plugins-official": true
   },
+  "extraKnownMarketplaces": {
+    "fullstack-dev-skills": {
+      "source": {
+        "source": "github",
+        "repo": "jeffallan/claude-skills"
+      }
+    }
+  },
   "skipDangerousModePermissionPrompt": true,
   "effortLevel": "medium"
 }
