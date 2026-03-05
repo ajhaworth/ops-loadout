@@ -96,6 +96,5 @@
       }
     }
   },
-  "skipDangerousModePermissionPrompt": true,
-  "effortLevel": "medium"
+  "skipDangerousModePermissionPrompt": true
 }
