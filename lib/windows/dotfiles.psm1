@@ -112,6 +112,39 @@ function Get-SymlinkTarget {
     return $item.Target
 }
 
+function Get-NormalizedPath {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+        [string]$BasePath = ''
+    )
+
+    $candidate = $Path
+    if (-not [IO.Path]::IsPathRooted($candidate) -and $BasePath) {
+        $candidate = Join-Path $BasePath $candidate
+    }
+
+    return [IO.Path]::GetFullPath($candidate)
+}
+
+function Resolve-SymlinkComparableTarget {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    $target = Get-SymlinkTarget -Path $Path
+    if ($target -is [array]) {
+        $target = $target[0]
+    }
+
+    if (-not $target) {
+        return $null
+    }
+
+    return Get-NormalizedPath -Path $target -BasePath (Split-Path -Parent $Path)
+}
+
 # Create a symlink
 function New-Symlink {
     param(
@@ -137,9 +170,8 @@ function New-Symlink {
 
     # Check if already correctly linked
     if (Test-Symlink -Path $destFull) {
-        $target = Get-SymlinkTarget -Path $destFull
-        $normalizedTarget = [IO.Path]::GetFullPath($target)
-        $normalizedSource = [IO.Path]::GetFullPath($sourceFull)
+        $normalizedTarget = Resolve-SymlinkComparableTarget -Path $destFull
+        $normalizedSource = Get-NormalizedPath -Path $sourceFull
         if ($normalizedTarget -eq $normalizedSource) {
             Write-Skip "$destName (already linked)"
             $script:Results.Skipped += $destName
@@ -220,9 +252,8 @@ function Show-DotfilesStatus {
         }
 
         if (Test-Symlink -Path $destFull) {
-            $target = Get-SymlinkTarget -Path $destFull
-            $normalizedTarget = [IO.Path]::GetFullPath($target)
-            $normalizedSource = [IO.Path]::GetFullPath($sourceFull)
+            $normalizedTarget = Resolve-SymlinkComparableTarget -Path $destFull
+            $normalizedSource = Get-NormalizedPath -Path $sourceFull
             if ($normalizedTarget -eq $normalizedSource) {
                 Write-Host "    [" -NoNewline
                 Write-Host "X" -ForegroundColor Green -NoNewline

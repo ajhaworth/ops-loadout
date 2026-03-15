@@ -156,6 +156,64 @@ setup_claude_plugins() {
     log_success "Claude plugin sync complete"
 }
 
+# List installed plugins and their cache status
+cmd_plugins_ls() {
+    echo ""
+    log_step "Claude Code Plugins"
+    echo ""
+
+    local plugins_file="$HOME/.claude/plugins/installed_plugins.json"
+
+    if [[ ! -f "$plugins_file" ]]; then
+        log_warn "No installed plugins file found at $plugins_file"
+        log_info "Run './setup.sh plugins' to deploy plugin configs"
+        echo ""
+        return 0
+    fi
+
+    printf "  ${BOLD}%-45s  %-15s  %s${RESET}\n" "PLUGIN" "MARKETPLACE" "STATUS"
+    printf "  ${DIM}%-45s  %-15s  %s${RESET}\n" "$(printf '─%.0s' {1..45})" "$(printf '─%.0s' {1..15})" "$(printf '─%.0s' {1..12})"
+
+    local total_count=0
+    local cached_count=0
+    local missing_count=0
+
+    local keys
+    keys=$(grep -oE '"[^"]+@[^"]+"' "$plugins_file" | tr -d '"' | sort -u)
+
+    while IFS= read -r key; do
+        [[ -z "$key" ]] && continue
+        local plugin_name="${key%@*}"
+        local marketplace="${key#*@}"
+        local cache_dir="$HOME/.claude/plugins/cache/$marketplace/$plugin_name"
+
+        ((total_count++))
+
+        local status status_color
+        if [[ -d "$cache_dir" ]]; then
+            status="cached"
+            status_color="${GREEN}"
+            ((cached_count++))
+        else
+            status="missing"
+            status_color="${RED}"
+            ((missing_count++))
+        fi
+
+        printf "  %-45s  %-15s  ${status_color}%s${RESET}\n" "$plugin_name" "$marketplace" "$status"
+    done <<< "$keys"
+
+    echo ""
+    printf "  ${DIM}%-45s  %-15s  %s${RESET}\n" "$(printf '─%.0s' {1..45})" "$(printf '─%.0s' {1..15})" "$(printf '─%.0s' {1..12})"
+    echo -e "  ${BOLD}Summary:${RESET} ${GREEN}$cached_count cached${RESET}, ${RED}$missing_count missing${RESET} (of $total_count total)"
+    echo ""
+
+    if [[ $missing_count -gt 0 ]]; then
+        log_info "Run './setup.sh plugins' to install missing plugins"
+        echo ""
+    fi
+}
+
 # Save current plugin state from ~/.claude/plugins/ back to the repo.
 save_claude_plugins() {
     log_step "Saving Claude plugin state to repo"

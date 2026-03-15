@@ -23,6 +23,9 @@ $config = Read-Profile -ProfileName $Profile
 if (-not $config) {
     exit 1
 }
+if (-not (Assert-ProfileOS -Profile $config -ExpectedOS 'windows' -ProfileName $Profile)) {
+    exit 1
+}
 
 # Manifest path
 $manifestPath = Join-Path $repoRoot "config\dotfiles\manifest.windows.txt"

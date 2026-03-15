@@ -10,6 +10,37 @@ shorten_path() {
     echo "${path/#$HOME/~}"
 }
 
+normalize_path() {
+    local path="$1"
+
+    if [[ -d "$path" ]]; then
+        (cd "$path" 2>/dev/null && pwd -P) || echo "$path"
+        return
+    fi
+
+    local dir base
+    dir="$(dirname "$path")"
+    base="$(basename "$path")"
+
+    if [[ -d "$dir" ]]; then
+        (cd "$dir" 2>/dev/null && printf '%s/%s\n' "$(pwd -P)" "$base") || echo "$path"
+    else
+        echo "$path"
+    fi
+}
+
+resolve_symlink_target() {
+    local link_path="$1"
+    local target
+    target="$(readlink "$link_path")"
+
+    if [[ "$target" != /* ]]; then
+        target="$(dirname "$link_path")/$target"
+    fi
+
+    normalize_path "$target"
+}
+
 # Create a symlink with backup
 # Usage: create_symlink source destination
 create_symlink() {
@@ -27,7 +58,7 @@ create_symlink() {
     fi
 
     # Get absolute path of source
-    source="$(cd "$(dirname "$source")" && pwd)/$(basename "$source")"
+    source="$(normalize_path "$source")"
 
     # Prepare shortened path for display
     local short_dest
@@ -49,7 +80,7 @@ create_symlink() {
         # Check if already correctly linked
         if [[ -L "$destination" ]]; then
             local current_target
-            current_target="$(readlink "$destination")"
+            current_target="$(resolve_symlink_target "$destination")"
             if [[ "$current_target" == "$source" ]]; then
                 echo -e "  ${GREEN}✓${RESET} ${short_dest}"
                 return 0
@@ -57,7 +88,7 @@ create_symlink() {
         fi
 
         # Backup existing file
-        if backup_file "$destination"; then
+        if backup_file "$destination" "$source"; then
             backed_up=true
         fi
     fi
@@ -76,16 +107,26 @@ create_symlink() {
 }
 
 # Backup a file before replacing
-# Usage: backup_file filepath
+# Usage: backup_file filepath managed_source
 # Returns: 0 if backed up, 1 if was old symlink (removed)
 backup_file() {
     local filepath="$1"
+    local managed_source="$2"
+    local repo_root
+    repo_root="$(normalize_path "$(get_repo_root)")"
 
     # Don't backup if it's already a symlink to our dotfiles
     if [[ -L "$filepath" ]]; then
         local target
-        target="$(readlink "$filepath")"
-        if [[ "$target" == *"setup-os"* ]] || [[ "$target" == *"dotfiles"* ]]; then
+        target="$(resolve_symlink_target "$filepath")"
+        if [[ "$target" == "$managed_source" ]]; then
+            if ! is_dry_run; then
+                rm "$filepath"
+            fi
+            return 1
+        fi
+
+        if [[ "$target" == "$repo_root"/* ]]; then
             if ! is_dry_run; then
                 rm "$filepath"
             fi
@@ -129,8 +170,11 @@ process_manifest() {
         # Trim whitespace
         source="$(echo "$source" | xargs)"
         destination="$(echo "$destination" | xargs)"
-        backup="$(echo "${backup:-yes}" | xargs)"
+        backup="$(echo "${backup:-}" | xargs)"
         condition="$(echo "${condition:-}" | xargs)"
+
+        # The manifest backup column is reserved for future behavior and is ignored today.
+        : "$backup"
 
         # Check condition if specified
         if [[ -n "$condition" ]]; then
@@ -144,6 +188,7 @@ process_manifest() {
         if [[ "$source" != /* ]]; then
             source="$repo_root/$source"
         fi
+        source="$(normalize_path "$source")"
 
         # Create symlink
         create_symlink "$source" "$destination"
@@ -185,6 +230,7 @@ check_manifest() {
         if [[ "$source" != /* ]]; then
             source="$repo_root/$source"
         fi
+        source="$(normalize_path "$source")"
         destination="${destination/#\~/$HOME}"
         local short_dest
         short_dest="$(shorten_path "$destination")"
@@ -192,7 +238,7 @@ check_manifest() {
         # Check symlink status
         if [[ -L "$destination" ]]; then
             local target
-            target="$(readlink "$destination")"
+            target="$(resolve_symlink_target "$destination")"
             if [[ "$target" == "$source" ]]; then
                 echo -e "  ${GREEN}✓${RESET} ${short_dest}"
             else

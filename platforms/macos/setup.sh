@@ -47,7 +47,6 @@ macos_setup() {
 
     # 4. Dotfiles symlinking
     if [[ "$SKIP_DOTFILES" != "true" ]] && [[ "${PROFILE_DOTFILES:-true}" == "true" ]]; then
-        source "$MACOS_DIR/dotfiles.sh"
         setup_dotfiles
     else
         log_info "Skipping dotfiles setup"

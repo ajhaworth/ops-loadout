@@ -13,6 +13,8 @@ setup_repositories() {
         return 0
     fi
 
+    require_supported_linux_apt || return 1
+
     setup_nodejs_repo
 
     log_success "Repository setup complete"
@@ -66,13 +68,6 @@ install_go() {
         fi
     fi
 
-    if is_dry_run; then
-        log_dry "Download go${go_version}.linux-amd64.tar.gz"
-        log_dry "sudo rm -rf $go_install_dir"
-        log_dry "sudo tar -C /usr/local -xzf go${go_version}.linux-amd64.tar.gz"
-        return 0
-    fi
-
     # Detect architecture
     local arch
     case "$(uname -m)" in
@@ -84,6 +79,13 @@ install_go() {
             return 1
             ;;
     esac
+
+    if is_dry_run; then
+        log_dry "Download go${go_version}.linux-${arch}.tar.gz"
+        log_dry "sudo rm -rf $go_install_dir"
+        log_dry "sudo tar -C /usr/local -xzf go${go_version}.linux-${arch}.tar.gz"
+        return 0
+    fi
 
     local go_tarball="go${go_version}.linux-${arch}.tar.gz"
     local go_url="https://go.dev/dl/${go_tarball}"

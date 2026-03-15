@@ -7,10 +7,11 @@ linux_setup() {
     print_header "Linux Setup"
 
     # Source Linux-specific modules
-    source "$SCRIPT_DIR/platforms/linux/dotfiles.sh"
     source "$SCRIPT_DIR/platforms/linux/packages.sh"
     source "$SCRIPT_DIR/platforms/linux/repositories.sh"
     source "$SCRIPT_DIR/platforms/linux/extras.sh"
+
+    require_supported_linux_apt || return 1
 
     # 1. External repositories (NodeSource for Node.js)
     setup_repositories

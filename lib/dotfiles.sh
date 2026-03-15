@@ -125,7 +125,7 @@ EOF
 configure_gh_credential_helper() {
     local config_file="$HOME/.gitconfig.local"
     local gh_path
-    gh_path="$(which gh)"
+    gh_path="$(command -v gh)"
 
     # Check if credential helper is already configured
     if grep -q "gh auth git-credential" "$config_file" 2>/dev/null; then
@@ -215,6 +215,176 @@ setup_gh_auth() {
     fi
 }
 
+# List dotfiles and their symlink status
+cmd_dotfiles_ls() {
+    local manifest="$SCRIPT_DIR/config/dotfiles/manifest.txt"
+
+    if [[ ! -f "$manifest" ]]; then
+        log_error "Manifest not found: $manifest"
+        return 1
+    fi
+
+    echo ""
+    log_step "Dotfiles"
+    echo ""
+
+    # Print header
+    printf "  ${BOLD}%-40s  %-50s  %s${RESET}\n" "SOURCE" "DESTINATION" "STATUS"
+    printf "  ${DIM}%-40s  %-50s  %s${RESET}\n" "$(printf '─%.0s' {1..40})" "$(printf '─%.0s' {1..50})" "$(printf '─%.0s' {1..12})"
+
+    local count_ok=0
+    local count_missing=0
+    local count_wrong=0
+    local count_conflict=0
+
+    while IFS='|' read -r source destination _ condition || [[ -n "$source" ]]; do
+        # Skip empty lines and comments
+        [[ -z "$source" ]] && continue
+        [[ "$source" =~ ^[[:space:]]*# ]] && continue
+
+        # Trim whitespace
+        source="$(echo "$source" | xargs)"
+        destination="$(echo "$destination" | xargs)"
+        condition="$(echo "${condition:-}" | xargs)"
+
+        # Check condition if specified
+        if [[ -n "$condition" ]]; then
+            local condition_value="${!condition:-true}"
+            if [[ "$condition_value" != "true" ]]; then
+                continue
+            fi
+        fi
+
+        # Make paths absolute
+        local abs_source="$source"
+        if [[ "$source" != /* ]]; then
+            abs_source="$SCRIPT_DIR/$source"
+        fi
+        abs_source="$(normalize_path "$abs_source")"
+        local abs_dest="${destination/#\~/$HOME}"
+
+        # Shorten paths for display
+        local display_source="${source#config/dotfiles/}"
+        local display_dest="${destination/#\~\//~/}"
+
+        # Check symlink status
+        local status status_color
+        if [[ -L "$abs_dest" ]]; then
+            local target
+            target="$(resolve_symlink_target "$abs_dest")"
+            if [[ "$target" == "$abs_source" ]]; then
+                status="linked"
+                status_color="${GREEN}"
+                ((count_ok++))
+            else
+                status="wrong target"
+                status_color="${YELLOW}"
+                ((count_wrong++))
+            fi
+        elif [[ -e "$abs_dest" ]]; then
+            status="conflict"
+            status_color="${RED}"
+            ((count_conflict++))
+        else
+            status="missing"
+            status_color="${RED}"
+            ((count_missing++))
+        fi
+
+        printf "  %-40s  %-50s  ${status_color}%s${RESET}\n" "$display_source" "$display_dest" "$status"
+    done < "$manifest"
+
+    # Print summary
+    echo ""
+    printf "  ${DIM}%-40s  %-50s  %s${RESET}\n" "$(printf '─%.0s' {1..40})" "$(printf '─%.0s' {1..50})" "$(printf '─%.0s' {1..12})"
+    echo ""
+    echo -e "  ${BOLD}Summary:${RESET} ${GREEN}$count_ok linked${RESET}"
+    if [[ $count_missing -gt 0 ]]; then
+        echo -e "           ${RED}$count_missing missing${RESET}"
+    fi
+    if [[ $count_wrong -gt 0 ]]; then
+        echo -e "           ${YELLOW}$count_wrong wrong target${RESET}"
+    fi
+    if [[ $count_conflict -gt 0 ]]; then
+        echo -e "           ${RED}$count_conflict conflict${RESET} (file exists but not a symlink)"
+    fi
+    echo ""
+
+    if [[ $count_missing -gt 0 ]] || [[ $count_wrong -gt 0 ]] || [[ $count_conflict -gt 0 ]]; then
+        log_info "Run './setup.sh dotfiles' to fix issues"
+        echo ""
+    fi
+}
+
+# Configure shell to set terminal title (for tmux hostname display)
+cmd_shell_title() {
+    local bashrc="$HOME/.bashrc"
+    local zshrc="$HOME/.zshrc"
+    local marker="# Terminal title for tmux"
+    local bash_config='
+# Terminal title for tmux (shows hostname in status bar)
+PROMPT_COMMAND='\''printf "\\e]2;%s\\a" "$HOSTNAME"'\''${PROMPT_COMMAND:+;$PROMPT_COMMAND}'
+
+    local zsh_config='
+# Terminal title for tmux (shows hostname in status bar)
+precmd_set_title() { print -Pn "\\e]2;%m\\a" }
+autoload -Uz add-zsh-hook
+add-zsh-hook precmd precmd_set_title'
+
+    local added=false
+
+    # Configure bashrc
+    if [[ -f "$bashrc" ]]; then
+        if grep -q "$marker" "$bashrc" 2>/dev/null; then
+            log_info "bashrc already configured"
+        else
+            if is_dry_run; then
+                log_info "[DRY-RUN] Would add terminal title config to $bashrc"
+            else
+                echo "" >> "$bashrc"
+                echo "$marker" >> "$bashrc"
+                echo "$bash_config" >> "$bashrc"
+                log_success "Added terminal title config to $bashrc"
+                added=true
+            fi
+        fi
+    fi
+
+    # Configure zshrc
+    if [[ -f "$zshrc" ]]; then
+        if grep -q "$marker" "$zshrc" 2>/dev/null; then
+            log_info "zshrc already configured"
+        else
+            if is_dry_run; then
+                log_info "[DRY-RUN] Would add terminal title config to $zshrc"
+            else
+                echo "" >> "$zshrc"
+                echo "$marker" >> "$zshrc"
+                echo "$zsh_config" >> "$zshrc"
+                log_success "Added terminal title config to $zshrc"
+                added=true
+            fi
+        fi
+    fi
+
+    # Create bashrc if neither exists
+    if [[ ! -f "$bashrc" ]] && [[ ! -f "$zshrc" ]]; then
+        if is_dry_run; then
+            log_info "[DRY-RUN] Would create $bashrc with terminal title config"
+        else
+            echo "$marker" > "$bashrc"
+            echo "$bash_config" >> "$bashrc"
+            log_success "Created $bashrc with terminal title config"
+            added=true
+        fi
+    fi
+
+    if [[ "$added" == "true" ]]; then
+        echo ""
+        log_info "Restart your shell or run: source ~/.bashrc (or ~/.zshrc)"
+    fi
+}
+
 # Setup Docker authentication with GitHub Container Registry
 setup_docker_ghcr_auth() {
     log_step "Configuring Docker for GitHub Container Registry"
@@ -257,4 +427,31 @@ setup_docker_ghcr_auth() {
         log_error "Failed to authenticate Docker with ghcr.io"
         return 1
     fi
+}
+
+# Unified dotfiles setup (used by both macOS and Linux platform scripts)
+setup_dotfiles() {
+    print_header "Dotfiles Setup"
+
+    local manifest="$SCRIPT_DIR/config/dotfiles/manifest.txt"
+
+    if [[ ! -f "$manifest" ]]; then
+        log_warn "Dotfiles manifest not found: $manifest"
+        return 0
+    fi
+
+    log_step "Processing dotfiles manifest"
+    process_manifest "$manifest"
+
+    log_step "Dotfiles status"
+    check_manifest "$manifest" || true
+
+    create_local_overrides
+    setup_gh_auth
+
+    if [[ "$(detect_os)" == "linux" ]]; then
+        setup_docker_ghcr_auth
+    fi
+
+    log_success "Dotfiles setup complete"
 }

@@ -1,4 +1,4 @@
-# Devbox
+# ops-workstation
 
 Cross-platform workstation setup using simple shell scripts with profile-based customization.
 
@@ -6,8 +6,8 @@ Cross-platform workstation setup using simple shell scripts with profile-based c
 
 ```bash
 # Clone the repository
-git clone https://github.com/ajhaworth/dotfiles.git
-cd dotfiles
+git clone <your-repo-url>
+cd ops-workstation
 
 # macOS/Linux
 ./setup.sh --profile personal
@@ -28,6 +28,7 @@ cd dotfiles
 - **Dry-run mode**: Preview changes before applying
 - **Dotfiles management**: Symlinked configs with backup support
 - **Status checking**: List commands show what's installed vs missing
+- **Strict profile validation**: Profiles now fail fast when used on the wrong OS
 
 ## Supported Platforms
 
@@ -51,7 +52,7 @@ Minimal installation for work macOS devices - core development tools only, skips
 
 ### Linux (`--profile linux`)
 
-Full dev station setup for Linux (Debian/Ubuntu) including core tools, shell enhancements, and web development stack.
+Full dev station setup for Debian/Ubuntu Linux including core tools, shell enhancements, and web development stack.
 
 ### Windows (`--profile windows`)
 
@@ -109,6 +110,8 @@ Gaming workstation setup for Windows including core dev tools, browsers, product
 --help              Show help message
 ```
 
+Profiles are OS-specific. A mismatched profile now exits immediately instead of running a partial setup.
+
 **Windows:**
 ```
 -DryRun             Show what would be done without making changes
@@ -128,7 +131,7 @@ Packages are defined in text files under `config/packages/`:
 - `mas/apps.txt` - Mac App Store apps (`ID|Name` format)
 
 **Linux** (`config/packages/linux/`):
-- `apt/*.txt` - APT packages (one package per line)
+- `apt/*.txt` - APT packages (Debian/Ubuntu only)
 
 **Windows** (`config/packages/windows/`):
 - `winget/*.txt` - Winget packages (one package per line)
@@ -157,7 +160,7 @@ Machine-specific settings go in `.local` files (not tracked by git):
 ## Project Structure
 
 ```
-dotfiles/
+ops-workstation/
 ├── setup.sh                    # Entry point (macOS/Linux)
 ├── setup.ps1                   # Entry point (Windows)
 ├── lib/                        # Shared libraries
@@ -213,7 +216,9 @@ This repository is designed to be public and contains no secrets. Personal infor
 
 **MAS apps won't install** - Sign into the Mac App Store app first, then run setup again.
 
-**Dotfile symlinks fail** - Existing files will be backed up automatically. Check for conflicts with `./setup.sh dotfiles ls`.
+**Dotfile symlinks fail** - Existing files and third-party symlinks are backed up automatically. Check for conflicts with `./setup.sh dotfiles ls`.
+
+**Linux package setup exits immediately on Fedora/Arch/etc.** - Linux package automation is intentionally limited to Debian/Ubuntu because repository and extra-tool setup is APT-based.
 
 **Windows symlinks fail** - Enable Developer Mode (Settings > Update & Security > For developers) or run PowerShell as Administrator.
 

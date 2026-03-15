@@ -86,7 +86,8 @@
     "claude-code-setup@claude-plugins-official": true,
     "fullstack-dev-skills@fullstack-dev-skills": true,
     "superpowers@claude-plugins-official": true,
-    "playwright@claude-plugins-official": true
+    "playwright@claude-plugins-official": true,
+    "swift-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "fullstack-dev-skills": {
@@ -96,5 +97,7 @@
       }
     }
   },
+  "effortLevel": "medium",
+  "voiceEnabled": true,
   "skipDangerousModePermissionPrompt": true
 }

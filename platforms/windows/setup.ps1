@@ -35,6 +35,9 @@ if (-not $config) {
     Write-Err "Failed to load profile: $Profile"
     exit 1
 }
+if (-not (Assert-ProfileOS -Profile $config -ExpectedOS 'windows' -ProfileName $Profile)) {
+    exit 1
+}
 
 # Handle subcommands
 function Invoke-PackagesCommand {

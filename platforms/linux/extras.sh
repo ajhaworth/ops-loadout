@@ -16,6 +16,8 @@ setup_extras() {
         return 0
     fi
 
+    require_supported_linux_apt || return 1
+
     install_starship
     install_eza
     install_delta
@@ -181,7 +183,7 @@ set_default_shell_zsh() {
     log_step "Setting zsh as default shell"
 
     local zsh_path
-    zsh_path="$(which zsh 2>/dev/null)"
+    zsh_path="$(command -v zsh 2>/dev/null)"
 
     if [[ -z "$zsh_path" ]]; then
         log_warn "zsh not found, skipping default shell change"

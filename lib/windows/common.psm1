@@ -151,6 +151,25 @@ function Test-ProfileFlag {
     return $value -eq 'true'
 }
 
+function Assert-ProfileOS {
+    param(
+        [Parameter(Mandatory)]
+        [hashtable]$Profile,
+        [Parameter(Mandatory)]
+        [string]$ExpectedOS,
+        [string]$ProfileName = ''
+    )
+
+    $profileOS = if ($Profile.ContainsKey('PROFILE_OS')) { $Profile['PROFILE_OS'] } else { '' }
+    if ($profileOS -and $profileOS -ne $ExpectedOS) {
+        $label = if ($ProfileName) { $ProfileName } else { '<unknown>' }
+        Write-Err "Profile '$label' targets $profileOS, but this script is running on $ExpectedOS."
+        return $false
+    }
+
+    return $true
+}
+
 # Read package list from file
 function Read-PackageList {
     param(
@@ -220,6 +239,7 @@ Export-ModuleMember -Function @(
     'Get-RepoRoot',
     'Read-Profile',
     'Test-ProfileFlag',
+    'Assert-ProfileOS',
     'Read-PackageList',
     'Get-CategoryVar',
     'Test-Administrator',

@@ -23,6 +23,9 @@ $config = Read-Profile -ProfileName $Profile
 if (-not $config) {
     exit 1
 }
+if (-not (Assert-ProfileOS -Profile $config -ExpectedOS 'windows' -ProfileName $Profile)) {
+    exit 1
+}
 
 # Package list directory
 $packagesDir = Join-Path $repoRoot "config\packages\windows"

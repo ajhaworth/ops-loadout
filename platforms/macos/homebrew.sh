@@ -211,3 +211,187 @@ cleanup_homebrew() {
     brew cleanup
     log_success "Homebrew cleanup complete"
 }
+
+# ============================================================================
+# Package status listing (used by `setup.sh homebrew ls` etc.)
+# ============================================================================
+
+# Package directories
+FORMULAE_DIR="$SCRIPT_DIR/config/packages/macos/formulae"
+CASKS_DIR="$SCRIPT_DIR/config/packages/macos/casks"
+MAS_DIR="$SCRIPT_DIR/config/packages/macos/mas"
+
+# Cache for installed packages
+INSTALLED_FORMULAE=""
+INSTALLED_CASKS=""
+INSTALLED_MAS=""
+
+# Get list of installed formulae (cached)
+get_installed_formulae() {
+    if [[ -z "$INSTALLED_FORMULAE" ]]; then
+        if command -v brew &>/dev/null; then
+            INSTALLED_FORMULAE=$(brew list --formula 2>/dev/null || echo "")
+        fi
+    fi
+    echo "$INSTALLED_FORMULAE"
+}
+
+# Get list of installed casks (cached)
+get_installed_casks() {
+    if [[ -z "$INSTALLED_CASKS" ]]; then
+        if command -v brew &>/dev/null; then
+            INSTALLED_CASKS=$(brew list --cask 2>/dev/null || echo "")
+        fi
+    fi
+    echo "$INSTALLED_CASKS"
+}
+
+# Get list of installed MAS apps (cached)
+get_installed_mas() {
+    if [[ -z "$INSTALLED_MAS" ]]; then
+        if command -v mas &>/dev/null; then
+            INSTALLED_MAS=$(mas list 2>/dev/null | awk '{print $1}' || echo "")
+        fi
+    fi
+    echo "$INSTALLED_MAS"
+}
+
+# Check if a formula is installed (handles versioned packages like python@3.14)
+is_formula_installed() {
+    local formula="$1"
+    get_installed_formulae | grep -qE "^${formula}(@|$)"
+}
+
+# Check if a cask is installed
+is_cask_installed() {
+    local cask="$1"
+    get_installed_casks | grep -qE "^${cask}$"
+}
+
+# Check if a MAS app is installed
+is_mas_installed() {
+    local app_id="$1"
+    get_installed_mas | grep -qE "^${app_id}$"
+}
+
+# Generic helper to list brew package status
+# Usage: list_brew_package_status packages_dir title is_check_func
+list_brew_package_status() {
+    local packages_dir="$1"
+    local title="$2"
+    local is_check_func="$3"
+
+    echo ""
+    log_step "$title"
+    echo ""
+
+    if [[ ! -d "$packages_dir" ]]; then
+        log_warn "Directory not found: $packages_dir"
+        return 1
+    fi
+
+    local total_count=0
+    local installed_count=0
+    local missing_count=0
+
+    for file in "$packages_dir"/*.txt; do
+        [[ -f "$file" ]] || continue
+
+        local category
+        category="$(basename "$file" .txt)"
+
+        echo -e "  ${BOLD}${category}${RESET}"
+
+        while IFS= read -r package || [[ -n "$package" ]]; do
+            package="$(echo "$package" | xargs)"
+            [[ -z "$package" ]] && continue
+            [[ "$package" =~ ^# ]] && continue
+            package="${package%%#*}"
+            package="$(echo "$package" | xargs)"
+            [[ -z "$package" ]] && continue
+
+            ((total_count++))
+
+            local status status_color
+            if $is_check_func "$package"; then
+                status="installed"
+                status_color="${GREEN}"
+                ((installed_count++))
+            else
+                status="missing"
+                status_color="${RED}"
+                ((missing_count++))
+            fi
+
+            printf "    %-35s ${status_color}%s${RESET}\n" "$package" "$status"
+        done < "$file"
+
+        echo ""
+    done
+
+    printf "  ${DIM}%s${RESET}\n" "$(printf '─%.0s' {1..50})"
+    echo -e "  ${BOLD}Summary:${RESET} ${GREEN}$installed_count installed${RESET}, ${RED}$missing_count missing${RESET} (of $total_count total)"
+    echo ""
+}
+
+cmd_formulae_ls() {
+    list_brew_package_status "$FORMULAE_DIR" "Homebrew Formulae" is_formula_installed
+}
+
+cmd_casks_ls() {
+    list_brew_package_status "$CASKS_DIR" "Homebrew Casks" is_cask_installed
+}
+
+cmd_mas_ls() {
+    echo ""
+    log_step "Mac App Store Apps"
+    echo ""
+
+    local mas_file="$MAS_DIR/apps.txt"
+
+    if [[ ! -f "$mas_file" ]]; then
+        log_warn "MAS apps file not found: $mas_file"
+        return 1
+    fi
+
+    printf "  ${BOLD}%-12s  %-35s  %s${RESET}\n" "APP ID" "NAME" "STATUS"
+    printf "  ${DIM}%-12s  %-35s  %s${RESET}\n" "$(printf '─%.0s' {1..12})" "$(printf '─%.0s' {1..35})" "$(printf '─%.0s' {1..12})"
+
+    local total_count=0
+    local installed_count=0
+    local missing_count=0
+
+    while IFS='|' read -r id name || [[ -n "$id" ]]; do
+        id="$(echo "$id" | xargs)"
+        name="$(echo "$name" | xargs)"
+
+        [[ -z "$id" ]] && continue
+        [[ "$id" =~ ^# ]] && continue
+        [[ "$id" =~ ^[0-9]+$ ]] || continue
+
+        ((total_count++))
+
+        local status status_color
+        if is_mas_installed "$id"; then
+            status="installed"
+            status_color="${GREEN}"
+            ((installed_count++))
+        else
+            status="missing"
+            status_color="${RED}"
+            ((missing_count++))
+        fi
+
+        printf "  %-12s  %-35s  ${status_color}%s${RESET}\n" "$id" "$name" "$status"
+    done < "$mas_file"
+
+    echo ""
+    printf "  ${DIM}%-12s  %-35s  %s${RESET}\n" "$(printf '─%.0s' {1..12})" "$(printf '─%.0s' {1..35})" "$(printf '─%.0s' {1..12})"
+    echo -e "  ${BOLD}Summary:${RESET} ${GREEN}$installed_count installed${RESET}, ${RED}$missing_count missing${RESET} (of $total_count total)"
+    echo ""
+}
+
+cmd_homebrew_ls() {
+    cmd_formulae_ls
+    cmd_casks_ls
+}

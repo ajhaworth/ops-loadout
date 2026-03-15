@@ -60,9 +60,10 @@ source "$SCRIPT_DIR/lib/claude-plugins.sh"
 PROFILE=""
 DRY_RUN="false"
 FORCE="false"
+PROFILE_LOADED="false"
 
 # Export for subshells and sourced scripts
-export DRY_RUN FORCE
+export DRY_RUN FORCE PROFILE_LOADED
 
 # Show help
 show_help() {
@@ -145,105 +146,6 @@ get_repo_root() {
     echo "$SCRIPT_DIR"
 }
 
-cmd_dotfiles_ls() {
-    local manifest="$SCRIPT_DIR/config/dotfiles/manifest.txt"
-
-    if [[ ! -f "$manifest" ]]; then
-        log_error "Manifest not found: $manifest"
-        return 1
-    fi
-
-    echo ""
-    log_step "Dotfiles"
-    echo ""
-
-    # Print header
-    printf "  ${BOLD}%-40s  %-50s  %s${RESET}\n" "SOURCE" "DESTINATION" "STATUS"
-    printf "  ${DIM}%-40s  %-50s  %s${RESET}\n" "$(printf '─%.0s' {1..40})" "$(printf '─%.0s' {1..50})" "$(printf '─%.0s' {1..12})"
-
-    local count_ok=0
-    local count_missing=0
-    local count_wrong=0
-    local count_conflict=0
-
-    while IFS='|' read -r source destination _ condition || [[ -n "$source" ]]; do
-        # Skip empty lines and comments
-        [[ -z "$source" ]] && continue
-        [[ "$source" =~ ^[[:space:]]*# ]] && continue
-
-        # Trim whitespace
-        source="$(echo "$source" | xargs)"
-        destination="$(echo "$destination" | xargs)"
-        condition="$(echo "${condition:-}" | xargs)"
-
-        # Check condition if specified
-        if [[ -n "$condition" ]]; then
-            local condition_value="${!condition:-true}"
-            if [[ "$condition_value" != "true" ]]; then
-                continue
-            fi
-        fi
-
-        # Make paths absolute
-        local abs_source="$source"
-        if [[ "$source" != /* ]]; then
-            abs_source="$SCRIPT_DIR/$source"
-        fi
-        local abs_dest="${destination/#\~/$HOME}"
-
-        # Shorten paths for display
-        local display_source="${source#config/dotfiles/}"
-        local display_dest="${destination/#\~\//~/}"
-
-        # Check symlink status
-        local status status_color
-        if [[ -L "$abs_dest" ]]; then
-            local target
-            target="$(readlink "$abs_dest")"
-            if [[ "$target" == "$abs_source" ]]; then
-                status="linked"
-                status_color="${GREEN}"
-                ((count_ok++))
-            else
-                status="wrong target"
-                status_color="${YELLOW}"
-                ((count_wrong++))
-            fi
-        elif [[ -e "$abs_dest" ]]; then
-            status="conflict"
-            status_color="${RED}"
-            ((count_conflict++))
-        else
-            status="missing"
-            status_color="${RED}"
-            ((count_missing++))
-        fi
-
-        printf "  %-40s  %-50s  ${status_color}%s${RESET}\n" "$display_source" "$display_dest" "$status"
-    done < "$manifest"
-
-    # Print summary
-    echo ""
-    printf "  ${DIM}%-40s  %-50s  %s${RESET}\n" "$(printf '─%.0s' {1..40})" "$(printf '─%.0s' {1..50})" "$(printf '─%.0s' {1..12})"
-    echo ""
-    echo -e "  ${BOLD}Summary:${RESET} ${GREEN}$count_ok linked${RESET}"
-    if [[ $count_missing -gt 0 ]]; then
-        echo -e "           ${RED}$count_missing missing${RESET}"
-    fi
-    if [[ $count_wrong -gt 0 ]]; then
-        echo -e "           ${YELLOW}$count_wrong wrong target${RESET}"
-    fi
-    if [[ $count_conflict -gt 0 ]]; then
-        echo -e "           ${RED}$count_conflict conflict${RESET} (file exists but not a symlink)"
-    fi
-    echo ""
-
-    if [[ $count_missing -gt 0 ]] || [[ $count_wrong -gt 0 ]] || [[ $count_conflict -gt 0 ]]; then
-        log_info "Run './setup.sh dotfiles' to fix issues"
-        echo ""
-    fi
-}
-
 cmd_dotfiles_install() {
     print_banner
     log_step "Installing dotfiles"
@@ -279,78 +181,6 @@ cmd_dotfiles_install() {
 }
 
 # ============================================================================
-# Subcommand: shell-title (configure terminal title for tmux)
-# ============================================================================
-
-cmd_shell_title() {
-    local bashrc="$HOME/.bashrc"
-    local zshrc="$HOME/.zshrc"
-    local marker="# Terminal title for tmux"
-    local bash_config='
-# Terminal title for tmux (shows hostname in status bar)
-PROMPT_COMMAND='\''printf "\\e]2;%s\\a" "$HOSTNAME"'\''${PROMPT_COMMAND:+;$PROMPT_COMMAND}'
-
-    local zsh_config='
-# Terminal title for tmux (shows hostname in status bar)
-precmd_set_title() { print -Pn "\\e]2;%m\\a" }
-autoload -Uz add-zsh-hook
-add-zsh-hook precmd precmd_set_title'
-
-    local added=false
-
-    # Configure bashrc
-    if [[ -f "$bashrc" ]]; then
-        if grep -q "$marker" "$bashrc" 2>/dev/null; then
-            log_info "bashrc already configured"
-        else
-            if is_dry_run; then
-                log_info "[DRY-RUN] Would add terminal title config to $bashrc"
-            else
-                echo "" >> "$bashrc"
-                echo "$marker" >> "$bashrc"
-                echo "$bash_config" >> "$bashrc"
-                log_success "Added terminal title config to $bashrc"
-                added=true
-            fi
-        fi
-    fi
-
-    # Configure zshrc
-    if [[ -f "$zshrc" ]]; then
-        if grep -q "$marker" "$zshrc" 2>/dev/null; then
-            log_info "zshrc already configured"
-        else
-            if is_dry_run; then
-                log_info "[DRY-RUN] Would add terminal title config to $zshrc"
-            else
-                echo "" >> "$zshrc"
-                echo "$marker" >> "$zshrc"
-                echo "$zsh_config" >> "$zshrc"
-                log_success "Added terminal title config to $zshrc"
-                added=true
-            fi
-        fi
-    fi
-
-    # Create bashrc if neither exists
-    if [[ ! -f "$bashrc" ]] && [[ ! -f "$zshrc" ]]; then
-        if is_dry_run; then
-            log_info "[DRY-RUN] Would create $bashrc with terminal title config"
-        else
-            echo "$marker" > "$bashrc"
-            echo "$bash_config" >> "$bashrc"
-            log_success "Created $bashrc with terminal title config"
-            added=true
-        fi
-    fi
-
-    if [[ "$added" == "true" ]]; then
-        echo ""
-        log_info "Restart your shell or run: source ~/.bashrc (or ~/.zshrc)"
-    fi
-}
-
-# ============================================================================
 # Subcommand: packages (Linux)
 # ============================================================================
 
@@ -375,251 +205,6 @@ cmd_packages_install() {
 
     echo ""
     log_success "Package installation complete"
-}
-
-# ============================================================================
-# Subcommand: plugins (Claude Code)
-# ============================================================================
-
-cmd_plugins_ls() {
-    echo ""
-    log_step "Claude Code Plugins"
-    echo ""
-
-    local plugins_file="$HOME/.claude/plugins/installed_plugins.json"
-
-    if [[ ! -f "$plugins_file" ]]; then
-        log_warn "No installed plugins file found at $plugins_file"
-        log_info "Run './setup.sh plugins' to deploy plugin configs"
-        echo ""
-        return 0
-    fi
-
-    printf "  ${BOLD}%-45s  %-15s  %s${RESET}\n" "PLUGIN" "MARKETPLACE" "STATUS"
-    printf "  ${DIM}%-45s  %-15s  %s${RESET}\n" "$(printf '─%.0s' {1..45})" "$(printf '─%.0s' {1..15})" "$(printf '─%.0s' {1..12})"
-
-    local total_count=0
-    local cached_count=0
-    local missing_count=0
-
-    local keys
-    keys=$(grep -oE '"[^"]+@[^"]+"' "$plugins_file" | tr -d '"' | sort -u)
-
-    while IFS= read -r key; do
-        [[ -z "$key" ]] && continue
-        local plugin_name="${key%@*}"
-        local marketplace="${key#*@}"
-        local cache_dir="$HOME/.claude/plugins/cache/$marketplace/$plugin_name"
-
-        ((total_count++))
-
-        local status status_color
-        if [[ -d "$cache_dir" ]]; then
-            status="cached"
-            status_color="${GREEN}"
-            ((cached_count++))
-        else
-            status="missing"
-            status_color="${RED}"
-            ((missing_count++))
-        fi
-
-        printf "  %-45s  %-15s  ${status_color}%s${RESET}\n" "$plugin_name" "$marketplace" "$status"
-    done <<< "$keys"
-
-    echo ""
-    printf "  ${DIM}%-45s  %-15s  %s${RESET}\n" "$(printf '─%.0s' {1..45})" "$(printf '─%.0s' {1..15})" "$(printf '─%.0s' {1..12})"
-    echo -e "  ${BOLD}Summary:${RESET} ${GREEN}$cached_count cached${RESET}, ${RED}$missing_count missing${RESET} (of $total_count total)"
-    echo ""
-
-    if [[ $missing_count -gt 0 ]]; then
-        log_info "Run './setup.sh plugins' to install missing plugins"
-        echo ""
-    fi
-}
-
-# ============================================================================
-# Subcommand: homebrew/formulae/casks/mas
-# ============================================================================
-
-# Package directories
-FORMULAE_DIR="$SCRIPT_DIR/config/packages/macos/formulae"
-CASKS_DIR="$SCRIPT_DIR/config/packages/macos/casks"
-MAS_DIR="$SCRIPT_DIR/config/packages/macos/mas"
-
-# Cache for installed packages
-INSTALLED_FORMULAE=""
-INSTALLED_CASKS=""
-INSTALLED_MAS=""
-
-# Get list of installed formulae (cached)
-get_installed_formulae() {
-    if [[ -z "$INSTALLED_FORMULAE" ]]; then
-        if command -v brew &>/dev/null; then
-            INSTALLED_FORMULAE=$(brew list --formula 2>/dev/null || echo "")
-        fi
-    fi
-    echo "$INSTALLED_FORMULAE"
-}
-
-# Get list of installed casks (cached)
-get_installed_casks() {
-    if [[ -z "$INSTALLED_CASKS" ]]; then
-        if command -v brew &>/dev/null; then
-            INSTALLED_CASKS=$(brew list --cask 2>/dev/null || echo "")
-        fi
-    fi
-    echo "$INSTALLED_CASKS"
-}
-
-# Get list of installed MAS apps (cached)
-get_installed_mas() {
-    if [[ -z "$INSTALLED_MAS" ]]; then
-        if command -v mas &>/dev/null; then
-            INSTALLED_MAS=$(mas list 2>/dev/null | awk '{print $1}' || echo "")
-        fi
-    fi
-    echo "$INSTALLED_MAS"
-}
-
-# Check if a formula is installed (handles versioned packages like python@3.14)
-is_formula_installed() {
-    local formula="$1"
-    get_installed_formulae | grep -qE "^${formula}(@|$)"
-}
-
-# Check if a cask is installed
-is_cask_installed() {
-    local cask="$1"
-    get_installed_casks | grep -qE "^${cask}$"
-}
-
-# Check if a MAS app is installed
-is_mas_installed() {
-    local app_id="$1"
-    get_installed_mas | grep -qE "^${app_id}$"
-}
-
-# Generic helper to list brew package status
-# Usage: list_brew_package_status packages_dir title is_check_func
-list_brew_package_status() {
-    local packages_dir="$1"
-    local title="$2"
-    local is_check_func="$3"
-
-    echo ""
-    log_step "$title"
-    echo ""
-
-    if [[ ! -d "$packages_dir" ]]; then
-        log_warn "Directory not found: $packages_dir"
-        return 1
-    fi
-
-    local total_count=0
-    local installed_count=0
-    local missing_count=0
-
-    for file in "$packages_dir"/*.txt; do
-        [[ -f "$file" ]] || continue
-
-        local category
-        category="$(basename "$file" .txt)"
-
-        echo -e "  ${BOLD}${category}${RESET}"
-
-        while IFS= read -r package || [[ -n "$package" ]]; do
-            package="$(echo "$package" | xargs)"
-            [[ -z "$package" ]] && continue
-            [[ "$package" =~ ^# ]] && continue
-            package="${package%%#*}"
-            package="$(echo "$package" | xargs)"
-            [[ -z "$package" ]] && continue
-
-            ((total_count++))
-
-            local status status_color
-            if $is_check_func "$package"; then
-                status="installed"
-                status_color="${GREEN}"
-                ((installed_count++))
-            else
-                status="missing"
-                status_color="${RED}"
-                ((missing_count++))
-            fi
-
-            printf "    %-35s ${status_color}%s${RESET}\n" "$package" "$status"
-        done < "$file"
-
-        echo ""
-    done
-
-    printf "  ${DIM}%s${RESET}\n" "$(printf '─%.0s' {1..50})"
-    echo -e "  ${BOLD}Summary:${RESET} ${GREEN}$installed_count installed${RESET}, ${RED}$missing_count missing${RESET} (of $total_count total)"
-    echo ""
-}
-
-cmd_formulae_ls() {
-    list_brew_package_status "$FORMULAE_DIR" "Homebrew Formulae" is_formula_installed
-}
-
-cmd_casks_ls() {
-    list_brew_package_status "$CASKS_DIR" "Homebrew Casks" is_cask_installed
-}
-
-cmd_mas_ls() {
-    echo ""
-    log_step "Mac App Store Apps"
-    echo ""
-
-    local mas_file="$MAS_DIR/apps.txt"
-
-    if [[ ! -f "$mas_file" ]]; then
-        log_warn "MAS apps file not found: $mas_file"
-        return 1
-    fi
-
-    printf "  ${BOLD}%-12s  %-35s  %s${RESET}\n" "APP ID" "NAME" "STATUS"
-    printf "  ${DIM}%-12s  %-35s  %s${RESET}\n" "$(printf '─%.0s' {1..12})" "$(printf '─%.0s' {1..35})" "$(printf '─%.0s' {1..12})"
-
-    local total_count=0
-    local installed_count=0
-    local missing_count=0
-
-    while IFS='|' read -r id name || [[ -n "$id" ]]; do
-        id="$(echo "$id" | xargs)"
-        name="$(echo "$name" | xargs)"
-
-        [[ -z "$id" ]] && continue
-        [[ "$id" =~ ^# ]] && continue
-        [[ "$id" =~ ^[0-9]+$ ]] || continue
-
-        ((total_count++))
-
-        local status status_color
-        if is_mas_installed "$id"; then
-            status="installed"
-            status_color="${GREEN}"
-            ((installed_count++))
-        else
-            status="missing"
-            status_color="${RED}"
-            ((missing_count++))
-        fi
-
-        printf "  %-12s  %-35s  ${status_color}%s${RESET}\n" "$id" "$name" "$status"
-    done < "$mas_file"
-
-    echo ""
-    printf "  ${DIM}%-12s  %-35s  %s${RESET}\n" "$(printf '─%.0s' {1..12})" "$(printf '─%.0s' {1..35})" "$(printf '─%.0s' {1..12})"
-    echo -e "  ${BOLD}Summary:${RESET} ${GREEN}$installed_count installed${RESET}, ${RED}$missing_count missing${RESET} (of $total_count total)"
-    echo ""
-}
-
-cmd_homebrew_ls() {
-    cmd_formulae_ls
-    cmd_casks_ls
 }
 
 # ============================================================================
@@ -737,6 +322,11 @@ load_profile() {
     local profile_name="$1"
     local profile_file="$SCRIPT_DIR/config/profiles/${profile_name}.conf"
 
+    if [[ "${PROFILE_LOADED:-false}" == "true" ]] && [[ "${PROFILE_NAME:-}" == "$profile_name" ]]; then
+        validate_profile_platform
+        return 0
+    fi
+
     if [[ ! -f "$profile_file" ]]; then
         log_error "Profile not found: $profile_name"
         log_info "Available profiles:"
@@ -756,6 +346,20 @@ load_profile() {
 
     # Export profile variables
     export PROFILE_NAME="$profile_name"
+    export PROFILE_LOADED="true"
+
+    validate_profile_platform
+}
+
+validate_profile_platform() {
+    local current_os profile_os
+    current_os="$(detect_os)"
+    profile_os="${PROFILE_OS:-}"
+
+    if [[ -n "$profile_os" ]] && [[ "$profile_os" != "$current_os" ]]; then
+        log_error "Profile '$PROFILE_NAME' targets $profile_os, but the current OS is $current_os"
+        exit 1
+    fi
 }
 
 # Handle subcommands
@@ -806,6 +410,7 @@ handle_subcommand() {
         homebrew|brew)
             case "$subcmd" in
                 ls|list)
+                    source "$SCRIPT_DIR/platforms/macos/homebrew.sh"
                     cmd_homebrew_ls
                     ;;
                 ""|install)
@@ -822,6 +427,7 @@ handle_subcommand() {
         formulae|formula)
             case "$subcmd" in
                 ls|list)
+                    source "$SCRIPT_DIR/platforms/macos/homebrew.sh"
                     cmd_formulae_ls
                     ;;
                 ""|install)
@@ -838,6 +444,7 @@ handle_subcommand() {
         casks|cask)
             case "$subcmd" in
                 ls|list)
+                    source "$SCRIPT_DIR/platforms/macos/homebrew.sh"
                     cmd_casks_ls
                     ;;
                 ""|install)
@@ -854,6 +461,7 @@ handle_subcommand() {
         mas)
             case "$subcmd" in
                 ls|list)
+                    source "$SCRIPT_DIR/platforms/macos/homebrew.sh"
                     cmd_mas_ls
                     ;;
                 ""|install)
@@ -941,8 +549,11 @@ run_full_setup() {
         PROFILE="$REPLY"
     fi
 
-    # Load profile
-    load_profile "$PROFILE"
+    if [[ "${PROFILE_NAME:-}" != "$PROFILE" ]]; then
+        load_profile "$PROFILE"
+    else
+        validate_profile_platform
+    fi
 
     # Show dry-run notice
     if is_dry_run; then
@@ -1088,7 +699,7 @@ main() {
     done
 
     # Export options
-    export DRY_RUN FORCE
+    export DRY_RUN FORCE PROFILE_LOADED
 
     # Load profile if specified (needed for subcommands)
     if [[ -n "${PROFILE:-}" ]]; then
