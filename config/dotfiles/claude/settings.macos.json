@@ -2,6 +2,7 @@
   "permissions": {
     "defaultMode": "bypassPermissions"
   },
+  "model": "opus",
   "hooks": {
     "Notification": [
       {
@@ -64,6 +65,26 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/Users/alx/.claude/hooks/gsd-check-update.js\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/Users/alx/.claude/hooks/gsd-context-monitor.js\""
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
@@ -85,9 +106,11 @@
     "plugin-dev@claude-plugins-official": true,
     "claude-code-setup@claude-plugins-official": true,
     "fullstack-dev-skills@fullstack-dev-skills": true,
-    "superpowers@claude-plugins-official": true,
     "playwright@claude-plugins-official": true,
-    "swift-lsp@claude-plugins-official": true
+    "swift-lsp@claude-plugins-official": true,
+    "everything-claude-code@everything-claude-code": true,
+    "superpowers@superpowers-marketplace": true,
+    "superpowers@claude-plugins-official": false
   },
   "extraKnownMarketplaces": {
     "fullstack-dev-skills": {
@@ -97,7 +120,7 @@
       }
     }
   },
-  "effortLevel": "medium",
-  "voiceEnabled": true,
-  "skipDangerousModePermissionPrompt": true
+  "effortLevel": "high",
+  "skipDangerousModePermissionPrompt": true,
+  "voiceEnabled": true
 }

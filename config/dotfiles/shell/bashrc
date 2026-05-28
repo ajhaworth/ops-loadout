@@ -97,3 +97,8 @@ command -v starship &>/dev/null && eval "$(starship init bash)"
 
 # Source machine-specific configuration
 [[ -f ~/.bashrc.local ]] && source ~/.bashrc.local
+
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/Users/alx/.lmstudio/bin"
+# End of LM Studio CLI section
+

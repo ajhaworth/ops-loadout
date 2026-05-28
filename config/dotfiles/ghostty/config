@@ -16,7 +16,7 @@ cursor-style = block
 # Window appearance
 macos-titlebar-style = transparent
 window-show-tab-bar = auto
-background-opacity = 0.95
+background-opacity = 1
 
 # Aesthetic Padding
 window-padding-x = 10
