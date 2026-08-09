@@ -1,7 +1,6 @@
 # shell.txt - Shell enhancements and terminal tools
 
 zsh-autosuggestions
-tmux
 starship
 eza
 bat

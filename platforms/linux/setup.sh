@@ -29,21 +29,12 @@ linux_setup() {
     # 4. Extra tools (starship, eza, delta, zoxide)
     setup_extras
 
-    # 5. Claude Code
-    install_claude_code
-
-    # 6. OpenAI Codex CLI
-    install_codex
-
-    # 7. Dotfiles
+    # 5. Dotfiles
     if [[ "${PROFILE_DOTFILES:-true}" == "true" ]]; then
         setup_dotfiles
     else
         log_info "Skipping dotfiles (disabled in profile)"
     fi
-
-    # 8. Claude plugins (after dotfiles so symlinks exist)
-    setup_claude_plugins
 
     log_success "Linux setup complete"
 }

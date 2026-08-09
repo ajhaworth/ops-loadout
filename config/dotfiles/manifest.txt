@@ -14,17 +14,3 @@ config/dotfiles/starship/starship.toml|~/.config/starship.toml||DOTFILES_SHELL
 
 # Git configuration
 config/dotfiles/git/config|~/.gitconfig||DOTFILES_GIT
-
-# Tmux configuration
-config/dotfiles/tmux/tmux.conf|~/.tmux.conf||DOTFILES_TMUX
-config/dotfiles/tmux/gitmux.conf|~/.config/tmux/gitmux.conf||DOTFILES_TMUX
-config/dotfiles/tmux/git-stats.sh|~/.config/tmux/git-stats.sh||DOTFILES_TMUX
-
-# Ghostty terminal
-config/dotfiles/ghostty/config|~/.config/ghostty/config||DOTFILES_GHOSTTY
-
-# Claude Code
-config/dotfiles/claude/settings.macos.json|~/.claude/settings.json||DOTFILES_CLAUDE
-config/dotfiles/claude/statusline-command.sh|~/.claude/statusline-command.sh||DOTFILES_CLAUDE
-config/dotfiles/claude/scripts/claude-notify-matrix.sh|~/.claude/scripts/claude-notify-matrix.sh||DOTFILES_CLAUDE
-config/dotfiles/claude/commands|~/.claude/commands||DOTFILES_CLAUDE

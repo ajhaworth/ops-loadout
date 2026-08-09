@@ -1,7 +1,7 @@
 # platforms/windows/setup.ps1 - Windows setup coordinator
 #
 # Main setup script for Windows platform. Installs packages using Winget
-# and Chocolatey, with optional Claude Code installation.
+# and Chocolatey.
 
 param(
     [string]$Profile = "windows",
@@ -65,28 +65,6 @@ function Invoke-DebloatCommand {
     & $debloatScript -DryRun:$DryRun -Force:$Force
 }
 
-function Install-ClaudeCode {
-    if (-not (Test-ProfileFlag -Profile $config -Flag 'PROFILE_CLAUDE_CODE')) {
-        return
-    }
-
-    Write-Step "Installing Claude Code"
-
-    $result = Install-WingetPackage -PackageId 'Anthropic.ClaudeCode' -DryRun:$DryRun -Force:$Force
-
-    if ($result -and -not $DryRun) {
-        # Ensure ~/.local/bin is in user PATH (where winget installs claude)
-        $localBin = Join-Path $env:USERPROFILE ".local\bin"
-        $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-        if ($userPath -notlike "*$localBin*") {
-            [Environment]::SetEnvironmentVariable("Path", "$userPath;$localBin", "User")
-            Write-Success "Added $localBin to user PATH"
-        }
-
-        Write-Status "Run 'claude' to get started (restart terminal if needed)"
-    }
-}
-
 function Invoke-FullSetup {
     Write-Banner
 
@@ -113,10 +91,7 @@ function Invoke-FullSetup {
         Invoke-PackagesCommand
     }
 
-    # Stage 3: Install Claude Code
-    Install-ClaudeCode
-
-    # Stage 4: Dotfiles
+    # Stage 3: Dotfiles
     if (Test-ProfileFlag -Profile $config -Flag 'PROFILE_DOTFILES') {
         Invoke-DotfilesCommand
     }

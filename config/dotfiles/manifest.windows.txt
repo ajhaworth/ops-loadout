@@ -6,7 +6,3 @@
 
 # Git configuration
 config/dotfiles/git/config|.gitconfig|DOTFILES_GIT
-
-# Claude Code
-config/dotfiles/claude/settings.windows.json|.claude/settings.json|DOTFILES_CLAUDE
-config/dotfiles/claude/statusline-command.ps1|.claude/statusline-command.ps1|DOTFILES_CLAUDE

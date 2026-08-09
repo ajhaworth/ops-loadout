@@ -2,6 +2,5 @@
 # Note: eza, zoxide, starship, git-delta need special installation (see extras.sh)
 
 zsh-autosuggestions
-tmux
 bat
 fzf

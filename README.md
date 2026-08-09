@@ -1,6 +1,8 @@
-# ops-workstation
+# ops-desktop
 
 Cross-platform workstation setup using simple shell scripts with profile-based customization.
+
+For Claude Code, Codex, tmux, Ghostty, and agentic coding configuration, see [ops-agents](../ops-agents).
 
 ## Quick Start
 

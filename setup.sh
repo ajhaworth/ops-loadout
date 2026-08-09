@@ -25,13 +25,6 @@
 #   packages            Install system packages (apt/dnf/etc)
 #   packages ls         List system packages and status
 #
-#   All platforms:
-#   plugins             Deploy Claude Code plugin configs
-#   plugins save        Save current plugin state back to repo
-#   plugins ls          List installed plugins and status
-#   claude-code         Install Claude Code (native installer)
-#   codex               Install OpenAI Codex CLI (npm)
-#   shell-title         Configure shell to set terminal title (for tmux hostname)
 #
 # Options:
 #   --profile <name>    Use specified profile (personal, work)
@@ -52,9 +45,6 @@ source "$SCRIPT_DIR/lib/prompt.sh"
 source "$SCRIPT_DIR/lib/symlink.sh"
 source "$SCRIPT_DIR/lib/packages.sh"
 source "$SCRIPT_DIR/lib/dotfiles.sh"
-source "$SCRIPT_DIR/lib/claude-code.sh"
-source "$SCRIPT_DIR/lib/codex.sh"
-source "$SCRIPT_DIR/lib/claude-plugins.sh"
 
 # Default options
 PROFILE=""
@@ -92,14 +82,6 @@ Commands:
     packages            Install system packages (apt/dnf/etc)
     packages ls         List system packages and status
 
-  All platforms:
-    plugins             Deploy Claude Code plugin configs
-    plugins save        Save current plugin state back to repo
-    plugins ls          List installed plugins and status
-    claude-code         Install Claude Code (native installer)
-    codex               Install OpenAI Codex CLI (npm)
-    shell-title         Configure shell to set terminal title (for tmux hostname)
-
 Options:
     --profile <name>    Use specified profile (personal, work)
     --dry-run           Show what would be done without making changes
@@ -116,10 +98,6 @@ Examples:
     ./setup.sh defaults                 # Apply system preferences (macOS)
     ./setup.sh packages                 # Install system packages (Linux)
     ./setup.sh packages ls              # List system packages (Linux)
-    ./setup.sh claude-code              # Install Claude Code
-    ./setup.sh codex                    # Install OpenAI Codex CLI
-    ./setup.sh shell-title              # Configure terminal title for tmux
-
 Available profiles:
 EOF
     local current_os
@@ -488,39 +466,6 @@ handle_subcommand() {
             esac
             exit 0
             ;;
-        plugins)
-            case "$subcmd" in
-                save)
-                    save_claude_plugins
-                    ;;
-                ls|list)
-                    cmd_plugins_ls
-                    ;;
-                ""|install)
-                    setup_claude_plugins
-                    ;;
-                *)
-                    log_error "Unknown subcommand: plugins $subcmd"
-                    log_info "Available: ls, save, install (default)"
-                    exit 1
-                    ;;
-            esac
-            exit 0
-            ;;
-        claude-code)
-            PROFILE_CLAUDE_CODE="true"
-            install_claude_code
-            exit 0
-            ;;
-        codex)
-            PROFILE_CODEX="true"
-            install_codex
-            exit 0
-            ;;
-        shell-title)
-            cmd_shell_title
-            exit 0
-            ;;
     esac
 
     # Not a recognized subcommand
@@ -579,12 +524,10 @@ run_full_setup() {
 
     if [[ "$os" == "macos" ]]; then
         echo "  Homebrew:     $(if [[ "$homebrew_enabled" == "true" ]]; then echo "install"; else echo "skip (profile)"; fi)"
-        echo "  Claude Code:  $(if [[ "${PROFILE_CLAUDE_CODE:-false}" == "true" ]]; then echo "install"; else echo "skip (profile)"; fi)"
         echo "  Dotfiles:     $(if [[ "${PROFILE_DOTFILES:-true}" == "false" ]]; then echo "skip (profile)"; else echo "install"; fi)"
         echo "  Defaults:     $(if [[ "${PROFILE_APPLY_DEFAULTS:-true}" == "false" ]]; then echo "skip (profile)"; else echo "apply"; fi)"
         echo "  MAS Apps:     $(if [[ "${PROFILE_MAS:-true}" == "false" ]]; then echo "skip (profile)"; else echo "install"; fi)"
     elif [[ "$os" == "linux" ]]; then
-        echo "  Claude Code:  $(if [[ "${PROFILE_CLAUDE_CODE:-false}" == "true" ]]; then echo "install"; else echo "skip (profile)"; fi)"
         echo "  Dotfiles:     $(if [[ "${PROFILE_DOTFILES:-true}" == "false" ]]; then echo "skip (profile)"; else echo "install"; fi)"
     fi
     echo ""
