@@ -2,5 +2,4 @@
 Valve.Steam
 Playnite.Playnite
 goatcorp.XIVLauncher
-ClassicOldSong.Apollo
-Blizzard.BattleNet
+GOG.Galaxy

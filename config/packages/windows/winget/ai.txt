@@ -1,0 +1,3 @@
+# AI / generative tooling
+Comfy.ComfyUI-Desktop
+Anthropic.Claude

@@ -4,7 +4,8 @@
 # Requires Administrator privileges to create symlinks (or Developer Mode enabled).
 
 param(
-    [string]$Profile = "windows",
+    [Alias('Profile')]
+    [string]$ProfileName = "windows",
     [switch]$DryRun,
     [switch]$Force,
     [switch]$List
@@ -19,11 +20,11 @@ Import-Module (Join-Path $repoRoot "lib\windows\common.psm1") -Force
 Import-Module (Join-Path $repoRoot "lib\windows\dotfiles.psm1") -Force
 
 # Load profile
-$config = Read-Profile -ProfileName $Profile
+$config = Read-Profile -ProfileName $ProfileName
 if (-not $config) {
     exit 1
 }
-if (-not (Assert-ProfileOS -Profile $config -ExpectedOS 'windows' -ProfileName $Profile)) {
+if (-not (Assert-ProfileOS -Profile $config -ExpectedOS 'windows' -ProfileName $ProfileName)) {
     exit 1
 }
 
@@ -52,17 +53,16 @@ Write-Step "Installing Dotfiles"
 $canSymlink = $false
 try {
     $testPath = Join-Path $env:TEMP "symlink_test_$(Get-Random)"
-    $testTarget = $env:TEMP
-    New-Item -ItemType SymbolicLink -Path $testPath -Target $testTarget -ErrorAction Stop | Out-Null
-    Remove-Item $testPath -Force
+    New-Item -ItemType SymbolicLink -Path $testPath -Target $env:TEMP -ErrorAction Stop | Out-Null
+    Remove-Item -LiteralPath $testPath -Force
     $canSymlink = $true
 } catch {
     $canSymlink = $false
 }
 
 if (-not $canSymlink -and -not $DryRun) {
-    Write-Warn "Cannot create symlinks. Enable Developer Mode or run as Administrator."
-    Write-Status "Settings > Update & Security > For developers > Developer Mode"
+    Write-Err "Cannot create symlinks. Enable Developer Mode or run as Administrator."
+    Write-Status "Settings > Privacy & security > For developers > Developer Mode"
     exit 1
 }
 
@@ -79,3 +79,8 @@ if (Test-ProfileFlag -Profile $config -Flag 'DOTFILES_GIT') {
 }
 
 Write-DotfilesSummary
+
+if ((Get-DotfilesFailureCount) -gt 0) {
+    exit 1
+}
+exit 0

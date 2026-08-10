@@ -1,6 +1,8 @@
-# Core tools - essential utilities
+# Core tools - essential utilities and version control
 Git.Git
+GitHub.cli
 Microsoft.VisualStudioCode
 Microsoft.PowerShell
 Microsoft.WindowsTerminal
 Fork.Fork
+Perforce.P4V

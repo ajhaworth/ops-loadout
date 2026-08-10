@@ -1,0 +1,20 @@
+# ComfyUI custom nodes, cloned into custom_nodes\ from GitHub
+# Format: owner/repo | directory-name   (directory defaults to the repo name)
+
+# Organise, preview and tag LoRAs; adds a web UI at /loras
+willmiao/ComfyUI-Lora-Manager
+
+# Login page for the UI and bearer-token auth for the API. Required before
+# exposing the port - ComfyUI has no authentication of its own. The password is
+# chosen on first visit and hashed into <backend>\login\PASSWORD; nothing
+# secret belongs in this repo.
+#
+# Keep that password to 72 characters or fewer. The node hashes it with bcrypt
+# and never checks the length, and bcrypt 5 raises above 72 bytes instead of
+# truncating, so a longer passphrase fails as a bare HTTP 500.
+liusida/ComfyUI-Login
+
+# GGUF quantised model support. Core ComfyUI does not list .gguf at all -
+# folder_paths.py's supported_pt_extensions has no entry for it - so without
+# this node every .gguf in the library is invisible to the loaders.
+city96/ComfyUI-GGUF

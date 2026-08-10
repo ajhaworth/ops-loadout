@@ -1,4 +1,6 @@
 # dotfiles.psm1 - Dotfiles symlink management for Windows
+#
+# Compatible with Windows PowerShell 5.1 and PowerShell 7+.
 
 Import-Module (Join-Path $PSScriptRoot "common.psm1") -Global -Force
 
@@ -9,16 +11,37 @@ $script:Results = @{
     Failed  = @()
 }
 
+# One backup directory per run, matching the bash implementation's
+# ~/.dotfiles_backup/YYYYMMDD_HHMMSS/ layout so history is preserved.
+$script:BackupDir = $null
+
 function Reset-DotfilesResults {
     $script:Results = @{
         Linked  = @()
         Skipped = @()
         Failed  = @()
     }
+    $script:BackupDir = $null
 }
 
 function Get-DotfilesResults {
     return $script:Results
+}
+
+function Get-UserHome {
+    if ($env:USERPROFILE) {
+        return $env:USERPROFILE
+    }
+    # Non-Windows fallback keeps the module importable for cross-platform tests
+    return [Environment]::GetFolderPath('UserProfile')
+}
+
+function Get-BackupDir {
+    if ($null -eq $script:BackupDir) {
+        $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+        $script:BackupDir = Join-Path (Join-Path (Get-UserHome) '.dotfiles_backup') $stamp
+    }
+    return $script:BackupDir
 }
 
 # Read Windows manifest file
@@ -44,12 +67,16 @@ function Read-WindowsManifest {
             if ($parts.Count -ge 2) {
                 $source = $parts[0].Trim()
                 $dest = $parts[1].Trim()
-                $condition = if ($parts.Count -ge 3) { $parts[2].Trim() } else { $null }
+                $condition = $null
+                if ($parts.Count -ge 3) {
+                    $condition = $parts[2].Trim()
+                }
 
                 # Check condition if specified
-                $shouldInclude = if ($condition) {
-                    Test-ProfileFlag -Profile $Profile -Flag $condition
-                } else { $true }
+                $shouldInclude = $true
+                if ($condition) {
+                    $shouldInclude = Test-ProfileFlag -Profile $Profile -Flag $condition
+                }
 
                 if ($shouldInclude) {
                     $entries += @{
@@ -65,21 +92,87 @@ function Read-WindowsManifest {
     return $entries
 }
 
-# Expand destination path (replace ~ with $HOME)
+# Case-insensitive literal token substitution.
+function Expand-PathToken {
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Text,
+        [Parameter(Mandatory)]
+        [string]$Token,
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Value
+    )
+
+    $offset = 0
+    while ($true) {
+        if ($offset -gt $Text.Length) { break }
+        $idx = $Text.IndexOf($Token, $offset, [System.StringComparison]::OrdinalIgnoreCase)
+        if ($idx -lt 0) { break }
+        $Text = $Text.Substring(0, $idx) + $Value + $Text.Substring($idx + $Token.Length)
+        # Resume past the substituted value so a token inside $Value cannot loop
+        $offset = $idx + $Value.Length
+    }
+
+    return $Text
+}
+
+# Expand destination path.
+#
+# Supports:
+#   ~                 -> user profile
+#   %USERPROFILE%     -> user profile
+#   %LOCALAPPDATA%    -> local app data
+#   %APPDATA%         -> roaming app data
+#   %DOCUMENTS%       -> the real Documents folder, which is NOT always
+#                        <profile>\Documents (OneDrive Known Folder Move
+#                        relocates it), so it is resolved via the shell API
+#   anything else relative -> joined to the user profile
+#
+# NOTE: $HOME is a read-only automatic variable in PowerShell. Assigning to it
+# throws, so this function must never do so.
 function Expand-DestPath {
     param(
         [Parameter(Mandatory)]
         [string]$Path
     )
 
-    $home = $env:USERPROFILE
-    if ($Path.StartsWith('~')) {
-        return $Path -replace '^~', $home
-    } elseif ([IO.Path]::IsPathRooted($Path)) {
-        return $Path
-    } else {
-        return Join-Path $home $Path
+    $userHome = Get-UserHome
+
+    $localAppData = $env:LOCALAPPDATA
+    if (-not $localAppData) {
+        $localAppData = [Environment]::GetFolderPath('LocalApplicationData')
     }
+
+    $roamingAppData = $env:APPDATA
+    if (-not $roamingAppData) {
+        $roamingAppData = [Environment]::GetFolderPath('ApplicationData')
+    }
+
+    $documents = [Environment]::GetFolderPath('MyDocuments')
+    if (-not $documents) {
+        $documents = Join-Path $userHome 'Documents'
+    }
+
+    # Literal, case-insensitive substitution. -replace is deliberately avoided:
+    # Windows paths contain backslashes and may contain '$', both of which have
+    # meaning in regex replacement strings.
+    $expanded = $Path
+    $expanded = Expand-PathToken -Text $expanded -Token '%USERPROFILE%'  -Value $userHome
+    $expanded = Expand-PathToken -Text $expanded -Token '%LOCALAPPDATA%' -Value $localAppData
+    $expanded = Expand-PathToken -Text $expanded -Token '%APPDATA%'      -Value $roamingAppData
+    $expanded = Expand-PathToken -Text $expanded -Token '%DOCUMENTS%'    -Value $documents
+
+    if ($expanded.StartsWith('~')) {
+        return (Join-Path $userHome $expanded.Substring(1).TrimStart('\', '/'))
+    }
+
+    if ([IO.Path]::IsPathRooted($expanded)) {
+        return $expanded
+    }
+
+    return (Join-Path $userHome $expanded)
 }
 
 # Check if path is a symlink
@@ -89,11 +182,10 @@ function Test-Symlink {
         [string]$Path
     )
 
-    if (-not (Test-Path $Path)) {
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    if ($null -eq $item) {
         return $false
     }
-
-    $item = Get-Item $Path -Force
     return ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
 }
 
@@ -108,7 +200,7 @@ function Get-SymlinkTarget {
         return $null
     }
 
-    $item = Get-Item $Path -Force
+    $item = Get-Item -LiteralPath $Path -Force
     return $item.Target
 }
 
@@ -145,6 +237,62 @@ function Resolve-SymlinkComparableTarget {
     return Get-NormalizedPath -Path $target -BasePath (Split-Path -Parent $Path)
 }
 
+# Move an existing real file into this run's timestamped backup directory.
+function Backup-ExistingPath {
+    param(
+        [Parameter(Mandatory)]
+        [string]$TargetPath,
+        [switch]$DryRun
+    )
+
+    $backupDir = Get-BackupDir
+    $name = Split-Path -Leaf $TargetPath
+    $backupPath = Join-Path $backupDir $name
+
+    # Avoid collisions when two manifest entries share a leaf name
+    $suffix = 1
+    while ((Test-Path -LiteralPath $backupPath) -or ($DryRun -and $suffix -gt 1)) {
+        $backupPath = Join-Path $backupDir "$name.$suffix"
+        $suffix++
+        if ($suffix -gt 50) { break }
+    }
+
+    if ($DryRun) {
+        Write-DryRun "Would back up: $TargetPath -> $backupPath"
+        return
+    }
+
+    if (-not (Test-Path -LiteralPath $backupDir)) {
+        New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+    }
+
+    Write-Status "Backing up: $name -> $backupPath"
+    Move-Item -LiteralPath $TargetPath -Destination $backupPath -Force
+}
+
+# How many directory levels above $Path do not exist yet.
+#
+# One missing level is normal (~/.config, Documents\PowerShell). Two or more
+# usually means the owning application is not installed - e.g. Windows
+# Terminal's ...\Packages\Microsoft.WindowsTerminal_*\LocalState\ - and
+# fabricating that tree is worse than skipping the entry.
+function Get-MissingAncestorCount {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    $count = 0
+    $current = Split-Path -Parent $Path
+    while ($current -and -not (Test-Path -LiteralPath $current)) {
+        $count++
+        $parent = Split-Path -Parent $current
+        if (-not $parent -or $parent -eq $current) { break }
+        $current = $parent
+    }
+    return $count
+}
+
 # Create a symlink
 function New-Symlink {
     param(
@@ -162,7 +310,7 @@ function New-Symlink {
     $destName = Split-Path -Leaf $destFull
 
     # Check if source exists
-    if (-not (Test-Path $sourceFull)) {
+    if (-not (Test-Path -LiteralPath $sourceFull)) {
         Write-Err "Source not found: $sourceFull"
         $script:Results.Failed += $destName
         return $false
@@ -177,25 +325,28 @@ function New-Symlink {
             $script:Results.Skipped += $destName
             return $true
         } elseif (-not $Force) {
-            Write-Warn "$destName exists but points to: $target"
+            Write-Warn "$destName exists but points to: $normalizedTarget"
+            Write-Status "Re-run with -Force to replace it"
             $script:Results.Skipped += $destName
             return $true
         }
     }
 
-    # Check if destination exists and is not a symlink - backup and replace
-    if ((Test-Path $destFull) -and -not (Test-Symlink -Path $destFull)) {
-        $backupPath = "$destFull.backup"
-        if ($DryRun) {
-            Write-DryRun "Would backup: $destFull -> $backupPath"
-        } else {
-            Write-Status "Backing up: $destName -> $destName.backup"
-            Move-Item -Path $destFull -Destination $backupPath -Force
-        }
+    # Bail out when the destination tree looks like an app that isn't installed
+    $missingLevels = Get-MissingAncestorCount -Path $destFull
+    if ($missingLevels -gt 1 -and -not $Force) {
+        Write-Skip "$destName ($destDir does not exist - is the app installed?)"
+        $script:Results.Skipped += $destName
+        return $true
+    }
+
+    # Existing real file (not a symlink) - back it up before replacing
+    if ((Test-Path -LiteralPath $destFull) -and -not (Test-Symlink -Path $destFull)) {
+        Backup-ExistingPath -TargetPath $destFull -DryRun:$DryRun
     }
 
     # Create parent directory if needed
-    if (-not (Test-Path $destDir)) {
+    if (-not (Test-Path -LiteralPath $destDir)) {
         if ($DryRun) {
             Write-DryRun "Would create directory: $destDir"
         } else {
@@ -203,23 +354,23 @@ function New-Symlink {
         }
     }
 
-    # Remove existing symlink if Force
-    if ((Test-Path $destFull) -and $Force) {
+    # Remove a stale symlink so New-Item can recreate it
+    if ((Test-Path -LiteralPath $destFull) -and (Test-Symlink -Path $destFull)) {
         if ($DryRun) {
-            Write-DryRun "Would remove existing: $destFull"
+            Write-DryRun "Would remove existing link: $destFull"
         } else {
-            Remove-Item -Path $destFull -Force
+            Remove-Item -LiteralPath $destFull -Force -Recurse
         }
     }
 
     # Create symlink
     if ($DryRun) {
-        Write-DryRun "Would link: $destName -> $sourceFull"
+        Write-DryRun "Would link: $destFull -> $sourceFull"
         return $true
     }
 
     try {
-        New-Item -ItemType SymbolicLink -Path $destFull -Target $sourceFull -Force | Out-Null
+        New-Item -ItemType SymbolicLink -Path $destFull -Target $sourceFull -Force -ErrorAction Stop | Out-Null
         Write-Success "$destName -> $sourceFull"
         $script:Results.Linked += $destName
         return $true
@@ -244,7 +395,7 @@ function Show-DotfilesStatus {
         $destFull = Expand-DestPath -Path $entry.Dest
         $destName = Split-Path -Leaf $destFull
 
-        if (-not (Test-Path $sourceFull)) {
+        if (-not (Test-Path -LiteralPath $sourceFull)) {
             Write-Host "    [" -NoNewline
             Write-Host "!" -ForegroundColor Red -NoNewline
             Write-Host "] $destName (source missing)"
@@ -261,9 +412,9 @@ function Show-DotfilesStatus {
             } else {
                 Write-Host "    [" -NoNewline
                 Write-Host "~" -ForegroundColor Yellow -NoNewline
-                Write-Host "] $destName (wrong target)"
+                Write-Host "] $destName (wrong target: $normalizedTarget)"
             }
-        } elseif (Test-Path $destFull) {
+        } elseif (Test-Path -LiteralPath $destFull) {
             Write-Host "    [" -NoNewline
             Write-Host "F" -ForegroundColor Yellow -NoNewline
             Write-Host "] $destName (file exists)"
@@ -302,7 +453,15 @@ function Write-DotfilesSummary {
         Write-Host $results.Failed.Count -ForegroundColor Red
     }
 
+    if ($null -ne $script:BackupDir -and (Test-Path -LiteralPath $script:BackupDir)) {
+        Write-Host "  Backups: $script:BackupDir" -ForegroundColor DarkGray
+    }
+
     Write-Host ""
+}
+
+function Get-DotfilesFailureCount {
+    return (Get-DotfilesResults).Failed.Count
 }
 
 # Create ~/.gitconfig.local, prompting for user info if interactive
@@ -311,9 +470,9 @@ function New-GitConfigLocal {
         [switch]$DryRun
     )
 
-    $file = Join-Path $env:USERPROFILE ".gitconfig.local"
+    $file = Join-Path (Get-UserHome) ".gitconfig.local"
 
-    if (Test-Path $file) {
+    if (Test-Path -LiteralPath $file) {
         Write-SubStep "Already exists: $file"
         return
     }
@@ -358,8 +517,8 @@ function New-GitConfigLocal {
         $repoRoot = Get-RepoRoot
         $template = Join-Path $repoRoot "config\dotfiles\git\config.local.template"
 
-        if (Test-Path $template) {
-            Copy-Item -Path $template -Destination $file
+        if (Test-Path -LiteralPath $template) {
+            Copy-Item -LiteralPath $template -Destination $file
         } else {
             @"
 # ~/.gitconfig.local - Machine-specific git configuration
@@ -389,10 +548,18 @@ function New-GitConfigLocal {
 Export-ModuleMember -Function @(
     'Reset-DotfilesResults',
     'Get-DotfilesResults',
+    'Get-DotfilesFailureCount',
+    'Get-UserHome',
+    'Get-BackupDir',
     'Read-WindowsManifest',
+    'Expand-PathToken',
     'Expand-DestPath',
     'Test-Symlink',
     'Get-SymlinkTarget',
+    'Get-NormalizedPath',
+    'Resolve-SymlinkComparableTarget',
+    'Backup-ExistingPath',
+    'Get-MissingAncestorCount',
     'New-Symlink',
     'Show-DotfilesStatus',
     'Write-DotfilesSummary',

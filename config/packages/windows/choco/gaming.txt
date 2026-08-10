@@ -1,6 +1,3 @@
-# Gaming tools and emulators (Chocolatey)
-retroarch
-dolphin
-pcsx2
+# Gaming launchers and streaming (Chocolatey)
 epicgameslauncher
 moonlight-qt

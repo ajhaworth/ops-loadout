@@ -1,8 +1,15 @@
 # manifest.windows.txt - Windows dotfiles symlink mapping
 # Format: source|destination|condition
 # source: path relative to repo root
-# destination: path relative to $HOME (%USERPROFILE%)
+# destination: path relative to $HOME (%USERPROFILE%), or one of the tokens below
 # condition: profile variable name (optional, entry skipped if variable is not "true")
+#
+# Destination tokens (case-insensitive), expanded by Expand-DestPath:
+#   %USERPROFILE%   C:\Users\<you>
+#   %DOCUMENTS%     the real Documents folder - resolved via the shell API, so
+#                   OneDrive Known Folder Move is handled correctly
+#   %LOCALAPPDATA%  C:\Users\<you>\AppData\Local
+#   %APPDATA%       C:\Users\<you>\AppData\Roaming
 
 # Git configuration
 config/dotfiles/git/config|.gitconfig|DOTFILES_GIT

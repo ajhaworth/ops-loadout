@@ -1,17 +1,18 @@
 # platforms/windows/setup.ps1 - Windows setup coordinator
 #
 # Main setup script for Windows platform. Installs packages using Winget
-# and Chocolatey.
+# and Chocolatey, symlinks dotfiles, and applies system preferences.
 
 param(
-    [string]$Profile = "windows",
+    [Alias('Profile')]
+    [string]$ProfileName = "windows",
     [switch]$DryRun,
     [switch]$Force,
     [switch]$Debloat,
 
     # Subcommands
     [Parameter(Position = 0)]
-    [ValidateSet('', 'packages', 'dotfiles', 'debloat')]
+    [ValidateSet('', 'packages', 'dotfiles', 'defaults', 'debloat')]
     [string]$Command = '',
 
     [Parameter(Position = 1)]
@@ -29,40 +30,79 @@ $repoRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 Import-Module (Join-Path $repoRoot "lib\windows\common.psm1") -Force
 Import-Module (Join-Path $repoRoot "lib\windows\packages.psm1") -Force
 
+if (-not (Test-IsWindowsPlatform)) {
+    Write-Err "This script only runs on Windows."
+    exit 1
+}
+
 # Load profile
-$config = Read-Profile -ProfileName $Profile
+$config = Read-Profile -ProfileName $ProfileName
 if (-not $config) {
-    Write-Err "Failed to load profile: $Profile"
+    Write-Err "Failed to load profile: $ProfileName"
     exit 1
 }
-if (-not (Assert-ProfileOS -Profile $config -ExpectedOS 'windows' -ProfileName $Profile)) {
+if (-not (Assert-ProfileOS -Profile $config -ExpectedOS 'windows' -ProfileName $ProfileName)) {
     exit 1
 }
 
-# Handle subcommands
-function Invoke-PackagesCommand {
-    $packagesScript = Join-Path $scriptDir "packages.ps1"
+# Tracks whether any stage reported a failure, so the overall run can exit
+# non-zero without aborting the remaining stages.
+$script:StageFailures = 0
 
-    if ($SubCommand -eq 'ls') {
-        & $packagesScript -Profile $Profile -List
-    } else {
-        & $packagesScript -Profile $Profile -DryRun:$DryRun -Force:$Force
+function Invoke-Stage {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+        # MUST be a hashtable, never an array. Array splatting passes elements
+        # POSITIONALLY: @('-ProfileName', 'windows') binds the literal string
+        # '-ProfileName' as the profile name, and any '-DryRun' element is
+        # silently swallowed into $args instead of setting the switch.
+        [Parameter(Mandatory)]
+        [hashtable]$Arguments
+    )
+
+    $global:LASTEXITCODE = 0
+    & $Path @Arguments
+    if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+        $script:StageFailures++
     }
+}
+
+# Switch values are passed explicitly rather than conditionally added, so a
+# stage can never silently run in the wrong mode.
+function Get-StageArgs {
+    if ($SubCommand -eq 'ls') {
+        return @{
+            ProfileName = $ProfileName
+            List        = $true
+        }
+    }
+
+    return @{
+        ProfileName = $ProfileName
+        DryRun      = [bool]$DryRun
+        Force       = [bool]$Force
+    }
+}
+
+function Invoke-PackagesCommand {
+    Invoke-Stage -Path (Join-Path $scriptDir "packages.ps1") -Arguments (Get-StageArgs)
 }
 
 function Invoke-DotfilesCommand {
-    $dotfilesScript = Join-Path $scriptDir "dotfiles.ps1"
+    Invoke-Stage -Path (Join-Path $scriptDir "dotfiles.ps1") -Arguments (Get-StageArgs)
+}
 
-    if ($SubCommand -eq 'ls') {
-        & $dotfilesScript -Profile $Profile -List
-    } else {
-        & $dotfilesScript -Profile $Profile -DryRun:$DryRun -Force:$Force
-    }
+function Invoke-DefaultsCommand {
+    Invoke-Stage -Path (Join-Path $scriptDir "defaults.ps1") -Arguments (Get-StageArgs)
 }
 
 function Invoke-DebloatCommand {
-    $debloatScript = Join-Path $scriptDir "debloat.ps1"
-    & $debloatScript -DryRun:$DryRun -Force:$Force
+    # debloat.ps1 takes no profile or -List
+    Invoke-Stage -Path (Join-Path $scriptDir "debloat.ps1") -Arguments @{
+        DryRun = [bool]$DryRun
+        Force  = [bool]$Force
+    }
 }
 
 function Invoke-FullSetup {
@@ -74,15 +114,15 @@ function Invoke-FullSetup {
     }
     Write-Host ""
 
+    $wantDebloat = $Debloat -or (Test-ProfileFlag -Profile $config -Flag 'PROFILE_DEBLOAT')
+
     # Check for admin if debloating
-    if ($Debloat -or (Test-ProfileFlag -Profile $config -Flag 'PROFILE_DEBLOAT')) {
-        if (-not (Test-Administrator)) {
-            Write-Warn "Debloat requires administrator privileges for some operations"
-        }
+    if ($wantDebloat -and -not (Test-Administrator)) {
+        Write-Warn "Debloat requires administrator privileges for some operations"
     }
 
     # Stage 1: Debloat (if enabled)
-    if ($Debloat -or (Test-ProfileFlag -Profile $config -Flag 'PROFILE_DEBLOAT')) {
+    if ($wantDebloat) {
         Invoke-DebloatCommand
     }
 
@@ -96,8 +136,17 @@ function Invoke-FullSetup {
         Invoke-DotfilesCommand
     }
 
+    # Stage 4: System preferences
+    if (Test-ProfileFlag -Profile $config -Flag 'PROFILE_APPLY_DEFAULTS') {
+        Invoke-DefaultsCommand
+    }
+
     Write-Host ""
-    Write-Success "Setup complete!"
+    if ($script:StageFailures -gt 0) {
+        Write-Warn "Setup finished with $($script:StageFailures) stage(s) reporting failures."
+    } else {
+        Write-Success "Setup complete!"
+    }
     Write-Host ""
 }
 
@@ -109,6 +158,9 @@ switch ($Command) {
     'dotfiles' {
         Invoke-DotfilesCommand
     }
+    'defaults' {
+        Invoke-DefaultsCommand
+    }
     'debloat' {
         Invoke-DebloatCommand
     }
@@ -116,3 +168,8 @@ switch ($Command) {
         Invoke-FullSetup
     }
 }
+
+if ($script:StageFailures -gt 0) {
+    exit 1
+}
+exit 0

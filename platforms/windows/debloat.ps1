@@ -15,6 +15,7 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 Import-Module (Join-Path $repoRoot "lib\windows\common.psm1") -Force
+Import-Module (Join-Path $repoRoot "lib\windows\registry.psm1") -Force
 
 # --- AppX packages to remove ---
 
@@ -226,89 +227,45 @@ function Disable-GameDvr {
         @{ Path = "HKCU:\SOFTWARE\Microsoft\GameBar";                              Name = "ShowStartupPanel";           Value = 0 }
     )
 
-    foreach ($setting in $gameDvrSettings) {
-        if (-not (Test-Path $setting.Path)) {
-            if ($DryRun) {
-                Write-DryRun "Would create registry path: $($setting.Path)"
-            } else {
-                New-Item -Path $setting.Path -Force | Out-Null
-            }
-        }
-
-        $current = Get-ItemProperty -Path $setting.Path -Name $setting.Name -ErrorAction SilentlyContinue
-        if ($current.$($setting.Name) -eq $setting.Value) {
-            Write-Skip "$($setting.Name) already disabled"
-            continue
-        }
-
-        if ($DryRun) {
-            Write-DryRun "Would set $($setting.Name) = $($setting.Value)"
-        } else {
-            Set-ItemProperty -Path $setting.Path -Name $setting.Name -Value $setting.Value
-            Write-Success "Set $($setting.Name) = $($setting.Value)"
-        }
-    }
+    Set-RegistryValueSet -Settings $gameDvrSettings -DryRun:$DryRun
 }
 
 function Remove-GameBarProtocols {
     $protocols = @("ms-gamebar", "ms-gamebarservices", "ms-gamingoverlay")
     foreach ($protocol in $protocols) {
-        $regPath = "Registry::HKEY_CLASSES_ROOT\$protocol"
-        if (-not (Test-Path $regPath)) {
-            Write-Skip "Protocol handler $protocol not found"
-            continue
-        }
-
-        if ($DryRun) {
-            Write-DryRun "Would remove protocol handler: $protocol"
-            continue
-        }
-
-        try {
-            Remove-Item -Path $regPath -Recurse -Force -ErrorAction Stop
-            Write-Success "Removed protocol handler: $protocol"
-        } catch {
-            Write-Warn "Failed to remove ${protocol}: $_"
-        }
+        Remove-RegistryKey -Path "Registry::HKEY_CLASSES_ROOT\$protocol" `
+            -Label "protocol handler $protocol" -DryRun:$DryRun | Out-Null
     }
 }
 
 function Disable-SuggestedApps {
     $regPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
 
-    $settings = @{
-        "ContentDeliveryAllowed"                = 0
-        "FeatureManagementEnabled"              = 0
-        "OemPreInstalledAppsEnabled"            = 0
-        "PreInstalledAppsEnabled"               = 0
-        "PreInstalledAppsEverEnabled"           = 0
-        "SilentInstalledAppsEnabled"            = 0
-        "SoftLandingEnabled"                    = 0
-        "SubscribedContent-310093Enabled"       = 0
-        "SubscribedContent-338387Enabled"       = 0
-        "SubscribedContent-338388Enabled"       = 0
-        "SubscribedContent-338389Enabled"       = 0
-        "SubscribedContent-338393Enabled"       = 0
-        "SubscribedContent-353694Enabled"       = 0
-        "SubscribedContent-353696Enabled"       = 0
-        "SubscribedContentEnabled"              = 0
-        "SystemPaneSuggestionsEnabled"          = 0
+    $names = @(
+        "ContentDeliveryAllowed"
+        "FeatureManagementEnabled"
+        "OemPreInstalledAppsEnabled"
+        "PreInstalledAppsEnabled"
+        "PreInstalledAppsEverEnabled"
+        "SilentInstalledAppsEnabled"
+        "SoftLandingEnabled"
+        "SubscribedContent-310093Enabled"
+        "SubscribedContent-338387Enabled"
+        "SubscribedContent-338388Enabled"
+        "SubscribedContent-338389Enabled"
+        "SubscribedContent-338393Enabled"
+        "SubscribedContent-353694Enabled"
+        "SubscribedContent-353696Enabled"
+        "SubscribedContentEnabled"
+        "SystemPaneSuggestionsEnabled"
+    )
+
+    $settings = @()
+    foreach ($name in $names) {
+        $settings += @{ Path = $regPath; Name = $name; Value = 0 }
     }
 
-    if ($DryRun) {
-        Write-DryRun "Would disable suggested apps via registry"
-        return
-    }
-
-    foreach ($key in $settings.Keys) {
-        try {
-            Set-ItemProperty -Path $regPath -Name $key -Value $settings[$key] -ErrorAction SilentlyContinue
-        } catch {
-            # Silently continue if key doesn't exist
-        }
-    }
-
-    Write-Success "Suggested apps disabled"
+    Set-RegistryValueSet -Settings $settings -DryRun:$DryRun
 }
 
 function Fix-WakeOnLan {
@@ -359,10 +316,16 @@ function Fix-WakeOnLan {
 
 # --- Main ---
 
+if (-not (Test-IsWindowsPlatform)) {
+    Write-Err "This script only runs on Windows."
+    exit 1
+}
+
 if (-not (Test-Administrator)) {
     Write-Warn "Some operations require administrator privileges."
 }
 
+Reset-RegistryResults
 $failed = 0
 
 # Stage 1: Remove AppX bloatware
@@ -409,8 +372,21 @@ Write-Host ""
 Write-Host "--------------------------------------" -ForegroundColor DarkGray
 Write-Host "Debloat Summary" -ForegroundColor White
 Write-Host "--------------------------------------" -ForegroundColor DarkGray
-Write-Host "  AppX processed: $($allApps.Count)"
+$registryResults = Get-RegistryResults
+Write-Host "  AppX processed:    $($allApps.Count)"
+Write-Host "  Registry changed:  $($registryResults.Changed.Count)"
+Write-Host "  Registry unchanged: $($registryResults.Skipped.Count)"
 if ($failed -gt 0) {
-    Write-Host "  Failed:         $failed" -ForegroundColor Yellow
+    Write-Host "  AppX failed:       $failed" -ForegroundColor Yellow
+}
+if ($registryResults.Failed.Count -gt 0) {
+    Write-Host "  Registry failed:   $($registryResults.Failed.Count)" -ForegroundColor Yellow
 }
 Write-Host ""
+
+# AppX removal failures are common and mostly benign (provisioned-only apps,
+# apps owned by another user). Only registry failures fail the stage.
+if ($registryResults.Failed.Count -gt 0) {
+    exit 1
+}
+exit 0

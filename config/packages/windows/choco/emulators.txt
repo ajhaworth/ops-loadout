@@ -1,0 +1,7 @@
+# Emulators (Chocolatey)
+# These are portable packages that register nothing in Add/Remove Programs, so
+# winget cannot see them - installing the winget build would add a second copy
+# alongside this one. Dolphin has no winget package at all.
+retroarch
+dolphin
+pcsx2

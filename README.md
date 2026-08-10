@@ -96,10 +96,13 @@ Gaming workstation setup for Windows including core dev tools, browsers, product
 .\setup.ps1 -DryRun            # Preview changes
 .\setup.ps1 dotfiles           # Dotfiles only
 .\setup.ps1 dotfiles ls        # Check symlink status
-.\setup.ps1 packages           # Winget + Chocolatey
+.\setup.ps1 packages           # Winget + Chocolatey + GitHub releases
 .\setup.ps1 packages ls        # Show package status
+.\setup.ps1 defaults           # System preferences
+.\setup.ps1 defaults ls        # Show preference categories
 .\setup.ps1 debloat            # Remove bloatware
 .\setup.ps1 -Debloat -Force    # Full setup with debloat
+.\setup.ps1 -Help              # Show help message
 ```
 
 ### Options
@@ -116,10 +119,28 @@ Profiles are OS-specific. A mismatched profile now exits immediately instead of 
 
 **Windows:**
 ```
+-ProfileName <name> Profile to use (default: windows). Alias: -Profile
 -DryRun             Show what would be done without making changes
--Force              Skip confirmation prompts
+-Force              Reinstall packages, replace mismatched symlinks, and
+                    restart Explorer after applying defaults
 -Debloat            Include bloatware removal in full setup
+-Help               Show help message
 ```
+
+Each stage exits non-zero if anything in it failed, and the overall run
+propagates that, so `.\setup.ps1` is usable from CI or a scheduled task.
+
+### Tests
+
+```powershell
+pwsh tests\windows\smoke.ps1   # Windows
+bash tests/bash/smoke.sh       # macOS/Linux
+```
+
+The Windows suite checks syntax, helper functions, and that profiles, package
+lists, manifest entries and defaults modules all stay in sync. It runs on any
+platform — the dry-run invocations, which need winget and the registry, are
+skipped when not on Windows.
 
 ## Customization
 
@@ -138,6 +159,43 @@ Packages are defined in text files under `config/packages/`:
 **Windows** (`config/packages/windows/`):
 - `winget/*.txt` - Winget packages (one package per line)
 - `choco/*.txt` - Chocolatey packages (one package per line, flags allowed)
+- `github/*.txt` - Apps published only as GitHub release assets, for the
+  handful with no winget or Chocolatey package. Pipe-delimited:
+  `owner/repo | asset-pattern | display-name | install-args`, where every field
+  after the repo is optional (defaults: `*.exe`, the repo name, `/quiet`).
+  Install state is read from Add/Remove Programs, and an app already present is
+  upgraded when the latest release is newer (semver-aware, so `1.18.4` beats
+  `1.18.3-beta.7`). `-Force` reinstalls regardless.
+- `comfynodes/*.txt` - ComfyUI custom nodes, `owner/repo | directory-name` (the
+  directory defaults to the repo name). Cloned into every local ComfyUI
+  backend's `custom_nodes/`, with `requirements.txt` installed into that
+  backend's own `.venv`. Existing nodes are skipped; `-Force` fast-forwards
+  them. Skipped entirely on a machine with no ComfyUI.
+
+Prefer winget on Windows. Reach for Chocolatey only where winget has no usable
+package — the NVIDIA App (winget carries just the msstore build) and the
+emulators in `choco/emulators.txt` (portable packages that register nothing in
+Add/Remove Programs, plus Dolphin, which winget does not carry at all).
+
+#### Migrating a package from Chocolatey to winget
+
+Chocolatey and winget keep separate ledgers over the same install. If an app was
+originally installed by Chocolatey and is now listed under `winget/`, there is
+still only one copy of the app on disk — Chocolatey's record is just stale. Drop
+the record without touching the application:
+
+```powershell
+choco uninstall <package> -y -n --skip-autouninstaller
+```
+
+`-n` skips the package's own `chocolateyUninstall.ps1` and
+`--skip-autouninstaller` skips the uninstaller Chocolatey derives from Add/Remove
+Programs, so only the Chocolatey record goes. A plain `choco uninstall` would
+remove the application itself. Confirm with `winget list` afterwards.
+
+This does not apply to packages that register nothing in Add/Remove Programs
+(the emulators above, and sync clients like `seafile-client`) — Chocolatey owns
+those files outright, so removing them needs a normal `choco uninstall`.
 
 ### Local Overrides
 
@@ -174,7 +232,8 @@ ops-workstation/
 │   └── windows/                # PowerShell modules
 │       ├── common.psm1         # Logging, profile parsing
 │       ├── dotfiles.psm1       # Symlink management
-│       └── packages.psm1       # Winget/Chocolatey helpers
+│       ├── packages.psm1       # Winget/Chocolatey/GitHub-release helpers
+│       └── registry.psm1       # Idempotent registry writes
 ├── config/
 │   ├── profiles/               # Profile configs
 │   ├── packages/
@@ -186,7 +245,8 @@ ops-workstation/
 │   │   │   └── apt/            # APT packages
 │   │   └── windows/            # Windows package lists
 │   │       ├── winget/         # Winget packages
-│   │       └── choco/          # Chocolatey packages
+│   │       ├── choco/          # Chocolatey packages
+│   │       └── github/         # GitHub release installers
 │   └── dotfiles/               # Configuration files and manifests
 └── platforms/
     ├── macos/                  # macOS-specific scripts
@@ -203,8 +263,10 @@ ops-workstation/
     │   └── dotfiles.sh         # Symlink installer
     └── windows/                # Windows-specific scripts
         ├── setup.ps1           # Orchestrator
-        ├── packages.ps1        # Winget + Chocolatey installer
+        ├── packages.ps1        # Winget + Chocolatey + GitHub installer
         ├── dotfiles.ps1        # Symlink installer
+        ├── defaults.ps1        # Preferences loader
+        ├── defaults/           # Individual preference scripts
         └── debloat.ps1         # Bloatware removal
 ```
 
@@ -222,9 +284,27 @@ This repository is designed to be public and contains no secrets. Personal infor
 
 **Linux package setup exits immediately on Fedora/Arch/etc.** - Linux package automation is intentionally limited to Debian/Ubuntu because repository and extra-tool setup is APT-based.
 
-**Windows symlinks fail** - Enable Developer Mode (Settings > Update & Security > For developers) or run PowerShell as Administrator.
+**Windows symlinks fail** - Enable Developer Mode (Settings > Privacy & security > For developers) or run PowerShell as Administrator.
 
-**Preferences not applying** - Some preferences require a logout/login or restart to take effect.
+**A Windows dotfile is skipped as "is the app installed?"** - The destination
+folder is more than one level away from anything that exists, which usually
+means the owning app isn't installed yet (Windows Terminal is the common case).
+Install it and re-run, or pass `-Force` to create the tree anyway.
+
+**ComfyUI still shows no models** - The model config is only written once
+ComfyUI Desktop has run its first-time setup. Launch it once, then re-run
+`.\setup.ps1 defaults`, then restart ComfyUI. Note that Desktop reads
+`%APPDATA%\ComfyUI\extra_models_config.yaml`, not the `extra_model_paths.yaml`
+that portable-install guides describe.
+
+**ComfyUI models missing after a reboot** - If `COMFYUI_MODEL_PATH` is a network
+share, it must be reachable when ComfyUI starts. The setup warns if the path
+can't be reached at the time it runs.
+
+**Windows power/telemetry settings skipped** - `defaults` writes those to HKLM.
+Run PowerShell as Administrator to apply them.
+
+**Preferences not applying** - Some preferences require a logout/login or restart to take effect. `.\setup.ps1 defaults -Force` restarts Explorer for you.
 
 ## License
 

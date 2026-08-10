@@ -4,7 +4,8 @@
 # Reads package lists from config/packages/windows/
 
 param(
-    [string]$Profile = "windows",
+    [Alias('Profile')]
+    [string]$ProfileName = "windows",
     [switch]$DryRun,
     [switch]$Force,
     [switch]$List
@@ -19,11 +20,11 @@ Import-Module (Join-Path $repoRoot "lib\windows\common.psm1") -Force
 Import-Module (Join-Path $repoRoot "lib\windows\packages.psm1") -Force
 
 # Load profile
-$config = Read-Profile -ProfileName $Profile
+$config = Read-Profile -ProfileName $ProfileName
 if (-not $config) {
     exit 1
 }
-if (-not (Assert-ProfileOS -Profile $config -ExpectedOS 'windows' -ProfileName $Profile)) {
+if (-not (Assert-ProfileOS -Profile $config -ExpectedOS 'windows' -ProfileName $ProfileName)) {
     exit 1
 }
 
@@ -34,25 +35,34 @@ $packagesDir = Join-Path $repoRoot "config\packages\windows"
 function Get-EnabledPackages {
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('winget', 'choco')]
+        [ValidateSet('winget', 'choco', 'github', 'comfynodes')]
         [string]$Manager
     )
 
-    $prefix = if ($Manager -eq 'winget') { 'WINGET' } else { 'CHOCO' }
+    $prefix = 'CHOCO'
+    if ($Manager -eq 'winget') {
+        $prefix = 'WINGET'
+    } elseif ($Manager -eq 'github') {
+        $prefix = 'GITHUB'
+    } elseif ($Manager -eq 'comfynodes') {
+        $prefix = 'COMFYNODES'
+    }
+
     $managerDir = Join-Path $packagesDir $Manager
     $enabledPackages = @{}
 
-    if (-not (Test-Path $managerDir)) {
+    if (-not (Test-Path -LiteralPath $managerDir)) {
         return $enabledPackages
     }
 
-    Get-ChildItem -Path $managerDir -Filter "*.txt" | ForEach-Object {
-        $categoryFile = $_.Name
+    Get-ChildItem -LiteralPath $managerDir -Filter "*.txt" | ForEach-Object {
         $categoryName = $_.BaseName
         $varName = Get-CategoryVar -Prefix $prefix -Category $categoryName
 
         if (Test-ProfileFlag -Profile $config -Flag $varName) {
-            $packages = Read-PackageList -FilePath $_.FullName
+            # @() matters: a single-entry list unwraps to a bare string, and
+            # .Count on a scalar throws under Set-StrictMode -Version Latest.
+            $packages = @(Read-PackageList -FilePath $_.FullName)
             if ($packages.Count -gt 0) {
                 $enabledPackages[$categoryName] = $packages
             }
@@ -83,6 +93,75 @@ function Show-AllPackageStatus {
     } else {
         foreach ($category in $chocoPackages.Keys | Sort-Object) {
             Show-PackageStatus -Packages $chocoPackages[$category] -Manager 'choco' -Category $category
+        }
+    }
+
+    Write-Step "GitHub Release Packages"
+
+    $githubPackages = Get-EnabledPackages -Manager 'github'
+    if ($githubPackages.Count -eq 0) {
+        Write-Skip "No github categories enabled"
+    } else {
+        foreach ($category in $githubPackages.Keys | Sort-Object) {
+            Show-PackageStatus -Packages $githubPackages[$category] -Manager 'github' -Category $category
+        }
+    }
+
+    $nodePackages = Get-EnabledPackages -Manager 'comfynodes'
+    if ($nodePackages.Count -gt 0) {
+        Write-Step "ComfyUI Custom Nodes"
+
+        $backends = @(Get-ComfyBackends)
+        if ($backends.Count -eq 0) {
+            Write-Skip "No ComfyUI install found"
+        } else {
+            $customNodes = Join-ComfyPath -Base $backends[0].BaseDir -Child 'custom_nodes'
+            foreach ($category in $nodePackages.Keys | Sort-Object) {
+                Write-SubStep $category
+                foreach ($package in $nodePackages[$category]) {
+                    $display = ($package -split '\|')[0].Trim()
+                    if (Test-ComfyNodeInstalled -PackageSpec $package -CustomNodesDir $customNodes) {
+                        Write-Host "    [" -NoNewline
+                        Write-Host "X" -ForegroundColor Green -NoNewline
+                        Write-Host "] $display"
+                    } else {
+                        Write-Host "    [ ] $display" -ForegroundColor DarkGray
+                    }
+                }
+            }
+        }
+    }
+}
+
+# ComfyUI custom nodes. These install into the app's own tree rather than
+# through a package manager, so they are handled apart from Install-PackageBatch
+# and are simply skipped on a machine with no ComfyUI.
+function Install-AllComfyNodes {
+    $nodePackages = Get-EnabledPackages -Manager 'comfynodes'
+    if ($nodePackages.Count -eq 0) {
+        return
+    }
+
+    Write-Step "Installing ComfyUI Custom Nodes"
+
+    $backends = @(Get-ComfyBackends)
+    if ($backends.Count -eq 0) {
+        Write-Skip "No ComfyUI install found - launch Comfy Desktop once, then re-run"
+        return
+    }
+
+    # Nodes are loaded at startup, so a running backend would not see them
+    if ((Test-ComfyDesktopRunning) -and -not $DryRun) {
+        Write-Warn "Comfy Desktop is running - restart it once this finishes"
+    }
+
+    foreach ($backend in $backends) {
+        foreach ($category in $nodePackages.Keys | Sort-Object) {
+            Write-SubStep $category
+            foreach ($package in $nodePackages[$category]) {
+                Install-ComfyNode -PackageSpec $package -BaseDir $backend.BaseDir `
+                    -DryRun:$DryRun -Force:$Force | Out-Null
+            }
         }
     }
 }
@@ -133,12 +212,32 @@ function Install-AllPackages {
         }
     }
 
+    # GitHub release installers. These need no package manager, but the
+    # installers they download will prompt for elevation when not already admin.
+    $githubPackages = Get-EnabledPackages -Manager 'github'
+    if ($githubPackages.Count -gt 0) {
+        Write-Step "Installing GitHub Release Packages"
+
+        foreach ($category in $githubPackages.Keys | Sort-Object) {
+            Write-SubStep $category
+            Install-PackageBatch -Packages $githubPackages[$category] -Manager 'github' -DryRun:$DryRun -Force:$Force
+        }
+    }
+
+    Install-AllComfyNodes
+
     Write-ResultsSummary -Title "Package Installation Summary"
 }
 
 # Main
 if ($List) {
     Show-AllPackageStatus
-} else {
-    Install-AllPackages
+    exit 0
 }
+
+Install-AllPackages
+
+if ((Get-FailureCount) -gt 0) {
+    exit 1
+}
+exit 0

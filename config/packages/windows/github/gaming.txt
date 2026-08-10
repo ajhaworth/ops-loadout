@@ -1,0 +1,3 @@
+# Game streaming host - Sunshine/Apollo fork, not published to winget or choco
+# Format: owner/repo | asset-pattern | display-name | install-args
+Nonary/Vibepollo | VibepolloSetup-*.exe | Vibepollo | /quiet

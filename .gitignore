@@ -10,6 +10,11 @@
 # Backup directory
 .dotfiles_backup/
 
+# Scratch and one-off tooling: root-level paths prefixed with an underscore.
+# Migration scripts, fetch logs and staging live here and are not part of the
+# setup tool. Root-anchored so it never swallows a real file in a subdirectory.
+/_*
+
 # Editor files
 *.swp
 *.swo

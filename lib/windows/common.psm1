@@ -1,4 +1,7 @@
 # common.psm1 - Logging utilities and common functions for Windows setup
+#
+# Compatible with Windows PowerShell 5.1 and PowerShell 7+.
+# Avoid PS7-only syntax (ternary, ??, chain operators) in this file.
 
 # Logging functions
 function Write-Status {
@@ -105,6 +108,18 @@ function Get-RepoRoot {
     return (Split-Path -Parent $scriptDir)
 }
 
+# True when running on Windows.
+# $IsWindows only exists on PowerShell Core; on Windows PowerShell 5.1 its
+# absence implies Windows. Set-StrictMode makes a bare reference throw, so
+# probe the variable instead of reading it directly.
+function Test-IsWindowsPlatform {
+    $var = Get-Variable -Name 'IsWindows' -ErrorAction SilentlyContinue
+    if ($null -eq $var) {
+        return $true
+    }
+    return [bool]$var.Value
+}
+
 # Read profile configuration
 function Read-Profile {
     param(
@@ -138,7 +153,8 @@ function Read-Profile {
     return $config
 }
 
-# Check if a profile flag is enabled
+# Check if a profile flag is enabled.
+# Unset flags default to enabled, matching lib/symlink.sh and homebrew.sh.
 function Test-ProfileFlag {
     param(
         [Parameter(Mandatory)]
@@ -147,7 +163,10 @@ function Test-ProfileFlag {
         [string]$Flag
     )
 
-    $value = if ($Profile.ContainsKey($Flag)) { $Profile[$Flag] } else { 'true' }
+    $value = 'true'
+    if ($Profile.ContainsKey($Flag)) {
+        $value = $Profile[$Flag]
+    }
     return $value -eq 'true'
 }
 
@@ -160,9 +179,16 @@ function Assert-ProfileOS {
         [string]$ProfileName = ''
     )
 
-    $profileOS = if ($Profile.ContainsKey('PROFILE_OS')) { $Profile['PROFILE_OS'] } else { '' }
+    $profileOS = ''
+    if ($Profile.ContainsKey('PROFILE_OS')) {
+        $profileOS = $Profile['PROFILE_OS']
+    }
+
     if ($profileOS -and $profileOS -ne $ExpectedOS) {
-        $label = if ($ProfileName) { $ProfileName } else { '<unknown>' }
+        $label = '<unknown>'
+        if ($ProfileName) {
+            $label = $ProfileName
+        }
         Write-Err "Profile '$label' targets $profileOS, but this script is running on $ExpectedOS."
         return $false
     }
@@ -209,8 +235,29 @@ function Get-CategoryVar {
     return "${Prefix}_${upper}"
 }
 
+# Map a defaults module filename to the function it must define.
+#   explorer      -> Apply-Explorer
+#   file-explorer -> Apply-FileExplorer
+function Get-ApplyFunctionName {
+    param(
+        [Parameter(Mandatory)]
+        [string]$BaseName
+    )
+
+    $parts = $BaseName -split '[-_]'
+    $pascal = ''
+    foreach ($part in $parts) {
+        if (-not $part) { continue }
+        $pascal += $part.Substring(0, 1).ToUpper() + $part.Substring(1).ToLower()
+    }
+    return "Apply-$pascal"
+}
+
 # Check if running as administrator
 function Test-Administrator {
+    if (-not (Test-IsWindowsPlatform)) {
+        return $false
+    }
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -237,11 +284,13 @@ Export-ModuleMember -Function @(
     'Write-Header',
     'Write-Banner',
     'Get-RepoRoot',
+    'Test-IsWindowsPlatform',
     'Read-Profile',
     'Test-ProfileFlag',
     'Assert-ProfileOS',
     'Read-PackageList',
     'Get-CategoryVar',
+    'Get-ApplyFunctionName',
     'Test-Administrator',
     'Assert-Administrator'
 )
