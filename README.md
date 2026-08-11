@@ -58,7 +58,11 @@ Full dev station setup for Debian/Ubuntu Linux including core tools, shell enhan
 
 ### Windows (`--profile windows`)
 
-Gaming workstation setup for Windows including core dev tools, browsers, productivity apps, gaming clients, and emulators. Includes optional bloatware removal.
+Gaming workstation setup for Windows: dotfiles, GitHub-release apps, ComfyUI
+custom nodes, and system preferences, with optional bloatware removal. Winget
+and Chocolatey package installation (core dev tools, browsers, productivity
+apps, gaming clients, emulators) has moved to Ansible in the `ops-server`
+repo (`roles/windows/packages`, run via `./scripts/homelab setup windows`).
 
 ## Usage
 
@@ -96,7 +100,7 @@ Gaming workstation setup for Windows including core dev tools, browsers, product
 .\setup.ps1 -DryRun            # Preview changes
 .\setup.ps1 dotfiles           # Dotfiles only
 .\setup.ps1 dotfiles ls        # Check symlink status
-.\setup.ps1 packages           # Winget + Chocolatey + GitHub releases
+.\setup.ps1 packages           # GitHub releases + ComfyUI custom nodes
 .\setup.ps1 packages ls        # Show package status
 .\setup.ps1 defaults           # System preferences
 .\setup.ps1 defaults ls        # Show preference categories
@@ -139,8 +143,8 @@ bash tests/bash/smoke.sh       # macOS/Linux
 
 The Windows suite checks syntax, helper functions, and that profiles, package
 lists, manifest entries and defaults modules all stay in sync. It runs on any
-platform — the dry-run invocations, which need winget and the registry, are
-skipped when not on Windows.
+platform — the dry-run invocations, which need the registry, are skipped when
+not on Windows.
 
 ## Customization
 
@@ -157,8 +161,6 @@ Packages are defined in text files under `config/packages/`:
 - `apt/*.txt` - APT packages (Debian/Ubuntu only)
 
 **Windows** (`config/packages/windows/`):
-- `winget/*.txt` - Winget packages (one package per line)
-- `choco/*.txt` - Chocolatey packages (one package per line, flags allowed)
 - `github/*.txt` - Apps published only as GitHub release assets, for the
   handful with no winget or Chocolatey package. Pipe-delimited:
   `owner/repo | asset-pattern | display-name | install-args`, where every field
@@ -172,30 +174,10 @@ Packages are defined in text files under `config/packages/`:
   backend's own `.venv`. Existing nodes are skipped; `-Force` fast-forwards
   them. Skipped entirely on a machine with no ComfyUI.
 
-Prefer winget on Windows. Reach for Chocolatey only where winget has no usable
-package — the NVIDIA App (winget carries just the msstore build) and the
-emulators in `choco/emulators.txt` (portable packages that register nothing in
-Add/Remove Programs, plus Dolphin, which winget does not carry at all).
-
-#### Migrating a package from Chocolatey to winget
-
-Chocolatey and winget keep separate ledgers over the same install. If an app was
-originally installed by Chocolatey and is now listed under `winget/`, there is
-still only one copy of the app on disk — Chocolatey's record is just stale. Drop
-the record without touching the application:
-
-```powershell
-choco uninstall <package> -y -n --skip-autouninstaller
-```
-
-`-n` skips the package's own `chocolateyUninstall.ps1` and
-`--skip-autouninstaller` skips the uninstaller Chocolatey derives from Add/Remove
-Programs, so only the Chocolatey record goes. A plain `choco uninstall` would
-remove the application itself. Confirm with `winget list` afterwards.
-
-This does not apply to packages that register nothing in Add/Remove Programs
-(the emulators above, and sync clients like `seafile-client`) — Chocolatey owns
-those files outright, so removing them needs a normal `choco uninstall`.
+Winget and Chocolatey packages are managed by Ansible in the `ops-server`
+repo (`roles/windows/packages`, run via `./scripts/homelab setup windows`),
+not here. The GitHub-release and ComfyUI-node paths stay in this repo because
+their version-stamp/compare logic has no clean Ansible equivalent.
 
 ### Local Overrides
 
@@ -232,7 +214,7 @@ ops-workstation/
 │   └── windows/                # PowerShell modules
 │       ├── common.psm1         # Logging, profile parsing
 │       ├── dotfiles.psm1       # Symlink management
-│       ├── packages.psm1       # Winget/Chocolatey/GitHub-release helpers
+│       ├── packages.psm1       # GitHub-release/ComfyUI-node helpers
 │       └── registry.psm1       # Idempotent registry writes
 ├── config/
 │   ├── profiles/               # Profile configs
@@ -243,10 +225,9 @@ ops-workstation/
 │   │   │   └── mas/            # App Store apps
 │   │   ├── linux/              # Linux package lists
 │   │   │   └── apt/            # APT packages
-│   │   └── windows/            # Windows package lists
-│   │       ├── winget/         # Winget packages
-│   │       ├── choco/          # Chocolatey packages
-│   │       └── github/         # GitHub release installers
+│   │   └── windows/            # Windows package lists (winget/choco moved to ops-server)
+│   │       ├── github/         # GitHub release installers
+│   │       └── comfynodes/     # ComfyUI custom nodes
 │   └── dotfiles/               # Configuration files and manifests
 └── platforms/
     ├── macos/                  # macOS-specific scripts
@@ -263,7 +244,7 @@ ops-workstation/
     │   └── dotfiles.sh         # Symlink installer
     └── windows/                # Windows-specific scripts
         ├── setup.ps1           # Orchestrator
-        ├── packages.ps1        # Winget + Chocolatey + GitHub installer
+        ├── packages.ps1        # GitHub releases + ComfyUI custom nodes
         ├── dotfiles.ps1        # Symlink installer
         ├── defaults.ps1        # Preferences loader
         ├── defaults/           # Individual preference scripts

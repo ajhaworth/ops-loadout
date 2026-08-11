@@ -1,5 +1,0 @@
-# Gaming platforms and launchers
-Valve.Steam
-Playnite.Playnite
-goatcorp.XIVLauncher
-GOG.Galaxy

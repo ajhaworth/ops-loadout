@@ -1,6 +1,8 @@
 # packages.ps1 - Windows package installation
 #
-# Installs packages using Winget (primary) and Chocolatey (fallback).
+# Installs GitHub-release apps and ComfyUI custom nodes. Winget and
+# Chocolatey packages are installed by Ansible in the ops-server repo
+# (roles/windows/packages, run via ./scripts/homelab setup windows).
 # Reads package lists from config/packages/windows/
 
 param(
@@ -35,16 +37,12 @@ $packagesDir = Join-Path $repoRoot "config\packages\windows"
 function Get-EnabledPackages {
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('winget', 'choco', 'github', 'comfynodes')]
+        [ValidateSet('github', 'comfynodes')]
         [string]$Manager
     )
 
-    $prefix = 'CHOCO'
-    if ($Manager -eq 'winget') {
-        $prefix = 'WINGET'
-    } elseif ($Manager -eq 'github') {
-        $prefix = 'GITHUB'
-    } elseif ($Manager -eq 'comfynodes') {
+    $prefix = 'GITHUB'
+    if ($Manager -eq 'comfynodes') {
         $prefix = 'COMFYNODES'
     }
 
@@ -74,28 +72,6 @@ function Get-EnabledPackages {
 
 # List package status
 function Show-AllPackageStatus {
-    Write-Step "Winget Packages"
-
-    $wingetPackages = Get-EnabledPackages -Manager 'winget'
-    if ($wingetPackages.Count -eq 0) {
-        Write-Skip "No winget categories enabled"
-    } else {
-        foreach ($category in $wingetPackages.Keys | Sort-Object) {
-            Show-PackageStatus -Packages $wingetPackages[$category] -Manager 'winget' -Category $category
-        }
-    }
-
-    Write-Step "Chocolatey Packages"
-
-    $chocoPackages = Get-EnabledPackages -Manager 'choco'
-    if ($chocoPackages.Count -eq 0) {
-        Write-Skip "No chocolatey categories enabled"
-    } else {
-        foreach ($category in $chocoPackages.Keys | Sort-Object) {
-            Show-PackageStatus -Packages $chocoPackages[$category] -Manager 'choco' -Category $category
-        }
-    }
-
     Write-Step "GitHub Release Packages"
 
     $githubPackages = Get-EnabledPackages -Manager 'github'
@@ -103,7 +79,7 @@ function Show-AllPackageStatus {
         Write-Skip "No github categories enabled"
     } else {
         foreach ($category in $githubPackages.Keys | Sort-Object) {
-            Show-PackageStatus -Packages $githubPackages[$category] -Manager 'github' -Category $category
+            Show-PackageStatus -Packages $githubPackages[$category] -Category $category
         }
     }
 
@@ -170,48 +146,6 @@ function Install-AllComfyNodes {
 function Install-AllPackages {
     Reset-Results
 
-    # Check for winget
-    if (-not (Test-Winget)) {
-        Write-Err "Winget is not available. Please install it from the Microsoft Store (App Installer)."
-        exit 1
-    }
-
-    # Install Chocolatey if needed
-    $chocoPackages = Get-EnabledPackages -Manager 'choco'
-    if ($chocoPackages.Count -gt 0 -and -not (Test-Chocolatey)) {
-        Write-Step "Installing Chocolatey"
-        if (-not (Install-Chocolatey -DryRun:$DryRun)) {
-            Write-Warn "Chocolatey installation failed. Chocolatey packages will be skipped."
-        }
-    }
-
-    # Install winget packages
-    Write-Step "Installing Winget Packages"
-    $wingetPackages = Get-EnabledPackages -Manager 'winget'
-
-    if ($wingetPackages.Count -eq 0) {
-        Write-Skip "No winget categories enabled"
-    } else {
-        foreach ($category in $wingetPackages.Keys | Sort-Object) {
-            Write-SubStep $category
-            Install-PackageBatch -Packages $wingetPackages[$category] -Manager 'winget' -DryRun:$DryRun -Force:$Force
-        }
-    }
-
-    # Install chocolatey packages
-    if ((Test-Chocolatey) -or $DryRun) {
-        Write-Step "Installing Chocolatey Packages"
-
-        if ($chocoPackages.Count -eq 0) {
-            Write-Skip "No chocolatey categories enabled"
-        } else {
-            foreach ($category in $chocoPackages.Keys | Sort-Object) {
-                Write-SubStep $category
-                Install-PackageBatch -Packages $chocoPackages[$category] -Manager 'choco' -DryRun:$DryRun -Force:$Force
-            }
-        }
-    }
-
     # GitHub release installers. These need no package manager, but the
     # installers they download will prompt for elevation when not already admin.
     $githubPackages = Get-EnabledPackages -Manager 'github'
@@ -220,7 +154,7 @@ function Install-AllPackages {
 
         foreach ($category in $githubPackages.Keys | Sort-Object) {
             Write-SubStep $category
-            Install-PackageBatch -Packages $githubPackages[$category] -Manager 'github' -DryRun:$DryRun -Force:$Force
+            Install-PackageBatch -Packages $githubPackages[$category] -DryRun:$DryRun -Force:$Force
         }
     }
 

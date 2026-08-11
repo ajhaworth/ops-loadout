@@ -21,15 +21,19 @@ Profiles (`config/profiles/*.conf`) control what gets installed. Profile variabl
 
 ### Package Lists
 
-Packages are defined in text files under `config/packages/` — one package per line, comments start with `#`. Chocolatey entries can include flags after the package name (e.g., `package --pre`).
+Packages are defined in text files under `config/packages/` — one package per line, comments start with `#`.
 
 - `macos/formulae/*.txt` / `macos/casks/*.txt` - Homebrew CLI tools and GUI apps
 - `macos/mas/apps.txt` - Mac App Store apps (`ID|Name` format)
 - `linux/apt/*.txt` - APT packages
-- `windows/winget/*.txt` - Winget packages
-- `windows/choco/*.txt` - Chocolatey packages
 - `windows/github/*.txt` - GitHub release installers (see below)
 - `windows/comfynodes/*.txt` - ComfyUI custom nodes (see below)
+
+Windows winget and Chocolatey packages are **not** managed here — they moved
+to Ansible in the sibling `ops-server` repo (`roles/windows/packages`, run via
+`./scripts/homelab setup windows`), to keep the package lists in one place.
+This repo deliberately keeps the GitHub-release and ComfyUI-node paths, since
+their version-stamp/compare logic has no clean Ansible equivalent.
 
 ### GitHub Release Packages
 
@@ -248,8 +252,9 @@ Not every module writes to the registry. `comfyui.ps1` writes a YAML file; the
 
 ### ComfyUI
 
-Installed as `Comfy.ComfyUI-Desktop` via `winget/ai.txt` (`WINGET_AI`), at its
-own default location. Only the model library is redirected.
+Installed as `Comfy.ComfyUI-Desktop` via Ansible in `ops-server`
+(`roles/windows/packages`), at its own default location. Only the model
+library is redirected.
 
 Desktop keeps its state in `%APPDATA%\Comfy Desktop` (note the space — there is
 no `%APPDATA%\ComfyUI`). Two files there matter:
@@ -342,7 +347,7 @@ throws at runtime.
 .\setup.ps1 -DryRun                  # Preview changes
 .\setup.ps1 dotfiles                 # Dotfiles only
 .\setup.ps1 dotfiles ls              # Check symlink status
-.\setup.ps1 packages                 # Winget + Chocolatey + GitHub releases
+.\setup.ps1 packages                 # GitHub releases + ComfyUI custom nodes
 .\setup.ps1 packages ls              # Package status
 .\setup.ps1 defaults                 # System preferences
 .\setup.ps1 defaults ls              # Preference categories
@@ -422,7 +427,7 @@ setup.ps1 (Windows entry point — thin wrapper)
     └── platforms/windows/setup.ps1
         ├── lib/windows/common.psm1, packages.psm1, dotfiles.psm1, registry.psm1,
         │                comfyui.psm1
-        ├── packages.ps1 (winget + chocolatey + github releases + comfyui nodes)
+        ├── packages.ps1 (github releases + comfyui nodes)
         ├── dotfiles.ps1 (manifest.windows.txt processing)
         ├── defaults.ps1 (dynamically loads defaults/*.ps1)
         └── debloat.ps1 (optional bloatware removal)
@@ -436,7 +441,6 @@ aborting the run, and the root `setup.ps1` propagates the final code.
 
 Variables map to package directories via naming convention:
 - `FORMULAE_CORE` → `config/packages/macos/formulae/core.txt`
-- `WINGET_GAMING` → `config/packages/windows/winget/gaming.txt`
 - `GITHUB_GAMING` → `config/packages/windows/github/gaming.txt`
 - Underscores in variable names map to hyphens in filenames: `FORMULAE_SOFTWARE_DEV` → `software-dev.txt`
 - Conversion: `lib/common.sh:get_category_var()` (bash) / `lib/windows/common.psm1:Get-CategoryVar` (PowerShell)

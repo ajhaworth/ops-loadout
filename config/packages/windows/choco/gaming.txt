@@ -1,3 +1,0 @@
-# Gaming launchers and streaming (Chocolatey)
-epicgameslauncher
-moonlight-qt

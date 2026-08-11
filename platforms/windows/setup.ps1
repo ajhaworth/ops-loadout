@@ -1,7 +1,9 @@
 # platforms/windows/setup.ps1 - Windows setup coordinator
 #
-# Main setup script for Windows platform. Installs packages using Winget
-# and Chocolatey, symlinks dotfiles, and applies system preferences.
+# Main setup script for Windows platform. Installs GitHub-release apps and
+# ComfyUI custom nodes, symlinks dotfiles, and applies system preferences.
+# Winget/Chocolatey packages are installed separately, by Ansible in the
+# ops-server repo.
 
 param(
     [Alias('Profile')]

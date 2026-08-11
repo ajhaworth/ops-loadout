@@ -13,28 +13,6 @@ $script:Results = @{
     Failed    = @()
 }
 
-# Cache of locally installed Chocolatey package names (lowercase).
-# Querying choco once beats spawning it per package.
-$script:ChocoInstalled = $null
-$script:ChocoListArgs = $null
-
-# Winget exit codes that are not real failures.
-# See https://learn.microsoft.com/windows/package-manager/winget/returnCodes
-$script:WingetBenignExit = @{
-    0           = 'installed'
-    -1978335189 = 'no applicable upgrade'   # 0x8A15002B UPDATE_NOT_APPLICABLE
-    -1978335135 = 'already installed'       # 0x8A150061 PACKAGE_ALREADY_INSTALLED
-    3010        = 'installed (reboot required)'
-    1641        = 'installed (reboot initiated)'
-}
-
-# Chocolatey exit codes that indicate success.
-$script:ChocoBenignExit = @{
-    0    = 'installed'
-    3010 = 'installed (reboot required)'
-    1641 = 'installed (reboot initiated)'
-}
-
 # Installer exit codes that indicate success for GitHub release installers.
 # Most Windows installers follow the MSI convention here.
 $script:GitHubBenignExit = @{
@@ -49,152 +27,10 @@ function Reset-Results {
         Skipped   = @()
         Failed    = @()
     }
-    $script:ChocoInstalled = $null
 }
 
 function Get-Results {
     return $script:Results
-}
-
-# Check if winget is available
-function Test-Winget {
-    return $null -ne (Get-Command winget -ErrorAction SilentlyContinue)
-}
-
-# Check if chocolatey is available
-function Test-Chocolatey {
-    return $null -ne (Get-Command choco -ErrorAction SilentlyContinue)
-}
-
-# Chocolatey 2.x removed --local-only ("choco list" is local by default) and
-# errors out when it is passed. Pick the argument set that matches the
-# installed major version.
-function Get-ChocoListArgs {
-    if ($null -ne $script:ChocoListArgs) {
-        return $script:ChocoListArgs
-    }
-
-    $major = 0
-    try {
-        $version = (& choco --version 2>$null | Select-Object -First 1)
-        if ($version -match '^(\d+)') {
-            $major = [int]$matches[1]
-        }
-    } catch {
-        $major = 0
-    }
-
-    if ($major -ge 2) {
-        $script:ChocoListArgs = @('--limit-output')
-    } else {
-        $script:ChocoListArgs = @('--local-only', '--limit-output')
-    }
-
-    return $script:ChocoListArgs
-}
-
-# Build (and cache) the set of locally installed Chocolatey packages.
-function Get-ChocoInstalled {
-    if ($null -ne $script:ChocoInstalled) {
-        return $script:ChocoInstalled
-    }
-
-    $installed = @{}
-
-    if (Test-Chocolatey) {
-        $listArgs = @('list') + (Get-ChocoListArgs)
-        try {
-            $output = & choco @listArgs 2>$null
-            foreach ($line in $output) {
-                if (-not $line) { continue }
-                # --limit-output emits "name|version"
-                $name = ($line -split '\|')[0].Trim()
-                if ($name) {
-                    $installed[$name.ToLower()] = $true
-                }
-            }
-        } catch {
-            # Leave the cache empty; callers fall back to attempting installs.
-        }
-    }
-
-    $script:ChocoInstalled = $installed
-    return $script:ChocoInstalled
-}
-
-# Install Chocolatey if not present
-function Install-Chocolatey {
-    param(
-        [switch]$DryRun
-    )
-
-    if (Test-Chocolatey) {
-        Write-Skip "Chocolatey already installed"
-        return $true
-    }
-
-    if ($DryRun) {
-        Write-DryRun "Would install Chocolatey"
-        return $true
-    }
-
-    Write-Status "Installing Chocolatey..."
-    try {
-        Set-ExecutionPolicy Bypass -Scope Process -Force
-        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-        $installScript = Invoke-RestMethod -Uri 'https://community.chocolatey.org/install.ps1' -UseBasicParsing
-        Invoke-Expression $installScript
-
-        # Refresh environment so choco is visible in this session
-        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-
-        if (Test-Chocolatey) {
-            Write-Success "Chocolatey installed successfully"
-            return $true
-        } else {
-            Write-Err "Chocolatey installation failed"
-            return $false
-        }
-    } catch {
-        Write-Err "Failed to install Chocolatey: $_"
-        return $false
-    }
-}
-
-# Check if a winget package is installed.
-# Uses an ordinal substring test rather than -match: package ids contain dots,
-# which -match would treat as "any character" and produce false positives.
-function Test-WingetPackage {
-    param(
-        [Parameter(Mandatory)]
-        [string]$PackageId
-    )
-
-    if (-not (Test-Winget)) {
-        return $false
-    }
-
-    $output = & winget list --id $PackageId --exact --accept-source-agreements 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        return $false
-    }
-    if (-not $output) {
-        return $false
-    }
-
-    $joined = ($output | Out-String)
-    return $joined.IndexOf($PackageId, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
-}
-
-# Check if a chocolatey package is installed
-function Test-ChocoPackage {
-    param(
-        [Parameter(Mandatory)]
-        [string]$PackageName
-    )
-
-    $installed = Get-ChocoInstalled
-    return $installed.ContainsKey($PackageName.ToLower())
 }
 
 # Format an exit code for humans (decimal plus hex, which is how winget
@@ -210,132 +46,11 @@ function Format-ExitCode {
     return "$Code ($hex)"
 }
 
-# Install a single winget package
-function Install-WingetPackage {
-    param(
-        [Parameter(Mandatory)]
-        [string]$PackageId,
-        [switch]$DryRun,
-        [switch]$Force
-    )
-
-    # Check if already installed
-    if (-not $Force -and (Test-WingetPackage -PackageId $PackageId)) {
-        Write-Skip "$PackageId (already installed)"
-        $script:Results.Skipped += $PackageId
-        return $true
-    }
-
-    if ($DryRun) {
-        Write-DryRun "Would install: $PackageId"
-        return $true
-    }
-
-    Write-Status "Installing $PackageId..."
-    try {
-        $installArgs = @(
-            'install',
-            '--id', $PackageId,
-            '--exact',
-            '--silent',
-            '--accept-package-agreements',
-            '--accept-source-agreements'
-        )
-        if ($Force) {
-            $installArgs += '--force'
-        }
-
-        $output = & winget @installArgs 2>&1
-        $exitCode = $LASTEXITCODE
-
-        if ($script:WingetBenignExit.ContainsKey($exitCode)) {
-            Write-Success "$PackageId $($script:WingetBenignExit[$exitCode])"
-            $script:Results.Installed += $PackageId
-            return $true
-        }
-
-        Write-Err "Failed to install $PackageId - exit $(Format-ExitCode -Code $exitCode)"
-        $detail = ($output | Select-Object -Last 3 | Out-String).Trim()
-        if ($detail) {
-            Write-Host "    $detail" -ForegroundColor DarkGray
-        }
-        $script:Results.Failed += $PackageId
-        return $false
-    } catch {
-        Write-Err "Error installing ${PackageId}: $_"
-        $script:Results.Failed += $PackageId
-        return $false
-    }
-}
-
-# Install a single chocolatey package
-function Install-ChocoPackage {
-    param(
-        [Parameter(Mandatory)]
-        [string]$PackageSpec,
-        [switch]$DryRun,
-        [switch]$Force
-    )
-
-    # Parse package spec (may include flags like --pre)
-    $parts = $PackageSpec -split '\s+'
-    $packageName = $parts[0]
-    $extraArgs = @()
-    if ($parts.Count -gt 1) {
-        $extraArgs = $parts[1..($parts.Count - 1)]
-    }
-
-    # Check if already installed
-    if (-not $Force -and (Test-ChocoPackage -PackageName $packageName)) {
-        Write-Skip "$packageName (already installed)"
-        $script:Results.Skipped += $packageName
-        return $true
-    }
-
-    if ($DryRun) {
-        Write-DryRun "Would install: $PackageSpec"
-        return $true
-    }
-
-    Write-Status "Installing $packageName..."
-    try {
-        $installArgs = @('install', $packageName, '-y', '--no-progress')
-        if ($Force) {
-            $installArgs += '--force'
-        }
-        $installArgs += $extraArgs
-
-        $output = & choco @installArgs 2>&1
-        $exitCode = $LASTEXITCODE
-
-        if ($script:ChocoBenignExit.ContainsKey($exitCode)) {
-            Write-Success "$packageName $($script:ChocoBenignExit[$exitCode])"
-            $script:Results.Installed += $packageName
-            # Keep the cache in step so later lookups stay accurate
-            if ($null -ne $script:ChocoInstalled) {
-                $script:ChocoInstalled[$packageName.ToLower()] = $true
-            }
-            return $true
-        }
-
-        Write-Err "Failed to install $packageName - exit $(Format-ExitCode -Code $exitCode)"
-        $detail = ($output | Select-Object -Last 3 | Out-String).Trim()
-        if ($detail) {
-            Write-Host "    $detail" -ForegroundColor DarkGray
-        }
-        $script:Results.Failed += $packageName
-        return $false
-    } catch {
-        Write-Err "Error installing ${packageName}: $_"
-        $script:Results.Failed += $packageName
-        return $false
-    }
-}
-
 # --- GitHub release installs -------------------------------------------------
 #
 # Some apps ship only as a GitHub release asset, with no winget or Chocolatey
-# package. Entries in config/packages/windows/github/*.txt are pipe-delimited:
+# package (those are managed by Ansible in ops-server). Entries in
+# config/packages/windows/github/*.txt are pipe-delimited:
 #
 #   owner/repo | asset-pattern | display-name | install-args
 #
@@ -345,7 +60,7 @@ function Install-ChocoPackage {
 #                  the repo name)
 #   install-args   passed to the downloaded installer (default /quiet)
 #
-# Only the repo is required. Unlike winget and Chocolatey there is no version
+# Only the repo is required. Unlike a package manager there is no version
 # negotiation: an app already in Add/Remove Programs is skipped, and -Force
 # reinstalls it at the latest release.
 
@@ -917,37 +632,26 @@ function Install-ComfyNodeRequirements {
     return $true
 }
 
-# Install multiple packages from a list
+# Install multiple GitHub-release packages from a list. Winget/choco packages
+# are installed by Ansible in ops-server, not here.
 function Install-PackageBatch {
     param(
         [Parameter(Mandatory)]
         [string[]]$Packages,
-        [Parameter(Mandatory)]
-        [ValidateSet('winget', 'choco', 'github')]
-        [string]$Manager,
         [switch]$DryRun,
         [switch]$Force
     )
 
     foreach ($package in $Packages) {
-        if ($Manager -eq 'winget') {
-            Install-WingetPackage -PackageId $package -DryRun:$DryRun -Force:$Force | Out-Null
-        } elseif ($Manager -eq 'github') {
-            Install-GitHubRelease -PackageSpec $package -DryRun:$DryRun -Force:$Force | Out-Null
-        } else {
-            Install-ChocoPackage -PackageSpec $package -DryRun:$DryRun -Force:$Force | Out-Null
-        }
+        Install-GitHubRelease -PackageSpec $package -DryRun:$DryRun -Force:$Force | Out-Null
     }
 }
 
-# Display package status for a list
+# Display status for a list of GitHub-release packages
 function Show-PackageStatus {
     param(
         [Parameter(Mandatory)]
         [string[]]$Packages,
-        [Parameter(Mandatory)]
-        [ValidateSet('winget', 'choco', 'github')]
-        [string]$Manager,
         [string]$Category = ""
     )
 
@@ -956,19 +660,9 @@ function Show-PackageStatus {
     }
 
     foreach ($package in $Packages) {
-        # Handle choco package specs with args
-        $packageName = ($package -split '\s+')[0]
-        $display = $package
-
-        if ($Manager -eq 'winget') {
-            $installed = Test-WingetPackage -PackageId $packageName
-        } elseif ($Manager -eq 'github') {
-            # github specs are pipe-delimited; show just the repo
-            $display = ($package -split '\|')[0].Trim()
-            $installed = Test-GitHubPackage -PackageSpec $package
-        } else {
-            $installed = Test-ChocoPackage -PackageName $packageName
-        }
+        # github specs are pipe-delimited; show just the repo
+        $display = ($package -split '\|')[0].Trim()
+        $installed = Test-GitHubPackage -PackageSpec $package
 
         if ($installed) {
             Write-Host "    [" -NoNewline
@@ -1030,13 +724,6 @@ Export-ModuleMember -Function @(
     'Reset-Results',
     'Get-Results',
     'Get-FailureCount',
-    'Test-Winget',
-    'Test-Chocolatey',
-    'Get-ChocoListArgs',
-    'Get-ChocoInstalled',
-    'Install-Chocolatey',
-    'Test-WingetPackage',
-    'Test-ChocoPackage',
     'Test-GitHubPackage',
     'Format-ExitCode',
     'ConvertFrom-GitHubPackageSpec',
@@ -1046,8 +733,6 @@ Export-ModuleMember -Function @(
     'Get-GitHubReleaseStamp',
     'Set-GitHubReleaseStamp',
     'Get-GitHubLatestRelease',
-    'Install-WingetPackage',
-    'Install-ChocoPackage',
     'Install-GitHubRelease',
     'ConvertFrom-ComfyNodeSpec',
     'Test-ComfyNodeInstalled',

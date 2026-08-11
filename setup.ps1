@@ -39,7 +39,7 @@ Usage: .\setup.ps1 [command] [subcommand] [options]
 
 Commands:
   (none)              Full setup
-  packages            Install winget + chocolatey packages
+  packages            Install GitHub-release apps + ComfyUI custom nodes
   dotfiles            Symlink dotfiles
   defaults            Apply system preferences
   debloat             Remove Windows bloatware

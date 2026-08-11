@@ -1,7 +1,7 @@
 # smoke.ps1 - Windows setup smoke tests
 #
 # Runs everywhere: syntax, pure-logic and config-consistency checks.
-# Windows only: the dry-run invocations, which need winget/registry/USERPROFILE.
+# Windows only: the dry-run invocations, which need the registry/USERPROFILE.
 #
 #   pwsh tests/windows/smoke.ps1
 
@@ -104,8 +104,8 @@ Assert-True (-not (Test-ProfileFlag -Profile $windowsProfile -Flag 'PROFILE_DEBL
 # ---------------------------------------------------------------------------
 Write-Section "Helper functions"
 
-Assert-Equal 'WINGET_SOFTWARE_DEV' (Get-CategoryVar -Prefix 'WINGET' -Category 'software-dev') "Get-CategoryVar hyphen to underscore"
-Assert-Equal 'CHOCO_GAMING' (Get-CategoryVar -Prefix 'CHOCO' -Category 'gaming') "Get-CategoryVar simple category"
+Assert-Equal 'GITHUB_SOFTWARE_DEV' (Get-CategoryVar -Prefix 'GITHUB' -Category 'software-dev') "Get-CategoryVar hyphen to underscore"
+Assert-Equal 'COMFYNODES_CORE' (Get-CategoryVar -Prefix 'COMFYNODES' -Category 'core') "Get-CategoryVar simple category"
 Assert-Equal 'Apply-Explorer' (Get-ApplyFunctionName -BaseName 'explorer') "Get-ApplyFunctionName simple"
 Assert-Equal 'Apply-FileExplorer' (Get-ApplyFunctionName -BaseName 'file-explorer') "Get-ApplyFunctionName hyphenated"
 
@@ -121,13 +121,13 @@ $tempList = Join-Path ([IO.Path]::GetTempPath()) "pkglist_test.txt"
     'Package.One',
     'Package.Two  # trailing comment',
     '   ',
-    'choco-pkg --pre'
+    'owner/some-repo | *.exe'
 ) | Set-Content -Path $tempList
 $parsed = @(Read-PackageList -FilePath $tempList)
 Remove-Item -LiteralPath $tempList -Force
 Assert-Equal 3 $parsed.Count "Read-PackageList strips comments and blanks"
 Assert-Equal 'Package.Two' $parsed[1] "Read-PackageList strips inline comments"
-Assert-Equal 'choco-pkg --pre' $parsed[2] "Read-PackageList keeps package flags"
+Assert-Equal 'owner/some-repo | *.exe' $parsed[2] "Read-PackageList keeps pipe-delimited specs"
 
 # ---------------------------------------------------------------------------
 Write-Section "Package lists match profile variables"
@@ -135,10 +135,8 @@ Write-Section "Package lists match profile variables"
 $packagesDir = Join-Path $repoRoot "config\packages\windows"
 $knownVars = @{}
 
-foreach ($manager in @('winget', 'choco', 'github', 'comfynodes')) {
-    $prefix = 'CHOCO'
-    if ($manager -eq 'winget') { $prefix = 'WINGET' }
-    if ($manager -eq 'github') { $prefix = 'GITHUB' }
+foreach ($manager in @('github', 'comfynodes')) {
+    $prefix = 'GITHUB'
     if ($manager -eq 'comfynodes') { $prefix = 'COMFYNODES' }
 
     $managerDir = Join-Path $packagesDir $manager
@@ -168,10 +166,10 @@ foreach ($manager in @('winget', 'choco', 'github', 'comfynodes')) {
     }
 }
 
-# Every WINGET_*/CHOCO_*/GITHUB_*/COMFYNODES_* variable in the profile must have
-# a backing file, otherwise a deleted category silently lingers in the profile.
+# Every GITHUB_*/COMFYNODES_* variable in the profile must have a backing
+# file, otherwise a deleted category silently lingers in the profile.
 foreach ($key in $windowsProfile.Keys) {
-    if ($key -match '^(WINGET|CHOCO|GITHUB|COMFYNODES)_') {
+    if ($key -match '^(GITHUB|COMFYNODES)_') {
         Assert-True $knownVars.ContainsKey($key) "profile var $key has a matching package list"
     }
 }
@@ -459,7 +457,7 @@ Assert-Equal 0 (Get-RegistryFailureCount) "Reset-RegistryResults clears failures
 Write-Section "End-to-end dry runs"
 
 if (-not $onWindows) {
-    Write-Skipped "dry-run invocations require Windows (winget, registry, USERPROFILE)"
+    Write-Skipped "dry-run invocations require Windows (registry, USERPROFILE)"
 } else {
     $setupScript = Join-Path $repoRoot "setup.ps1"
 
