@@ -6,8 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Cross-platform workstation setup tool. Automates installation of packages, dotfiles, and system preferences across macOS, Linux, and Windows.
 
-Agentic coding setup (Claude Code, Codex, tmux, Claude dotfiles) lives in the sibling [ops-agents](../ops-agents) repository.
-
 ## Key Concepts
 
 ### Profiles

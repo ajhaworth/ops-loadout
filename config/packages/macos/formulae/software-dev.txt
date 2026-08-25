@@ -5,18 +5,24 @@ node
 python
 rust
 go
+uv
+openjdk
 
 # Build tools
 cmake
+ninja
 
 # Linting and formatting
 shellcheck
 
 # Dev tools
 gh                  # GitHub CLI
+graphviz
+doxygen
+hugo
 
-# Libraries and dependencies
-openssl
-readline
-sqlite
-libyaml
+# Apple / Xcode
+swiftlint
+xcodegen
+xcode-build-server
+getsentry/xcodebuildmcp/xcodebuildmcp

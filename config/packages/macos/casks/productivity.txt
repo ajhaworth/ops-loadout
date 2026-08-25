@@ -2,3 +2,7 @@
 
 1password           # Password manager
 obsidian            # Note-taking
+anki                # Flashcards
+chatgpt             # ChatGPT desktop app
+deepl               # Translator
+flux-markdown       # Markdown editor

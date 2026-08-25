@@ -2,3 +2,10 @@
 
 keka                # Archive utility
 appcleaner          # App uninstaller
+pearcleaner         # App uninstaller
+balenaetcher        # USB/SD image writer
+cryptomator         # Cloud storage encryption
+fuse-t              # FUSE without kernel extension
+fuse-t-sshfs        # SSHFS via fuse-t
+8bitdo-ultimate-software-v2  # Controller configuration
+vorssaint

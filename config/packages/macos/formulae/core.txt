@@ -14,3 +14,4 @@ coreutils
 findutils
 gnu-sed
 gawk
+zip

@@ -19,7 +19,7 @@ setup_homebrew() {
     install_casks
 
     # Install MAS apps if enabled
-    if [[ "$SKIP_MAS" != "true" ]] && [[ "${PROFILE_MAS:-true}" == "true" ]]; then
+    if [[ "${SKIP_MAS:-false}" != "true" ]] && [[ "${PROFILE_MAS:-true}" == "true" ]]; then
         install_mas_apps
     else
         log_info "Skipping Mac App Store apps"
@@ -256,22 +256,24 @@ get_installed_mas() {
     echo "$INSTALLED_MAS"
 }
 
-# Check if a formula is installed (handles versioned packages like python@3.14)
+# Check if a formula is installed (handles versioned packages like python@3.14).
+# No grep -q: it exits on first match, the upstream echo gets SIGPIPE, and pipefail
+# reports the pipeline as failed. Draining stdin keeps the exit status honest.
 is_formula_installed() {
-    local formula="$1"
-    get_installed_formulae | grep -qE "^${formula}(@|$)"
+    local formula="${1##*/}"  # tap-qualified names list as bare names
+    get_installed_formulae | grep -E "^${formula}(@|$)" >/dev/null
 }
 
 # Check if a cask is installed
 is_cask_installed() {
     local cask="$1"
-    get_installed_casks | grep -qE "^${cask}$"
+    get_installed_casks | grep -E "^${cask}$" >/dev/null
 }
 
 # Check if a MAS app is installed
 is_mas_installed() {
     local app_id="$1"
-    get_installed_mas | grep -qE "^${app_id}$"
+    get_installed_mas | grep -E "^${app_id}$" >/dev/null
 }
 
 # Generic helper to list brew package status

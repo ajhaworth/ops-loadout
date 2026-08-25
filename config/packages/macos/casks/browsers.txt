@@ -1,4 +1,6 @@
 # browsers.txt - Web browsers
 
 google-chrome       # Primary browser
-zen-browser         # Privacy-focused browser
+zen                 # Privacy-focused browser
+helium-browser
+orion

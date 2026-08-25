@@ -9,3 +9,4 @@ ripgrep
 git-delta
 fzf
 zoxide
+gitmux
