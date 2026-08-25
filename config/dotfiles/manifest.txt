@@ -12,5 +12,8 @@ config/dotfiles/shell/tab-colors.zsh|~/.config/shell/tab-colors.zsh||DOTFILES_SH
 config/dotfiles/shell/colors.zsh|~/.config/shell/colors.zsh||DOTFILES_SHELL
 config/dotfiles/starship/starship.toml|~/.config/starship.toml||DOTFILES_SHELL
 
+# Ghostty terminal
+config/dotfiles/ghostty/config|~/.config/ghostty/config||DOTFILES_GHOSTTY
+
 # Git configuration
 config/dotfiles/git/config|~/.gitconfig||DOTFILES_GIT

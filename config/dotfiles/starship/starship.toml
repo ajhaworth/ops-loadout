@@ -1,5 +1,7 @@
 # Starship prompt configuration
-# Vesper-inspired color palette
+# Powerline "rainbow" segments, Catppuccin Mocha palette.
+# Icons/separators are Nerd Font glyphs — Ghostty bundles them as a fallback,
+# so no patched font install is needed there.
 
 format = """
 $username\
@@ -7,38 +9,87 @@ $hostname\
 $directory\
 $git_branch\
 $git_status\
+$line_break\
+$character"""
+
+right_format = """
 $python\
 $nodejs\
 $rust\
 $golang\
 $docker_context\
 $cmd_duration\
-$line_break\
-$character"""
+$time"""
 
 # Disable the blank line at the start of the prompt
 add_newline = false
 
-[character]
-success_symbol = "[\\$](#6B6B6B)"
-error_symbol = "[\\$](bold #E06C75)"
+palette = "catppuccin_mocha"
 
+# From https://github.com/catppuccin/starship (themes/mocha.toml)
+[palettes.catppuccin_mocha]
+rosewater = "#f5e0dc"
+flamingo = "#f2cdcd"
+pink = "#f5c2e7"
+mauve = "#cba6f7"
+red = "#f38ba8"
+maroon = "#eba0ac"
+peach = "#fab387"
+yellow = "#f9e2af"
+green = "#a6e3a1"
+teal = "#94e2d5"
+sky = "#89dceb"
+sapphire = "#74c7ec"
+blue = "#89b4fa"
+lavender = "#b4befe"
+text = "#cdd6f4"
+subtext1 = "#bac2de"
+subtext0 = "#a6adc8"
+overlay2 = "#9399b2"
+overlay1 = "#7f849c"
+overlay0 = "#6c7086"
+surface2 = "#585b70"
+surface1 = "#45475a"
+surface0 = "#313244"
+base = "#1e1e2e"
+mantle = "#181825"
+crust = "#11111b"
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+
+# SSH only: [ user@host ]▶
+[username]
+show_always = false
+style_user = "text"
+format = "[ $user](bg:surface1 $style)"
+
+[hostname]
+ssh_only = true
+style = "text"
+format = "[@$hostname ](bg:surface1 $style)[](fg:surface1 bg:blue)"
+
+# [ 󰉋 path ]▶ — the trailing separator joins into the git segment when inside
+# a repo (repo_root_format), and points at the terminal background otherwise.
 [directory]
-style = "bold #61AFEF"
+style = "bold fg:base bg:blue"
+repo_root_style = "bold fg:base bg:blue"
 truncation_length = 3
 truncate_to_repo = true
-format = "[$path]($style)[$read_only]($read_only_style) "
-read_only = " "
-read_only_style = "#E06C75"
+read_only = " 󰌾"
+read_only_style = "red"
+format = "[ 󰉋 $path$read_only ]($style)[](fg:blue)"
+repo_root_format = "[ 󰉋 $before_root_path$repo_root$path$read_only ]($style)[](fg:blue bg:green)"
 
 [git_branch]
-style = "bold #4EC994"
-format = "[$symbol$branch]($style) "
+style = "base"
 symbol = " "
+format = "[ $symbol$branch ](bg:green $style)[](fg:green)"
 
 [git_status]
 disabled = true
-style = "#FFC799"
+style = "yellow"
 format = '([$all_status$ahead_behind]($style) )'
 conflicted = "="
 ahead = "⇡${count}"
@@ -51,43 +102,40 @@ staged = "+${count}"
 renamed = "»"
 deleted = "✘"
 
+# Right side: standalone ◀[ pills ]
 [cmd_duration]
 min_time = 2_000
-style = "#D4A656"
-format = "[$duration]($style) "
+style = "base"
+format = "[](fg:yellow)[ took $duration  ](bg:yellow $style) "
+
+[time]
+disabled = false
+time_format = "%T"
+style = "text"
+format = "[](fg:surface1)[ at $time  ](bg:surface1 $style)"
 
 [python]
-style = "#D4A656"
-format = '[${symbol}${pyenv_prefix}(${version})(\($virtualenv\))]($style) '
+style = "base"
 symbol = " "
+format = '[](fg:yellow)[ ${symbol}${pyenv_prefix}(${version})(\($virtualenv\)) ](bg:yellow $style) '
 
 [nodejs]
-style = "#A8C97F"
-format = "[$symbol($version)]($style) "
+style = "base"
 symbol = " "
+format = "[](fg:green)[ $symbol($version) ](bg:green $style) "
 
 [rust]
-style = "#E06C75"
-format = "[$symbol($version)]($style) "
+style = "base"
 symbol = " "
+format = "[](fg:peach)[ $symbol($version) ](bg:peach $style) "
 
 [golang]
-style = "#61AFEF"
-format = "[$symbol($version)]($style) "
+style = "base"
 symbol = " "
+format = "[](fg:sky)[ $symbol($version) ](bg:sky $style) "
 
 [docker_context]
-style = "#61AFEF"
-format = "[$symbol$context]($style) "
+style = "base"
 symbol = " "
 only_with_files = true
-
-[hostname]
-ssh_only = true
-style = "#6B6B6B"
-format = "[$hostname]($style):"
-
-[username]
-show_always = false
-style_user = "#6B6B6B"
-format = "[$user]($style)@"
+format = "[](fg:blue)[ $symbol$context ](bg:blue $style) "
