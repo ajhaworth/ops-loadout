@@ -381,6 +381,74 @@ function New-Symlink {
     }
 }
 
+# Per-entry status, one object per manifest entry:
+#   Destination, Source (both expanded/full paths), State, Detail
+# State is one of: linked | wrong | file | missing | source-missing.
+# Show-DotfilesStatus below is the only consumer of the printed form; the
+# launcher's Setup tab (bridge.ps1) consumes these objects directly instead of
+# scraping console output.
+function Get-DotfilesStatus {
+    param(
+        [Parameter(Mandatory)]
+        [array]$Entries,
+        [Parameter(Mandatory)]
+        [string]$RepoRoot
+    )
+
+    $rows = @()
+
+    foreach ($entry in $Entries) {
+        $sourceFull = Join-Path $RepoRoot $entry.Source
+        $destFull = Expand-DestPath -Path $entry.Dest
+
+        if (-not (Test-Path -LiteralPath $sourceFull)) {
+            $rows += [pscustomobject]@{
+                Destination = $destFull
+                Source      = $sourceFull
+                State       = 'source-missing'
+                Detail      = 'source missing'
+            }
+            continue
+        }
+
+        if (Test-Symlink -Path $destFull) {
+            $normalizedTarget = Resolve-SymlinkComparableTarget -Path $destFull
+            $normalizedSource = Get-NormalizedPath -Path $sourceFull
+            if ($normalizedTarget -eq $normalizedSource) {
+                $rows += [pscustomobject]@{
+                    Destination = $destFull
+                    Source      = $sourceFull
+                    State       = 'linked'
+                    Detail      = ''
+                }
+            } else {
+                $rows += [pscustomobject]@{
+                    Destination = $destFull
+                    Source      = $sourceFull
+                    State       = 'wrong'
+                    Detail      = "wrong target: $normalizedTarget"
+                }
+            }
+        } elseif (Test-Path -LiteralPath $destFull) {
+            $rows += [pscustomobject]@{
+                Destination = $destFull
+                Source      = $sourceFull
+                State       = 'file'
+                Detail      = 'file exists'
+            }
+        } else {
+            $rows += [pscustomobject]@{
+                Destination = $destFull
+                Source      = $sourceFull
+                State       = 'missing'
+                Detail      = ''
+            }
+        }
+    }
+
+    return $rows
+}
+
 # Show status of dotfiles
 function Show-DotfilesStatus {
     param(
@@ -390,38 +458,51 @@ function Show-DotfilesStatus {
         [string]$RepoRoot
     )
 
-    foreach ($entry in $Entries) {
-        $sourceFull = Join-Path $RepoRoot $entry.Source
-        $destFull = Expand-DestPath -Path $entry.Dest
-        $destName = Split-Path -Leaf $destFull
+    foreach ($row in (Get-DotfilesStatus -Entries $Entries -RepoRoot $RepoRoot)) {
+        $destName = Split-Path -Leaf $row.Destination
 
-        if (-not (Test-Path -LiteralPath $sourceFull)) {
-            Write-Host "    [" -NoNewline
-            Write-Host "!" -ForegroundColor Red -NoNewline
-            Write-Host "] $destName (source missing)"
-            continue
-        }
-
-        if (Test-Symlink -Path $destFull) {
-            $normalizedTarget = Resolve-SymlinkComparableTarget -Path $destFull
-            $normalizedSource = Get-NormalizedPath -Path $sourceFull
-            if ($normalizedTarget -eq $normalizedSource) {
+        switch ($row.State) {
+            'source-missing' {
+                Write-Host "    [" -NoNewline
+                Write-Host "!" -ForegroundColor Red -NoNewline
+                Write-Host "] $destName (source missing)"
+            }
+            'linked' {
                 Write-Host "    [" -NoNewline
                 Write-Host "X" -ForegroundColor Green -NoNewline
                 Write-Host "] $destName"
-            } else {
+            }
+            'wrong' {
                 Write-Host "    [" -NoNewline
                 Write-Host "~" -ForegroundColor Yellow -NoNewline
-                Write-Host "] $destName (wrong target: $normalizedTarget)"
+                Write-Host "] $destName ($($row.Detail))"
             }
-        } elseif (Test-Path -LiteralPath $destFull) {
-            Write-Host "    [" -NoNewline
-            Write-Host "F" -ForegroundColor Yellow -NoNewline
-            Write-Host "] $destName (file exists)"
-        } else {
-            Write-Host "    [ ] $destName" -ForegroundColor DarkGray
+            'file' {
+                Write-Host "    [" -NoNewline
+                Write-Host "F" -ForegroundColor Yellow -NoNewline
+                Write-Host "] $destName (file exists)"
+            }
+            default {
+                Write-Host "    [ ] $destName" -ForegroundColor DarkGray
+            }
         }
     }
+}
+
+# Probe whether this process can create symlinks (Developer Mode or an
+# elevated token). Cheap, self-cleaning, and shared so the CLI (dotfiles.ps1)
+# and the launcher's prereq row use exactly the same check.
+function Test-SymlinkCapability {
+    $canSymlink = $false
+    try {
+        $testPath = Join-Path $env:TEMP "symlink_test_$(Get-Random)"
+        New-Item -ItemType SymbolicLink -Path $testPath -Target $env:TEMP -ErrorAction Stop | Out-Null
+        Remove-Item -LiteralPath $testPath -Force
+        $canSymlink = $true
+    } catch {
+        $canSymlink = $false
+    }
+    return $canSymlink
 }
 
 # Write dotfiles summary
@@ -561,7 +642,9 @@ Export-ModuleMember -Function @(
     'Backup-ExistingPath',
     'Get-MissingAncestorCount',
     'New-Symlink',
+    'Get-DotfilesStatus',
     'Show-DotfilesStatus',
+    'Test-SymlinkCapability',
     'Write-DotfilesSummary',
     'New-GitConfigLocal'
 )

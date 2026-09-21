@@ -215,6 +215,40 @@ which the launcher alone does, so it doubles as "a GUI is present".
 `X.Y.ZZZ`) into `~/Library/Preferences/houdini/<X.Y>/packages/`
 and records the tag in `.ops-tag` for its own already-current check.
 
+### Setup Tasks (launcher)
+
+The launcher's **Setup** tab drives the non-package stages: prerequisites,
+dotfiles, system defaults and (Windows) debloat. Every section is fed by one
+status verb per platform and applied by one apply verb:
+
+```
+lib/tasks.sh status <section> [--profile name]          # macOS
+lib/tasks.sh apply  <section> <id> [--profile name]
+bridge.ps1 tasks-status <repo> <section> [profile]      # Windows
+bridge.ps1 tasks-apply  <repo> <section> <id> [profile]
+```
+
+Sections: `prereq`, `dotfiles`, `defaults`, `debloat` (Windows only).
+
+A status verb prints exactly one JSON array on stdout and nothing else:
+
+```json
+[{"id":"defaults:finder:com.apple.finder/AppleShowAllFiles","section":"defaults",
+  "group":"Finder","name":"Show hidden files","state":"pending","detail":"currently 0, want 1"}]
+```
+
+- `state` is one of `applied`, `pending`, `failed`, `needs_admin`, `unknown`.
+- Items disabled by the profile are not emitted; profile filtering stays in
+  the scripts, the app never re-implements it. No `--profile` means every
+  flag defaults to enabled, as everywhere else in this repo.
+- `id` is namespaced by section (`dotfiles:~/.zshrc`, `defaults:dock:com.apple.dock/tilesize`)
+  so it cannot collide with package ids in the app.
+- Apply verbs stream plain text and exit non-zero on failure, exactly like
+  package installs, so the app reuses the same streaming and log drawer.
+- **Status is the apply traversal with writes turned off.** There is one code
+  path per item; the helper (`defaults_set` on macOS, `Set-RegistryValue` on
+  Windows) branches on mode. Never add a separate checker that can drift.
+
 ### Dotfiles
 
 Dotfiles use symlinks managed via two platform-specific manifests:
@@ -240,6 +274,14 @@ Both manifests: condition is a profile variable name; entry is skipped when that
 
 System preferences are set via `defaults write` commands in `platforms/macos/defaults/*.sh`. Each file defines an `apply_<name>()` function that is dynamically discovered and invoked.
 
+Each `apply_<name>()` is built from two declarative helpers in `lib/tasks.sh`:
+`defaults_set <domain> <key> <type> <value> <label>` compares the current
+`defaults read` value against the desired one and writes only on a mismatch;
+`defaults_hook <hook-id> <label> <check-cmd> <apply-cmd>` covers anything that
+isn't a scalar `defaults write` (an `-array` write, a `chflags`, a `mkdir -p`).
+Both branch on the same code path for status (writes off) and apply, per
+"Setup Tasks (launcher)" above - there is no separate checker to keep in sync.
+
 ### Windows Defaults
 
 Same pattern in PowerShell. `platforms/windows/defaults/*.ps1` each define an
@@ -248,18 +290,51 @@ Same pattern in PowerShell. `platforms/windows/defaults/*.ps1` each define an
 
 Registry writes go through `lib/windows/registry.psm1` (`Set-RegistryValue`,
 `Set-RegistryValueSet`, `Remove-RegistryKey`), which is idempotent, dry-run
-aware, and records changed/skipped/failed counts. `debloat.ps1` uses the same
-helpers.
+aware, and buckets every setting into `Changed`/`Skipped`/`Pending`/`Failed`/
+`NeedsAdmin` (`Get-RegistryResults`). `debloat.ps1` uses the same helpers.
+Each bucket entry is `@{ Id; Label; Detail }`, not a bare string — `Id` is the
+stable `"$Path\$Name"` (or bare `$Path` for `Remove-RegistryKey`) that the
+launcher's Setup tab uses to target one setting.
+
+A `-DryRun` write that would change something lands in `Pending` rather than
+`Skipped`, so the launcher's tasks-status (see "Setup Tasks (launcher)") can
+tell "already correct" from "would change this" without a second checker.
+
+Not every setting is a registry write. `Invoke-TrackedStep -Id -Label -Check
+-Apply [-RequiresAdmin]` is the Windows counterpart of macOS `defaults_hook`:
+the caller supplies a check and an apply, and gets a row in those same buckets,
+so a `powercfg` call appears in the Setup tab like any registry value. `-Check`
+runs first, so an already-correct step reports `Skipped` even unelevated;
+`-RequiresAdmin` only decides what a step that *would* change something reports
+when the run is not elevated (`NeedsAdmin`, rather than the whole module
+reporting nothing). It honours the same `Set-RegistryOnlyId` filter as the
+registry helpers. `power.ps1` routes its four powercfg timeouts through it -
+without that they produced no rows at all, and a non-elevated run made the
+module vanish from the Setup tab instead of asking for elevation.
 
 `Label` states the *outcome*, not the registry value — `HideFileExt = 0` is
 labelled "Show file extensions". So the log prints the label alone; printing
 `Show file extensions = 0` reads as the exact opposite of what happened. Dry-run
 still shows the key and value, since that output exists to be verified against.
 
-Access-denied errors are reported as "needs Administrator" and counted as
-skipped, not failed (`Test-AccessDeniedError`). Policy branches like
+Access-denied errors are reported as "needs Administrator" and land in
+`NeedsAdmin`, not `Failed` (`Test-AccessDeniedError`) — the CLI's own summary
+still counts them alongside `Skipped` as unchanged. Policy branches like
 `HKCU:\SOFTWARE\Policies` require an elevated token despite living under HKCU,
 so a non-elevated run legitimately cannot write them.
+
+`Set-RegistryOnlyId` (module-scoped, cleared by passing `$null`) restricts
+`Set-RegistryValue`/`Remove-RegistryKey` to a single id, no-oping everything
+else without recording it. That is how the launcher applies one setting from
+a defaults module that writes several: it re-runs the whole module with the
+filter set, so every other setting in it is inert. `Invoke-DefaultsModules`
+(also in `registry.psm1`) is the discovery-and-invoke loop itself — the one
+place that walks `platforms\windows\defaults\*.ps1`, gates each file by its
+`DEFAULTS_<NAME>` flag, and calls `Apply-<Name>`. `defaults.ps1` (the CLI) and
+`bridge.ps1` (the launcher) both call it rather than each keeping their own
+copy of that loop. `-Narrate` prints the per-module header inline as the loop
+goes - the CLI passes it, the launcher does not. It has to be inline: narrating
+from a second loop afterwards puts every header below the output it belongs to.
 
 Filenames map to profile variables like package lists: `taskbar.ps1` →
 `DEFAULTS_TASKBAR`. `power.ps1` and the HKLM half of `privacy.ps1` need

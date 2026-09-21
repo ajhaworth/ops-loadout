@@ -10,12 +10,12 @@ pub struct Cmd {
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
-pub use macos::{hydrate, job_command, launch, open_url, refresh_icon, reveal};
+pub use macos::{hydrate, job_command, launch, open_url, refresh_icon, reveal, task_command};
 
 #[cfg(target_os = "windows")]
 mod windows;
 #[cfg(target_os = "windows")]
-pub use windows::{hydrate, job_command, launch, open_url, refresh_icon, reveal};
+pub use windows::{hydrate, job_command, launch, open_url, refresh_icon, reveal, task_command};
 
 // Linux is not a target of this launcher (no apt support in the plan), but the
 // crate should still build there.
@@ -45,6 +45,16 @@ mod stub {
     pub fn open_url(_url: &str, _resources: &Path) -> Result<(), String> {
         Err("unsupported platform".into())
     }
+    pub fn task_command(
+        _verb: &str,
+        _section: &str,
+        _id: Option<&str>,
+        _repo: &Path,
+        _resources: &Path,
+        _profile: Option<&str>,
+    ) -> Result<Cmd, String> {
+        Err("unsupported platform".into())
+    }
 }
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-pub use stub::{hydrate, job_command, launch, open_url, refresh_icon, reveal};
+pub use stub::{hydrate, job_command, launch, open_url, refresh_icon, reveal, task_command};
