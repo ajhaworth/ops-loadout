@@ -231,21 +231,6 @@ async fn refresh(app: AppHandle, store: State<'_, Store>) -> Result<Vec<App>, St
     rescan(&app, &store)
 }
 
-#[tauri::command]
-async fn set_repo_dir(
-    app: AppHandle,
-    store: State<'_, Store>,
-    path: String,
-) -> Result<Vec<App>, String> {
-    let path = PathBuf::from(path);
-    if !catalog::is_repo(&path) {
-        return Err(format!("{} has no config/packages", path.display()));
-    }
-    save_repo(&app, &path);
-    *store.repo.lock().unwrap() = Some(path);
-    rescan(&app, &store)
-}
-
 fn find_app(store: &Store, id: &str) -> Option<App> {
     store
         .apps
@@ -829,7 +814,6 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             list_apps,
             refresh,
-            set_repo_dir,
             launch,
             install,
             uninstall,
