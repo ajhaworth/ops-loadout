@@ -236,7 +236,102 @@ fn brew_outdated() -> (Vec<String>, Vec<String>) {
     (names("casks"), names("formulae"))
 }
 
+/// `owner/repo` from a cask's `homepage` or `url`, when either is a GitHub URL.
+fn github_slug(c: &Value) -> Option<String> {
+    ["homepage", "url"].into_iter().find_map(|key| {
+        let rest = c.get(key)?.as_str()?.strip_prefix("https://github.com/")?;
+        let mut parts = rest.split('/');
+        let owner = parts.next().filter(|s| !s.is_empty())?;
+        let repo = parts
+            .next()?
+            .split(['#', '?'])
+            .next()?
+            .trim_end_matches(".git");
+        (!repo.is_empty()).then(|| format!("{owner}/{repo}"))
+    })
+}
+
+/// `license.spdx_id` for a GitHub repo, via curl - the crate has no HTTP
+/// client and everything else here shells out too.
+///
+/// `Some(x)` is an answer worth caching (including `Some(None)` for a repo with
+/// no license); `None` means the lookup failed and must not be cached. Sets
+/// `blocked` when GitHub rate-limits us, so the caller stops asking.
+fn github_license(slug: &str, blocked: &mut bool) -> Option<Option<String>> {
+    let mut cmd = Command::new("curl");
+    cmd.args([
+        "-sSL",
+        "--max-time",
+        "5",
+        "-w",
+        "\n%{http_code}",
+        "-H",
+        "User-Agent: ops-launcher",
+        "-H",
+        "Accept: application/vnd.github+json",
+    ]);
+    if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+        if !token.is_empty() {
+            cmd.arg("-H").arg(format!("Authorization: Bearer {token}"));
+        }
+    }
+    let out = cmd
+        .arg(format!("https://api.github.com/repos/{slug}"))
+        .output()
+        .ok()?;
+
+    let body = String::from_utf8_lossy(&out.stdout);
+    let (body, code) = body.rsplit_once('\n')?;
+    match code.trim() {
+        "200" => {}
+        "403" | "429" => {
+            *blocked = true;
+            return None;
+        }
+        _ => return None,
+    }
+
+    let value: Value = serde_json::from_str(body).ok()?;
+    Some(
+        value
+            .get("license")
+            .and_then(|l| l.get("spdx_id"))
+            .and_then(Value::as_str)
+            .filter(|s| *s != "NOASSERTION")
+            .map(str::to_string),
+    )
+}
+
+/// Cask JSON never carries a `license` key, so ask GitHub when the cask points
+/// at a repo. Answers are cached on disk, nulls included, to keep a routine
+/// hydrate off the network.
+fn cask_license(
+    c: &Value,
+    cache: &mut serde_json::Map<String, Value>,
+    blocked: &mut bool,
+    dirty: &mut bool,
+) -> Option<String> {
+    let slug = github_slug(c)?;
+    if let Some(hit) = cache.get(&slug) {
+        return hit.as_str().map(str::to_string);
+    }
+    if *blocked {
+        return None;
+    }
+    let found = github_license(&slug, blocked)?;
+    cache.insert(slug, found.clone().map_or(Value::Null, Value::String));
+    *dirty = true;
+    found
+}
+
 pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, _resources: &Path) {
+    let license_cache = cache_dir.join("github-licenses.json");
+    let mut licenses: serde_json::Map<String, Value> = std::fs::read_to_string(&license_cache)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    let (mut blocked, mut dirty) = (false, false);
+
     let tokens = |kind: &str| -> Vec<String> {
         apps.iter()
             .filter(|a| a.kind == kind)
@@ -295,6 +390,7 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, _resources: &Pat
                         .get("homepage")
                         .and_then(Value::as_str)
                         .map(str::to_string);
+                    app.license = cask_license(&c, &mut licenses, &mut blocked, &mut dirty);
                     if let Some(app_file) = cask_app_name(&c) {
                         app.name = app_file.trim_end_matches(".app").to_string();
                         app.target = Some(app_file);
@@ -321,6 +417,7 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, _resources: &Pat
                         .get("homepage")
                         .and_then(Value::as_str)
                         .map(str::to_string);
+                    app.license = f.get("license").and_then(Value::as_str).map(str::to_string);
                 } else {
                     app.installed = installed_formulae.contains(&app.token);
                 }
@@ -347,6 +444,11 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, _resources: &Pat
             }
             _ => {}
         }
+    }
+
+    if dirty {
+        let _ = std::fs::create_dir_all(cache_dir);
+        let _ = std::fs::write(&license_cache, Value::Object(licenses).to_string());
     }
 }
 
@@ -483,4 +585,30 @@ pub fn reveal(app: &App, _resources: &Path) -> Result<(), String> {
 
 pub fn open_url(url: &str, _resources: &Path) -> Result<(), String> {
     run(Command::new("open").arg(url), "open")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::github_slug;
+    use serde_json::json;
+
+    #[test]
+    fn slug_from_homepage_or_url() {
+        let slug = |v| github_slug(&v);
+        assert_eq!(
+            slug(json!({"homepage": "https://github.com/owner/repo"})),
+            Some("owner/repo".into())
+        );
+        assert_eq!(
+            slug(json!({"homepage": "https://example.com/",
+                        "url": "https://github.com/o/r.git#tag=v1"})),
+            Some("o/r".into())
+        );
+        assert_eq!(
+            slug(json!({"url": "https://github.com/o/r/releases/download/v1/x.dmg"})),
+            Some("o/r".into())
+        );
+        assert_eq!(slug(json!({"homepage": "https://github.com/owner"})), None);
+        assert_eq!(slug(json!({"homepage": "https://gitlab.com/o/r"})), None);
+    }
 }
