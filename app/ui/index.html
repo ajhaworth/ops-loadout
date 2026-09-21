@@ -10,7 +10,6 @@
     <header data-tauri-drag-region>
       <nav id="tabs"></nav>
       <input id="search" type="search" placeholder="Search" autocomplete="off" spellcheck="false" />
-      <span id="count"></span>
       <button id="update-all" title="Update all" hidden>&#8593;<span class="n"></span></button>
       <button id="refresh" title="Rescan">&#8635;</button>
       <button id="settings" title="Settings">&#9881;</button>
@@ -34,6 +33,11 @@
         <label>Client Secret
           <input id="sidefx-secret" type="password" autocomplete="off" spellcheck="false" />
         </label>
+        <h3>Profile</h3>
+        <label>Profile
+          <select id="profile"></select>
+        </label>
+        <p class="note">Profile gates which dotfiles and defaults are shown; packages are not filtered.</p>
         <!-- Save first so Enter submits it; the row is reversed in CSS. -->
         <menu>
           <button value="save">Save</button>

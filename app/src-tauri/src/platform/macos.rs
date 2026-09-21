@@ -418,6 +418,33 @@ pub fn job_command(action: &str, app: &App, repo: &Path, _resources: &Path) -> R
     }
 }
 
+/// `lib/tasks.sh status|apply <section> [id] [--profile name]`. Runs with the
+/// same inherited env as `installer_script`'s Cmd (SUDO_ASKPASS and the
+/// Homebrew PATH prefix are set process-wide in `main()`, so the child gets
+/// them for free without repeating them here).
+pub fn task_command(
+    verb: &str,
+    section: &str,
+    id: Option<&str>,
+    repo: &Path,
+    _resources: &Path,
+    profile: Option<&str>,
+) -> Result<Cmd, String> {
+    let mut args = vec![verb.to_string(), section.to_string()];
+    if let Some(id) = id {
+        args.push(id.to_string());
+    }
+    if let Some(profile) = profile {
+        args.push("--profile".into());
+        args.push(profile.to_string());
+    }
+    Ok(Cmd {
+        program: repo.join("lib/tasks.sh").to_string_lossy().to_string(),
+        args,
+        env: vec![],
+    })
+}
+
 /// App Store apps carry a system restriction that even root cannot chown or
 /// delete, so `mas uninstall` fails on them. Finder holds the entitlement to
 /// trash them (and shows its own auth prompt when needed), so ask Finder.

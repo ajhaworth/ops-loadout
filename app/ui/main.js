@@ -4,7 +4,6 @@ const { ask } = window.__TAURI__.dialog;
 
 const sectionsEl = document.getElementById("sections");
 const searchEl = document.getElementById("search");
-const countEl = document.getElementById("count");
 const drawerEl = document.getElementById("drawer");
 const menuEl = document.getElementById("menu");
 const updateAllEl = document.getElementById("update-all");
@@ -32,8 +31,27 @@ const WORKSPACES = {
   Creative: (a) => a.category === "Creative" || a.kind === "comfynode",
   Development: (a) =>
     ["Development", "Software Dev", "Devops"].includes(a.category) || DEV_IDS.has(a.id),
+  Setup: () => false, // handled by renderSetup(), not the app grid
 };
 let tab = "All";
+
+const IS_WINDOWS = navigator.userAgent.includes("Windows");
+
+// Setup tab: sections of non-package tasks (prereqs, dotfiles, defaults, debloat).
+const SETUP = [
+  { id: "prereq", name: "Prerequisites", desc: "Tools the rest of this page needs: Xcode CLT, Homebrew, mas, git on macOS; winget, git, PowerShell, Developer Mode on Windows.", open: true },
+  { id: "dotfiles", name: "Dotfiles", desc: "Symlinks from this repo's config/dotfiles into your home directory. Existing files are backed up to ~/.dotfiles_backup.", open: true },
+  { id: "defaults", name: "System defaults", desc: "Finder, Dock, keyboard, screenshot and app preferences. Each row shows the current value against the wanted one.", open: true },
+  { id: "debloat", name: "Windows debloat", desc: "Removes preinstalled apps, disables Xbox services and Game DVR. Opt-in via PROFILE_DEBLOAT.", open: false, win: true },
+];
+// section id -> { loading } | { error } | { items }
+const tasks = new Map();
+const sectionRunning = new Map(); // section id -> "Running i/n\u2026" label
+let everythingLabel = null; // null when idle, else a "Running i/n\u2026" label
+
+function setupSections() {
+  return SETUP.filter((s) => !s.win || IS_WINDOWS);
+}
 
 // GUI first, then the App Store, then the CLI grab-bag.
 const GROUPS = [
@@ -219,6 +237,7 @@ function renderTabs() {
 
 function render() {
   renderTabs();
+  if (tab === "Setup") return renderSetup();
   const q = searchEl.value.trim().toLowerCase();
   const inTab = WORKSPACES[tab];
   const shown = apps.filter((a) =>
@@ -249,7 +268,6 @@ function render() {
     sectionsEl.append(p);
   }
   const updates = apps.filter((a) => a.outdated).length;
-  countEl.textContent = `${apps.filter((a) => a.installed).length}/${apps.length}`;
 
   // Stays put while a run is in progress even as the count drains.
   updateAllEl.hidden = !updates && !updatingAll;
@@ -257,8 +275,279 @@ function render() {
   if (!updatingAll) updateAllEl.title = `Update all (${updates})`;
 }
 
+function countStates(items) {
+  const state = (t) => (failed.has(t.id) ? "failed" : t.state);
+  return {
+    applied: items.filter((t) => state(t) === "applied").length,
+    pending: items.filter((t) => state(t) === "pending").length,
+    failed: items.filter((t) => state(t) === "failed").length,
+  };
+}
+
+// Small tinted pills for a state breakdown; only nonzero states render.
+function countPills(items) {
+  const c = countStates(items);
+  return [
+    c.applied && ["applied", `${c.applied} applied`],
+    c.pending && ["pending", `${c.pending} pending`],
+    c.failed && ["failed", `${c.failed} failed`],
+  ].filter(Boolean).map(([cls, text]) => {
+    const span = document.createElement("span");
+    span.className = `pill pill-${cls}`;
+    span.textContent = text;
+    return span;
+  });
+}
+
+const GLYPHS = { applied: "\u2713", pending: "\u25cf", failed: "!", needs_admin: "\ud83d\udd12", unknown: "\u25cb" };
+
+function stateGlyph(state) {
+  const span = document.createElement("span");
+  span.className = `task-glyph state-${state}`;
+  span.textContent = GLYPHS[state] || GLYPHS.unknown;
+  return span;
+}
+
+function taskRowEl(t) {
+  const row = document.createElement("div");
+  row.className = "task";
+  const state = failed.has(t.id) ? "failed" : t.state;
+  const busy = inflight.has(t.id);
+  if (busy) row.classList.add("busy");
+
+  row.append(stateGlyph(state));
+
+  const main = document.createElement("div");
+  main.className = "task-main";
+  const title = document.createElement("div");
+  title.className = "task-title";
+  title.textContent = t.name;
+  title.title = t.name;
+  main.append(title);
+
+  const detailText = failed.get(t.id) || t.detail;
+  if (detailText) {
+    const sub = document.createElement("div");
+    sub.className = "task-sub";
+    sub.textContent = detailText;
+    sub.title = detailText;
+    main.append(sub);
+  }
+  row.append(main);
+
+  const right = document.createElement("div");
+  right.className = "task-right";
+  if (busy) {
+    const spin = document.createElement("span");
+    spin.className = "task-spinner";
+    right.append(spin);
+  } else if (state === "applied") {
+    const applied = document.createElement("span");
+    applied.className = "task-applied";
+    applied.textContent = "Applied";
+    right.append(applied);
+  } else if (state === "needs_admin") {
+    const admin = document.createElement("span");
+    admin.className = "task-needs-admin";
+    admin.textContent = "Needs admin";
+    admin.title = "Run the launcher as Administrator to apply this";
+    right.append(admin);
+  } else {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "task-apply pill-btn primary";
+    btn.textContent = "Apply";
+    btn.onclick = () => doTask(t);
+    right.append(btn);
+  }
+  row.append(right);
+
+  return row;
+}
+
+// One card per group. `name` is null for a section with a single group, in
+// which case the card has no header row.
+function groupEl(name, items) {
+  const card = document.createElement("div");
+  card.className = "card";
+  if (name) {
+    const header = document.createElement("div");
+    header.className = "card-header";
+    const title = document.createElement("span");
+    title.className = "card-title";
+    title.textContent = name;
+    header.append(title, ...countPills(items));
+    card.append(header);
+  }
+  items.forEach((t) => card.append(taskRowEl(t)));
+  return card;
+}
+
+function setupSectionEl(sec, q) {
+  const bucket = tasks.get(sec.id);
+  const wrap = document.createElement("div");
+  wrap.className = "setup-section";
+
+  const label = document.createElement("div");
+  label.className = "setup-label";
+  const labelText = document.createElement("span");
+  labelText.textContent = sec.name;
+  label.append(labelText);
+
+  const labelRight = document.createElement("div");
+  labelRight.className = "setup-label-right";
+  if (bucket?.items) {
+    labelRight.append(...countPills(bucket.items));
+    const runBtn = document.createElement("button");
+    runBtn.type = "button";
+    runBtn.className = "pill-btn";
+    const runLabel = sectionRunning.get(sec.id);
+    runBtn.textContent = runLabel || "Run all";
+    runBtn.disabled = !!runLabel;
+    runBtn.onclick = () => runAll(sec.id);
+    labelRight.append(runBtn);
+  }
+  label.append(labelRight);
+  wrap.append(label);
+
+  const desc = document.createElement("p");
+  desc.className = "setup-desc";
+  desc.textContent = sec.desc;
+  wrap.append(desc);
+
+  if (!bucket || bucket.loading) {
+    const p = document.createElement("p");
+    p.className = "setup-desc";
+    p.textContent = "Checking\u2026";
+    wrap.append(p);
+  } else if (bucket.error) {
+    const p = document.createElement("p");
+    p.className = "setup-error";
+    p.textContent = bucket.error;
+    wrap.append(p);
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "pill-btn";
+    retry.textContent = "Retry";
+    retry.onclick = () => loadSection(sec.id);
+    wrap.append(retry);
+  } else {
+    const items = q
+      ? bucket.items.filter((t) => (t.name + " " + t.group + " " + t.detail).toLowerCase().includes(q))
+      : bucket.items;
+    const groups = [...new Set(items.map((t) => t.group))];
+    if (groups.length > 1) {
+      groups.forEach((g) => wrap.append(groupEl(g, items.filter((t) => t.group === g))));
+    } else {
+      wrap.append(groupEl(null, items));
+    }
+  }
+
+  return wrap;
+}
+
+function renderSetup() {
+  const sections = setupSections();
+  if (tasks.size === 0) sections.forEach((s) => loadSection(s.id));
+
+  const q = searchEl.value.trim().toLowerCase();
+  sectionsEl.replaceChildren();
+
+  const bar = document.createElement("div");
+  bar.className = "setup-bar";
+
+  const all = sections.flatMap((s) => tasks.get(s.id)?.items || []);
+  const c = countStates(all);
+  const summary = document.createElement("span");
+  summary.className = "setup-summary";
+  summary.textContent = [
+    c.applied && `${c.applied} applied`,
+    c.pending && `${c.pending} pending`,
+    c.failed && `${c.failed} failed`,
+  ].filter(Boolean).join(" \u00b7 ");
+  bar.append(summary);
+
+  const runEverythingBtn = document.createElement("button");
+  runEverythingBtn.type = "button";
+  runEverythingBtn.className = "pill-btn primary";
+  runEverythingBtn.textContent = everythingLabel || "Run everything";
+  runEverythingBtn.disabled = !!everythingLabel;
+  runEverythingBtn.onclick = () => runEverything();
+  bar.append(runEverythingBtn);
+
+  sectionsEl.append(bar);
+
+  sections.forEach((sec) => sectionsEl.append(setupSectionEl(sec, q)));
+}
+
+async function loadSection(id) {
+  tasks.set(id, { loading: true });
+  render();
+  try {
+    const items = await invoke("tasks_status", { section: id });
+    tasks.set(id, { items });
+  } catch (e) {
+    tasks.set(id, { error: String(e) });
+  }
+  render();
+}
+
+function refreshSetup() {
+  setupSections().forEach((s) => loadSection(s.id));
+}
+
+/// Same shape as doJob, but for a Setup task rather than a package.
+function doTask(task) {
+  if (inflight.has(task.id)) return Promise.resolve(false);
+  failed.delete(task.id);
+  inflight.add(task.id);
+  render();
+  logLine(`$ applying ${task.name}`);
+
+  return new Promise((resolve) => {
+    pending.set(task.id, resolve);
+    invoke("run_task", { id: task.id, section: task.section }).catch((e) => {
+      pending.delete(task.id);
+      inflight.delete(task.id);
+      failed.set(task.id, String(e));
+      logLine(String(e));
+      render();
+      resolve(false);
+    });
+  });
+}
+
+function runnable(t) {
+  return t.state !== "needs_admin" && (t.state === "pending" || t.state === "failed" || failed.has(t.id));
+}
+
+async function runAll(sectionId) {
+  if (sectionRunning.has(sectionId)) return;
+  const queue = (tasks.get(sectionId)?.items || []).filter(runnable);
+  if (!queue.length) return;
+  for (const [i, t] of queue.entries()) {
+    sectionRunning.set(sectionId, `Running ${i + 1}/${queue.length}\u2026`);
+    render();
+    await doTask(t);
+  }
+  sectionRunning.delete(sectionId);
+  render();
+}
+
+async function runEverything() {
+  if (everythingLabel) return;
+  const queue = setupSections().flatMap((s) => tasks.get(s.id)?.items || []).filter(runnable);
+  if (!queue.length) return;
+  for (const [i, t] of queue.entries()) {
+    everythingLabel = `Running ${i + 1}/${queue.length}\u2026`;
+    render();
+    await doTask(t);
+  }
+  everythingLabel = null;
+  render();
+}
+
 async function load(command) {
-  countEl.textContent = "\u2026";
   try {
     apps = await invoke(command);
   } catch (e) {
@@ -426,6 +715,20 @@ listen("install-done", async ({ payload }) => {
   const settle = pending.get(payload.id);
   pending.delete(payload.id);
 
+  // Task ids are namespaced by section (prereq:homebrew, dotfiles:~/.zshrc);
+  // run_task always emits action "apply", which no package job ever does.
+  if (payload.action === "apply") {
+    if (payload.ok) {
+      failed.delete(payload.id);
+    } else {
+      const last = lastLog.get(payload.id) || "apply failed";
+      if (!/cancell?ed/i.test(last)) failed.set(payload.id, last);
+    }
+    await loadSection(payload.id.split(":")[0]);
+    settle?.(payload.ok);
+    return;
+  }
+
   if (payload.ok) {
     failed.delete(payload.id);
     await load("list_apps");
@@ -450,12 +753,16 @@ addEventListener("contextmenu", (e) => {
 try { if (localStorage.getItem("tab") in WORKSPACES) tab = localStorage.getItem("tab"); } catch { /* default */ }
 searchEl.oninput = render;
 updateAllEl.onclick = updateAll;
-document.getElementById("refresh").onclick = () => load("refresh");
+document.getElementById("refresh").onclick = () => (tab === "Setup" ? refreshSetup() : load("refresh"));
 document.getElementById("settings").onclick = async () => {
   try {
     const settings = await invoke("get_settings");
     document.getElementById("sidefx-id").value = settings.sidefx_client_id;
     document.getElementById("sidefx-secret").value = settings.sidefx_client_secret;
+    const profileEl = document.getElementById("profile");
+    profileEl.replaceChildren(new Option("None (everything enabled)", ""));
+    settings.profiles.forEach((p) => profileEl.append(new Option(p, p)));
+    profileEl.value = settings.profile;
     // Escape leaves the previous value in place, which would re-save on close.
     settingsEl.returnValue = "";
     settingsEl.showModal();
@@ -472,8 +779,10 @@ settingsEl.onclose = async () => {
     await invoke("set_settings", {
       sidefxClientId: document.getElementById("sidefx-id").value,
       sidefxClientSecret: document.getElementById("sidefx-secret").value,
+      profile: document.getElementById("profile").value,
     });
     logLine("Settings saved");
+    if (tab === "Setup") refreshSetup();
   } catch (e) {
     logLine(String(e));
   }

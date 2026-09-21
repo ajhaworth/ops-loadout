@@ -73,6 +73,7 @@ $psFiles += Get-ChildItem -Path (Join-Path $repoRoot "lib\windows") -Filter "*.p
 $psFiles += Get-ChildItem -Path (Join-Path $repoRoot "platforms\windows") -Filter "*.ps1" -Recurse
 $psFiles += Get-ChildItem -Path (Join-Path $repoRoot "tests\windows") -Filter "*.ps1"
 $psFiles += Get-Item (Join-Path $repoRoot "setup.ps1")
+$psFiles += Get-Item (Join-Path $repoRoot "app\src-tauri\bridge.ps1")
 
 foreach ($file in $psFiles) {
     $parseErrors = $null
@@ -452,6 +453,134 @@ Reset-RegistryResults
 $results = Get-RegistryResults
 Assert-Equal 0 $results.Changed.Count "Reset-RegistryResults clears changed"
 Assert-Equal 0 (Get-RegistryFailureCount) "Reset-RegistryResults clears failures"
+
+if ($onWindows) {
+    Reset-RegistryResults
+    $probePath = "HKCU:\Software\ops-workstation-smoketest"
+    if (Test-Path -LiteralPath $probePath) { Remove-Item -LiteralPath $probePath -Recurse -Force }
+    Set-RegistryValue -Path $probePath -Name 'ProbeValue' -Value 1 -Type DWord -Label 'smoke test probe' -DryRun | Out-Null
+    $pendingResults = Get-RegistryResults
+    Assert-Equal 1 $pendingResults.Pending.Count "Set-RegistryValue -DryRun on an absent value records into Pending"
+} else {
+    Write-Skipped "Pending-bucket check requires Windows (registry provider)"
+}
+
+# --- Invoke-TrackedStep - the non-registry counterpart. Pure scriptblocks, so
+# it runs everywhere; power.ps1's powercfg timeouts depend on it producing rows
+# rather than silent output.
+
+Assert-True ($null -ne (Get-Command -Name 'Invoke-TrackedStep' -CommandType Function -ErrorAction SilentlyContinue)) `
+    "Invoke-TrackedStep is exported from registry.psm1"
+Assert-True (@((Get-Command -Name 'Invoke-DefaultsModules').Parameters.Keys) -contains 'Narrate') `
+    "Invoke-DefaultsModules accepts -Narrate"
+
+Reset-RegistryResults
+Invoke-TrackedStep -Id 'smoke\met' -Label 'already there' -Check { $true } -Apply { throw 'must not run' } | Out-Null
+Assert-Equal 1 (Get-RegistryResults).Skipped.Count "Invoke-TrackedStep records a satisfied check as Skipped"
+
+Reset-RegistryResults
+Invoke-TrackedStep -Id 'smoke\dry' -Label 'not yet' -Check { $false } -Apply { throw 'must not run' } -DryRun | Out-Null
+Assert-Equal 1 (Get-RegistryResults).Pending.Count "Invoke-TrackedStep -DryRun records an unmet check as Pending"
+
+Reset-RegistryResults
+$script:TrackedApplyRan = $false
+Invoke-TrackedStep -Id 'smoke\apply' -Label 'applied' -Check { $false } -Apply { $script:TrackedApplyRan = $true } | Out-Null
+Assert-True $script:TrackedApplyRan "Invoke-TrackedStep runs -Apply when the check is unmet"
+Assert-Equal 1 (Get-RegistryResults).Changed.Count "Invoke-TrackedStep records a successful apply as Changed"
+
+Reset-RegistryResults
+Invoke-TrackedStep -Id 'smoke\boom' -Label 'boom' -Check { $false } -Apply { throw 'boom' } | Out-Null
+Assert-Equal 1 (Get-RegistryResults).Failed.Count "Invoke-TrackedStep records a throwing apply as Failed"
+
+if (Test-Administrator) {
+    Write-Skipped "NeedsAdmin bucket check requires a non-elevated session"
+} else {
+    Reset-RegistryResults
+    Invoke-TrackedStep -Id 'smoke\admin' -Label 'needs admin' -RequiresAdmin `
+        -Check { $false } -Apply { throw 'must not run' } | Out-Null
+    Assert-Equal 1 (Get-RegistryResults).NeedsAdmin.Count "Invoke-TrackedStep -RequiresAdmin reports NeedsAdmin unelevated"
+}
+
+# The OnlyId filter has to cover tracked steps too, or applying one row from a
+# module would re-run every other step in it.
+Reset-RegistryResults
+Set-RegistryOnlyId -Id 'smoke\wanted'
+Invoke-TrackedStep -Id 'smoke\unwanted' -Label 'other' -Check { throw 'must not run' } -Apply { throw 'must not run' } | Out-Null
+Set-RegistryOnlyId -Id $null
+$filtered = Get-RegistryResults
+Assert-Equal 0 ($filtered.Skipped.Count + $filtered.Pending.Count + $filtered.Changed.Count + $filtered.Failed.Count) `
+    "Invoke-TrackedStep no-ops a step the OnlyId filter excludes"
+Assert-True ([string]::IsNullOrEmpty((Get-RegistryOnlyId))) 'Set-RegistryOnlyId -Id $null clears the filter'
+Reset-RegistryResults
+
+# power.ps1's timeouts are powercfg calls; routing them through
+# Invoke-TrackedStep is what puts them in the Setup tab at all.
+$powerSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "platforms\windows\defaults\power.ps1")
+Assert-True ($powerSource -match 'Invoke-TrackedStep') "power.ps1 routes its powercfg settings through Invoke-TrackedStep"
+
+# ---------------------------------------------------------------------------
+Write-Section "Setup tasks bridge"
+
+$bridgeScript = Join-Path $repoRoot "app\src-tauri\bridge.ps1"
+$bridgeAst = [System.Management.Automation.Language.Parser]::ParseFile($bridgeScript, [ref]$null, [ref]$null)
+
+$verbParam = $null
+if ($null -ne $bridgeAst.ParamBlock) {
+    $verbParam = @($bridgeAst.ParamBlock.Parameters |
+        Where-Object { $_.Name.VariablePath.UserPath -eq 'Verb' }) | Select-Object -First 1
+}
+Assert-True ($null -ne $verbParam) "bridge.ps1 defines a Verb parameter"
+
+$verbValidateSet = @()
+if ($null -ne $verbParam) {
+    $validateAttr = @($verbParam.Attributes |
+        Where-Object { $_.TypeName.Name -eq 'ValidateSet' }) | Select-Object -First 1
+    if ($null -ne $validateAttr) {
+        $verbValidateSet = @($validateAttr.PositionalArguments | ForEach-Object { $_.Value })
+    }
+}
+Assert-True ($verbValidateSet -contains 'tasks-status') "bridge.ps1 Verb ValidateSet includes tasks-status"
+Assert-True ($verbValidateSet -contains 'tasks-apply') "bridge.ps1 Verb ValidateSet includes tasks-apply"
+
+# --- Get-DotfilesStatus on synthetic entries - runs everywhere, no real
+# dotfiles or $HOME involved.
+
+$syntheticRoot = Join-Path ([IO.Path]::GetTempPath()) "dotfiles_status_test_$(Get-Random)"
+New-Item -ItemType Directory -Path $syntheticRoot -Force | Out-Null
+"hello" | Set-Content -Path (Join-Path $syntheticRoot "present.txt")
+
+$syntheticEntries = @(
+    @{ Source = "present.txt"; Dest = (Join-Path $syntheticRoot "does-not-exist-dest") }
+    @{ Source = "missing.txt"; Dest = (Join-Path $syntheticRoot "irrelevant-dest") }
+)
+$statusRows = @(Get-DotfilesStatus -Entries $syntheticEntries -RepoRoot $syntheticRoot)
+Assert-Equal 2 $statusRows.Count "Get-DotfilesStatus returns one row per entry"
+Assert-Equal 'missing' $statusRows[0].State "an absent destination reports 'missing'"
+Assert-Equal 'source-missing' $statusRows[1].State "an absent source reports 'source-missing'"
+
+Remove-Item -LiteralPath $syntheticRoot -Recurse -Force
+
+# --- tasks-status defaults - needs Windows (registry, real defaults modules)
+
+if ($onWindows) {
+    $bridgeOutput = & pwsh -NoProfile -NonInteractive -File $bridgeScript tasks-status $repoRoot defaults 2>$null
+    $parsedRows = $null
+    try { $parsedRows = @($bridgeOutput | ConvertFrom-Json) } catch { $parsedRows = $null }
+    Assert-True ($null -ne $parsedRows) "tasks-status defaults prints parseable JSON"
+
+    if ($null -ne $parsedRows) {
+        $requiredFields = @('id', 'section', 'group', 'name', 'state', 'detail')
+        $allRowsComplete = $true
+        foreach ($row in $parsedRows) {
+            foreach ($field in $requiredFields) {
+                if (-not ($row.PSObject.Properties.Name -contains $field)) { $allRowsComplete = $false }
+            }
+        }
+        Assert-True $allRowsComplete "every tasks-status defaults row has id/section/group/name/state/detail"
+    }
+} else {
+    Write-Skipped "tasks-status defaults requires Windows"
+}
 
 # ---------------------------------------------------------------------------
 Write-Section "End-to-end dry runs"
