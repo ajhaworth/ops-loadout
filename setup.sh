@@ -20,6 +20,9 @@
 #   mas                 Install Mac App Store apps
 #   mas ls              List Mac App Store apps
 #   defaults            Apply system preferences
+#   launcher            Build Ops Launcher.app and copy it into /Applications
+#   launcher build      Build the launcher bundle only
+#   launcher dev        Run the launcher against this checkout
 #
 #   Linux only:
 #   packages            Install system packages (apt/dnf/etc)
@@ -77,6 +80,9 @@ Commands:
     mas                 Install Mac App Store apps
     mas ls              List Mac App Store apps
     defaults            Apply system preferences
+    launcher            Build Ops Launcher.app and copy it into /Applications
+    launcher build      Build the launcher bundle only
+    launcher dev        Run the launcher against this checkout
 
   Linux only:
     packages            Install system packages (apt/dnf/etc)
@@ -96,6 +102,7 @@ Examples:
     ./setup.sh homebrew                 # Install Homebrew packages (macOS)
     ./setup.sh homebrew ls              # List Homebrew packages (macOS)
     ./setup.sh defaults                 # Apply system preferences (macOS)
+    ./setup.sh launcher                 # Build and install Ops Launcher (macOS)
     ./setup.sh packages                 # Install system packages (Linux)
     ./setup.sh packages ls              # List system packages (Linux)
 Available profiles:
@@ -291,6 +298,39 @@ cmd_defaults_apply() {
     log_success "System preferences applied"
 }
 
+# Subcommand: launcher (macOS Tauri app in app/)
+cmd_launcher() {
+    local target="${1:-install}"
+
+    if [[ "$(detect_os)" != "macos" ]]; then
+        log_error "launcher command is only available on macOS"
+        exit 1
+    fi
+
+    local tool
+    for tool in npm cargo; do
+        if ! command_exists "$tool"; then
+            log_error "$tool not found (run: ./setup.sh formulae)"
+            exit 1
+        fi
+    done
+
+    log_step "Ops Launcher: $target"
+    cd "$SCRIPT_DIR/app"
+    run_cmd npm install
+
+    case "$target" in
+        dev)     run_cmd npm run dev ;;
+        build)   run_cmd npm run build ;;
+        install) run_cmd npm run install:mac ;;
+        *)
+            log_error "Unknown subcommand: launcher $target"
+            log_info "Available: install (default), build, dev"
+            exit 1
+            ;;
+    esac
+}
+
 # ============================================================================
 # Argument parsing
 # ============================================================================
@@ -464,6 +504,10 @@ handle_subcommand() {
                     exit 1
                     ;;
             esac
+            exit 0
+            ;;
+        launcher)
+            cmd_launcher "$subcmd"
             exit 0
             ;;
     esac
