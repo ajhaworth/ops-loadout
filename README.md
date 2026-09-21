@@ -69,7 +69,7 @@ Full installation for personal macOS devices including all package categories, M
 
 ### Workstation (`--profile workstation`)
 
-Work Mac where everything installs through the Ops Launcher instead of Homebrew - no formulae, casks, MAS apps, dotfiles, or system preferences from this tool.
+Work Mac where apps install through the Ops Launcher instead of Homebrew - no formulae, casks, MAS apps or system preferences. Terminal dotfiles (bash, starship, Ghostty) still apply from the launcher; zshrc and gitconfig are left alone.
 
 ### Linux (`--profile linux`)
 
