@@ -3,25 +3,26 @@
 
 mod catalog;
 mod platform;
+mod settings;
+mod window;
 
 use catalog::App;
 use serde::{Deserialize, Serialize};
+use settings::{find_repo, saved_profile, Store};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::Mutex;
 use std::time::Instant;
 use tauri::menu::MenuBuilder;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
+use window::{serve_ui, show_main, toggle_quick};
 
-#[derive(Default)]
-struct Store {
-    repo: Mutex<Option<PathBuf>>,
-    apps: Mutex<Vec<App>>,
-    /// When the quick panel last hid itself on blur - see `toggle_quick`.
-    quick_hidden_at: Mutex<Option<Instant>>,
-}
+// Addressed at the crate root by the tests at the bottom of this file.
+#[cfg(test)]
+use settings::{list_profiles, parse_env_file};
+#[cfg(test)]
+use window::panel_origin;
 
 /// One row from `lib/tasks.sh status` / `bridge.ps1 tasks-status` - see
 /// CLAUDE.md "Setup Tasks (launcher)" for the JSON contract.
@@ -35,153 +36,7 @@ struct Task {
     detail: String,
 }
 
-/// `config.json` in the app config dir. `#[serde(default)]` keeps a
-/// pre-existing `{"repo": ...}` file (from before `profile` existed) loading
-/// fine, and keeps a config with neither field loading fine too.
-#[derive(Default, Serialize, Deserialize)]
-struct Config {
-    #[serde(default)]
-    repo: Option<String>,
-    #[serde(default)]
-    profile: Option<String>,
-}
-
-fn config_file(app: &AppHandle) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|d| d.join("config.json"))
-}
-
-fn read_config(app: &AppHandle) -> Config {
-    config_file(app)
-        .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|t| serde_json::from_str(&t).ok())
-        .unwrap_or_default()
-}
-
-fn write_config(app: &AppHandle, config: &Config) {
-    let Some(path) = config_file(app) else { return };
-    if let Some(dir) = path.parent() {
-        if let Err(e) = std::fs::create_dir_all(dir) {
-            eprintln!("config dir {}: {e}", dir.display());
-        }
-    }
-    if let Ok(body) = serde_json::to_string(config) {
-        if let Err(e) = std::fs::write(&path, body) {
-            eprintln!("config write {}: {e}", path.display());
-        }
-    }
-}
-
-fn saved_repo(app: &AppHandle) -> Option<PathBuf> {
-    read_config(app).repo.map(PathBuf::from)
-}
-
-fn save_repo(app: &AppHandle, repo: &Path) {
-    let mut config = read_config(app);
-    config.repo = Some(repo.to_string_lossy().to_string());
-    write_config(app, &config);
-}
-
-/// `None` when unset, same as an empty string from the settings form.
-fn saved_profile(app: &AppHandle) -> Option<String> {
-    read_config(app).profile.filter(|p| !p.is_empty())
-}
-
-/// OPS_DESKTOP_DIR -> saved path -> the source checkout -> ~/Developer/ops/ops-desktop
-/// -> ask once and remember.
-fn find_repo(app: &AppHandle) -> Option<PathBuf> {
-    if let Some(path) = find_repo_on_disk(app) {
-        return Some(path);
-    }
-
-    // Nothing on disk: ask. Runs off the main thread (commands here are async).
-    use tauri_plugin_dialog::DialogExt;
-    let picked = app
-        .dialog()
-        .file()
-        .set_title("Where is the ops-desktop repo?")
-        .blocking_pick_folder()?;
-    let picked = picked.into_path().ok()?;
-    if catalog::is_repo(&picked) {
-        save_repo(app, &picked);
-        return Some(picked);
-    }
-    None
-}
-
-/// The non-interactive half of `find_repo`: safe to call from anywhere.
-fn find_repo_on_disk(app: &AppHandle) -> Option<PathBuf> {
-    let compiled = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let home = app.path().home_dir().ok();
-
-    let candidates = [
-        std::env::var("OPS_DESKTOP_DIR").ok().map(PathBuf::from),
-        saved_repo(app),
-        Some(compiled),
-        home.map(|h| h.join("Developer/ops/ops-desktop")),
-    ];
-
-    for path in candidates.into_iter().flatten() {
-        if catalog::is_repo(&path) {
-            let path = path.canonicalize().unwrap_or(path);
-            save_repo(app, &path);
-            return Some(path);
-        }
-    }
-    None
-}
-
-/// Serves `<repo>/app/ui/*` straight off disk so a `git pull` (or an edit)
-/// updates the installed launcher's UI without a rebuild. Falls back to the
-/// assets baked in at build time when the repo isn't found.
-fn serve_ui(
-    ctx: tauri::UriSchemeContext<'_, tauri::Wry>,
-    req: tauri::http::Request<Vec<u8>>,
-) -> tauri::http::Response<Vec<u8>> {
-    let path = req.uri().path().trim_start_matches('/');
-    let path = if path.is_empty() { "index.html" } else { path };
-    let app = ctx.app_handle();
-
-    // `dcc/...` serves `<repo>/config/dcc/...` - the DCC helper pages (the
-    // Blender keymap viewer) live with their configs, not in the launcher UI.
-    // No embedded copy of those, so a missing repo just 404s below.
-    let rel = match path.strip_prefix("dcc/") {
-        Some(rest) => Path::new("config/dcc").join(rest),
-        None => Path::new("app/ui").join(path),
-    };
-    let from_disk = find_repo_on_disk(app)
-        .map(|r| r.join(rel))
-        .filter(|p| p.is_file() && !path.contains(".."))
-        .and_then(|p| std::fs::read(p).ok());
-    let (bytes, mime) = match from_disk {
-        Some(bytes) => {
-            let mime = match path.rsplit('.').next() {
-                Some("html") => "text/html",
-                Some("js") => "text/javascript",
-                Some("css") => "text/css",
-                Some("svg") => "image/svg+xml",
-                Some("png") => "image/png",
-                Some("json") => "application/json",
-                Some("py") => "text/plain",
-                _ => "application/octet-stream",
-            };
-            (bytes, mime.to_string())
-        }
-        None => match app.asset_resolver().get(format!("/{path}")) {
-            Some(asset) => (asset.bytes, asset.mime_type),
-            None => {
-                return tauri::http::Response::builder().status(404).body(Vec::new()).unwrap()
-            }
-        },
-    };
-    let csp = app.config().app.security.csp.as_ref().map(|c| c.to_string()).unwrap_or_default();
-    tauri::http::Response::builder()
-        .header("Content-Type", mime)
-        .header("Content-Security-Policy", csp)
-        .body(bytes)
-        .unwrap()
-}
-
-fn repo_of(app: &AppHandle, store: &Store) -> Option<PathBuf> {
+pub(crate) fn repo_of(app: &AppHandle, store: &Store) -> Option<PathBuf> {
     let mut guard = store.repo.lock().unwrap();
     if guard.is_none() {
         *guard = find_repo(app);
@@ -297,147 +152,6 @@ async fn open_url(handle: AppHandle, url: String) -> Result<(), String> {
         return Err(format!("refusing to open {url}"));
     }
     platform::open_url(&url, &resource_dir(&handle))
-}
-
-fn settings_file(handle: &AppHandle, store: &Store) -> Result<PathBuf, String> {
-    let repo = repo_of(handle, store).ok_or("no ops-desktop repo found")?;
-    Ok(repo.join("config/sidefx.local"))
-}
-
-/// `KEY="value"` / `KEY=value` lines with `#` comments - the shape bash sources.
-fn parse_env_file(text: &str) -> Vec<(String, String)> {
-    text.lines()
-        .filter_map(|line| {
-            let line = line.trim();
-            if line.starts_with('#') {
-                return None;
-            }
-            let (key, value) = line.split_once('=')?;
-            let value = value.trim();
-            let unquote = |q: char| value.strip_prefix(q).and_then(|v| v.strip_suffix(q));
-            let value = unquote('\'').or_else(|| unquote('"')).unwrap_or(value);
-            Some((key.trim().to_string(), value.to_string()))
-        })
-        .collect()
-}
-
-/// The current OS name as `config/profiles/*.conf`'s `PROFILE_OS` spells it.
-fn profile_os() -> &'static str {
-    if cfg!(target_os = "windows") {
-        "windows"
-    } else if cfg!(target_os = "macos") {
-        "macos"
-    } else {
-        "linux"
-    }
-}
-
-/// Names of `config/profiles/*.conf` whose `PROFILE_OS` matches this platform
-/// (or is absent). Sorted for a stable dropdown order.
-fn list_profiles(repo: &Path) -> Vec<String> {
-    let os = profile_os();
-    let Ok(entries) = std::fs::read_dir(repo.join("config/profiles")) else {
-        return Vec::new();
-    };
-    let mut names: Vec<String> = entries
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|e| e == "conf"))
-        .filter_map(|p| {
-            let stem = p.file_stem()?.to_string_lossy().to_string();
-            let text = std::fs::read_to_string(&p).ok()?;
-            let its_os = parse_env_file(&text)
-                .into_iter()
-                .find(|(k, _)| k == "PROFILE_OS")
-                .map(|(_, v)| v);
-            its_os.map_or(true, |v| v == os).then_some(stem)
-        })
-        .collect();
-    names.sort();
-    names
-}
-
-/// The SideFX credentials `platforms/macos/installers/houdini.sh` reads, plus
-/// the saved profile and the profiles available for this platform.
-/// Missing file or missing key reads as empty, so the dialog just opens blank.
-#[tauri::command]
-async fn get_settings(
-    handle: AppHandle,
-    store: State<'_, Store>,
-) -> Result<serde_json::Value, String> {
-    let repo = repo_of(&handle, &store).ok_or("no ops-desktop repo found")?;
-    let path = settings_file(&handle, &store)?;
-    let vars = parse_env_file(&std::fs::read_to_string(path).unwrap_or_default());
-    let value = |key: &str| {
-        vars.iter()
-            .find(|(k, _)| k == key)
-            .map(|(_, v)| v.clone())
-            .unwrap_or_default()
-    };
-    Ok(serde_json::json!({
-        "sidefx_client_id": value("SIDEFX_CLIENT_ID"),
-        "sidefx_client_secret": value("SIDEFX_CLIENT_SECRET"),
-        "profile": saved_profile(&handle).unwrap_or_default(),
-        "profiles": list_profiles(&repo),
-    }))
-}
-
-#[tauri::command]
-async fn set_settings(
-    handle: AppHandle,
-    store: State<'_, Store>,
-    sidefx_client_id: String,
-    sidefx_client_secret: String,
-    profile: String,
-) -> Result<(), String> {
-    let mut config = read_config(&handle);
-    config.profile = (!profile.trim().is_empty()).then(|| profile.trim().to_string());
-    write_config(&handle, &config);
-
-    let path = settings_file(&handle, &store)?;
-    let id = sidefx_client_id.trim();
-    let secret = sidefx_client_secret.trim();
-    // The file is sourced by bash. Single quotes expand nothing, so only the
-    // quote itself and a newline could break out of the value.
-    if [id, secret].iter().any(|v| v.contains('\'') || v.contains('\n')) {
-        return Err("credentials cannot contain a single quote or a newline".into());
-    }
-
-    if id.is_empty() && secret.is_empty() {
-        return match std::fs::remove_file(&path) {
-            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
-            _ => Ok(()),
-        };
-    }
-
-    let body = format!(
-        "# SideFX web API credentials for platforms/macos/installers/houdini.sh (gitignored)\n\
-         SIDEFX_CLIENT_ID='{id}'\n\
-         SIDEFX_CLIENT_SECRET='{secret}'\n"
-    );
-    // Created 0600, never briefly world-readable; an existing file keeps its
-    // own mode, so narrow that one too.
-    #[cfg(unix)]
-    let file = {
-        use std::os::unix::fs::OpenOptionsExt;
-        std::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o600)
-            .open(&path)
-    };
-    #[cfg(not(unix))]
-    let file = std::fs::File::create(&path);
-    use std::io::Write;
-    file.and_then(|mut f| f.write_all(body.as_bytes()))
-        .map_err(|e| e.to_string())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
-    }
-    Ok(())
 }
 
 /// One `lib/tasks.sh status <section>` / `bridge.ps1 tasks-status` call. Short
@@ -606,123 +320,6 @@ fn install_askpass(dir: &Path) {
     }
 }
 
-/// Bring the full launcher window up, dismissing the quick panel.
-fn show_main(app: &AppHandle) {
-    if let Some(quick) = app.get_webview_window("quick") {
-        let _ = quick.hide();
-    }
-    if let Some(main) = app.get_webview_window("main") {
-        // A Dock tile while the full window is up; back to tray-only on close.
-        #[cfg(target_os = "macos")]
-        let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
-        let _ = main.show();
-        let _ = main.unminimize();
-        let _ = main.set_focus();
-    }
-}
-
-/// Top-left corner for a panel of `(w, h)` centred under (or over) a tray icon
-/// at `(x, y, w, h)`, all in physical pixels. A menubar at the top of the
-/// screen (macOS) drops the panel below the icon; a taskbar at the bottom
-/// (Windows) puts it above. `monitor` is that screen's `(x, y, w, h)`, which
-/// keeps a panel hanging off the right edge on screen - tray icons live there
-/// on both platforms. `None` when the monitor is unknown: place it unclamped
-/// rather than guess at bounds.
-fn panel_origin(
-    icon: (i32, i32, i32, i32),
-    panel: (i32, i32),
-    monitor: Option<(i32, i32, i32, i32)>,
-) -> (i32, i32) {
-    let (ix, iy, iw, ih) = icon;
-    let (pw, ph) = panel;
-    let mut x = ix + iw / 2 - pw / 2;
-    let mut y = if iy < 100 { iy + ih } else { iy - ph };
-    if let Some((mx, my, mw, mh)) = monitor {
-        x = x.min(mx + mw - pw);
-        y = y.min(my + mh - ph);
-    }
-    (x.max(0), y.max(0))
-}
-
-/// Show or hide the quick panel, anchored to the tray icon's screen rect.
-fn toggle_quick(app: &AppHandle, rect: tauri::Rect) {
-    let Some(window) = app.get_webview_window("quick") else { return };
-    if window.is_visible().unwrap_or(false) {
-        let _ = window.hide();
-        return;
-    }
-    // ponytail: blur-hide races the tray click; a click within 250ms of the
-    // hide is the same click, so treat it as "toggle off".
-    if let Some(at) = *app.state::<Store>().quick_hidden_at.lock().unwrap() {
-        if at.elapsed() < std::time::Duration::from_millis(250) {
-            return;
-        }
-    }
-
-    let scale = window.scale_factor().unwrap_or(1.0);
-    let icon_pos = rect.position.to_physical::<i32>(scale);
-    let icon_size = rect.size.to_physical::<i32>(scale);
-    // A hidden window may not report a current monitor yet, hence the fallback.
-    let monitor = window
-        .current_monitor()
-        .ok()
-        .flatten()
-        .or_else(|| window.primary_monitor().ok().flatten())
-        .map(|m| {
-            let (pos, size) = (m.position(), m.size());
-            (pos.x, pos.y, size.width as i32, size.height as i32)
-        });
-    if let Ok(win) = window.outer_size() {
-        let (x, y) = panel_origin(
-            (icon_pos.x, icon_pos.y, icon_size.width, icon_size.height),
-            (win.width as i32, win.height as i32),
-            monitor,
-        );
-        let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
-    }
-    let _ = window.show();
-    let _ = window.set_focus();
-}
-
-#[tauri::command]
-async fn open_full(handle: AppHandle) -> Result<(), String> {
-    show_main(&handle);
-    Ok(())
-}
-
-/// Opens a page served by `serve_ui` in its own window, one per path.
-#[tauri::command]
-async fn open_page(handle: AppHandle, path: String) -> Result<(), String> {
-    let url = if cfg!(windows) {
-        format!("http://ops.localhost/{path}")
-    } else {
-        format!("ops://localhost/{path}")
-    };
-    let label: String =
-        path.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
-
-    if let Some(window) = handle.get_webview_window(&label) {
-        let _ = window.show();
-        let _ = window.set_focus();
-        return Ok(());
-    }
-    let url = url.parse().map_err(|e| format!("bad page url: {e}"))?;
-    tauri::WebviewWindowBuilder::new(&handle, label, tauri::WebviewUrl::External(url))
-        .title("Ops Launcher")
-        .inner_size(1100.0, 780.0)
-        .build()
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-#[tauri::command]
-async fn hide_quick(handle: AppHandle) -> Result<(), String> {
-    if let Some(quick) = handle.get_webview_window("quick") {
-        let _ = quick.hide();
-    }
-    Ok(())
-}
-
 fn main() {
     // Launched from Finder, the app inherits launchd's minimal PATH, which lacks
     // Homebrew's bin dir, so brew and mas would look absent. Fix it once here
@@ -828,13 +425,13 @@ fn main() {
             reveal,
             open_homepage,
             open_url,
-            get_settings,
-            set_settings,
+            settings::get_settings,
+            settings::set_settings,
             tasks_status,
             run_task,
-            open_full,
-            open_page,
-            hide_quick
+            window::open_full,
+            window::open_page,
+            window::hide_quick
         ])
         .run(tauri::generate_context!())
         .expect("error while running Ops Launcher");
