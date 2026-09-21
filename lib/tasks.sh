@@ -485,8 +485,10 @@ tasks_prereq() {
     if [[ "${PROFILE_HOMEBREW:-true}" != "false" ]]; then
         tasks_prereq_row "prereq:homebrew" "Homebrew" \
             tasks_check_brew tasks_apply_homebrew tasks_detail_brew
-        tasks_prereq_row "prereq:mas" "mas (Mac App Store CLI)" \
-            tasks_check_mas tasks_apply_mas tasks_detail_mas
+        if [[ "${PROFILE_MAS:-true}" != "false" ]]; then
+            tasks_prereq_row "prereq:mas" "mas (Mac App Store CLI)" \
+                tasks_check_mas tasks_apply_mas tasks_detail_mas
+        fi
     fi
 
     tasks_prereq_row "prereq:git" "git" \

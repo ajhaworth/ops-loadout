@@ -1,0 +1,46 @@
+# Builds the Ops Launcher and attaches it to a GitHub Release.
+# Trigger: push a tag like v0.1.0, or run it by hand from the Actions tab.
+# The app is unsigned (no Apple Developer ID), so a downloaded copy needs
+# System Settings > Privacy & Security > Open Anyway, or
+#   xattr -dr com.apple.quarantine "/Applications/Ops Launcher.app"
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+      - run: npm ci
+        working-directory: app
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          args: --bundles dmg
+          # Only cut a release on a tag; a manual run just uploads the artifact.
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: Ops Launcher ${{ github.ref_name }}
+          releaseBody: Unsigned macOS build. Clone the repo, then allow the app under Privacy & Security > Open Anyway.
+      - uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          name: Ops-Launcher-macos
+          path: app/src-tauri/target/release/bundle/dmg/*.dmg

@@ -27,9 +27,19 @@ Each installs its own toolchain deps (Homebrew/Node/Rust on macOS; winget,
 Node, Rust and the VC++ Build Tools on Windows) before building the app, so a
 bare checkout is enough.
 
-On macOS, the app is unsigned: the first launch is blocked by Gatekeeper, so
-right-click (or Control-click) `Ops Launcher.app` in `/Applications` and
-choose **Open** once to trust it.
+A prebuilt macOS app is attached to each
+[GitHub release](https://github.com/ajhaworth/ops-workstation/releases)
+(`.github/workflows/release.yml`, run on every `v*` tag). Clone the repo to
+`~/Developer/ops/ops-desktop` first: the app serves its UI and installer
+scripts from that checkout and asks for the folder if it is missing.
+
+On macOS, the app is unsigned: the first launch is blocked by Gatekeeper.
+Open it once from System Settings > Privacy & Security > **Open Anyway**, or
+clear the quarantine flag on a downloaded copy:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Ops Launcher.app"
+```
 
 Once installed, use the app instead of the CLI:
 - **Apps tab** — browse and install/update packages (Homebrew, GitHub
@@ -69,7 +79,7 @@ Full installation for personal macOS devices including all package categories, M
 
 ### Workstation (`--profile workstation`)
 
-Work Mac where apps install through the Ops Launcher instead of Homebrew - no formulae, casks, MAS apps or system preferences. Terminal dotfiles (bash, starship, Ghostty) still apply from the launcher; zshrc and gitconfig are left alone.
+Work Mac, driven from the Ops Launcher: Blender, Houdini, Fork and Ghostty (installer scripts) plus the core and shell CLI formulae, no casks, no MAS apps, no system preferences. Terminal dotfiles (bash, starship, Ghostty) apply; zshrc and gitconfig are left alone.
 
 ### Linux (`--profile linux`)
 
