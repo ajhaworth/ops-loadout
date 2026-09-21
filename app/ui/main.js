@@ -7,6 +7,7 @@ const searchEl = document.getElementById("search");
 const countEl = document.getElementById("count");
 const drawerEl = document.getElementById("drawer");
 const menuEl = document.getElementById("menu");
+const updateAllEl = document.getElementById("update-all");
 const logEl = document.getElementById("log");
 
 let apps = [];
@@ -15,6 +16,10 @@ const lastLog = new Map();
 // on the grid so its spinner or red badge has somewhere to live.
 const inflight = new Set();
 const failed = new Map();
+// id -> resolve, so a caller can wait for install-done rather than for the
+// invoke that merely starts the job.
+const pending = new Map();
+let updatingAll = false;
 
 // GUI first, then the App Store, then the CLI grab-bag.
 const GROUPS = [
@@ -214,6 +219,10 @@ function render() {
   countEl.textContent =
     `${apps.filter((a) => a.installed).length} / ${apps.length} installed` +
     (updates ? ` \u00b7 ${updates} update${updates > 1 ? "s" : ""}` : "");
+
+  // Stays put while a run is in progress even as the count drains.
+  updateAllEl.hidden = !updates && !updatingAll;
+  if (!updatingAll) updateAllEl.textContent = `Update all${updates ? ` (${updates})` : ""}`;
 }
 
 async function load(command) {
@@ -241,20 +250,45 @@ async function call(command, app) {
   }
 }
 
-async function doJob(app, action) {
-  if (inflight.has(app.id)) return; // one job per app; menu items call this too
+/// Resolves true/false when the job finishes, not when it starts.
+function doJob(app, action) {
+  if (inflight.has(app.id)) return Promise.resolve(false); // one job per app
   failed.delete(app.id);
   inflight.add(app.id);
   render();
   logLine(`$ ${action}ing ${app.name}`);
-  try {
-    await invoke(action, { id: app.id });
-  } catch (e) {
-    inflight.delete(app.id);
-    failed.set(app.id, String(e));
-    logLine(String(e));
-    render();
+
+  return new Promise((resolve) => {
+    pending.set(app.id, resolve);
+    invoke(action, { id: app.id }).catch((e) => {
+      // Rejected before the job started, so no install-done is coming.
+      pending.delete(app.id);
+      inflight.delete(app.id);
+      failed.set(app.id, String(e));
+      logLine(String(e));
+      render();
+      resolve(false);
+    });
+  });
+}
+
+async function updateAll() {
+  if (updatingAll) return;
+  const queue = apps.filter((a) => a.outdated);
+  if (!queue.length) return;
+
+  updatingAll = true;
+  updateAllEl.disabled = true;
+  // Strictly serial: brew holds a lock, and mas is happier one at a time. A
+  // failure resolves like any other result, so the rest still run.
+  for (const [i, app] of queue.entries()) {
+    updateAllEl.textContent = `Updating ${i + 1}/${queue.length}\u2026`;
+    await doJob(app, "update");
   }
+
+  updatingAll = false;
+  updateAllEl.disabled = false;
+  render();
 }
 
 const REVEAL = navigator.userAgent.includes("Windows") ? "Show in Explorer" : "Reveal in Finder";
@@ -357,14 +391,19 @@ listen("install-log", ({ payload }) => {
 
 listen("install-done", async ({ payload }) => {
   inflight.delete(payload.id);
+  const settle = pending.get(payload.id);
+  pending.delete(payload.id);
+
   if (payload.ok) {
     failed.delete(payload.id);
-    return load("list_apps");
+    await load("list_apps");
+  } else {
+    const last = lastLog.get(payload.id) || `${payload.action} failed`;
+    // Declining the admin prompt is a choice, not a failure.
+    if (!/cancell?ed/i.test(last)) failed.set(payload.id, last);
+    render();
   }
-  const last = lastLog.get(payload.id) || `${payload.action} failed`;
-  // Declining the admin prompt is a choice, not a failure.
-  if (!/cancell?ed/i.test(last)) failed.set(payload.id, last);
-  render();
+  settle?.(payload.ok);
 });
 
 addEventListener("click", hideMenu);
@@ -374,5 +413,6 @@ sectionsEl.addEventListener("scroll", hideMenu);
 addEventListener("contextmenu", (e) => e.preventDefault());
 
 searchEl.oninput = render;
+updateAllEl.onclick = updateAll;
 document.getElementById("refresh").onclick = () => load("refresh");
 load("list_apps");
