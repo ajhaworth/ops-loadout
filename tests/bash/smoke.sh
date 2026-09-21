@@ -259,11 +259,189 @@ EOF
     assert_contains "$RUN_OUTPUT" "limited to Debian/Ubuntu"
 }
 
+test_tasks_status_json() {
+    local section
+    for section in prereq dotfiles defaults; do
+        local rows
+        rows="$("$REPO_ROOT/lib/tasks.sh" status "$section" 2>/dev/null)" \
+            || fail "lib/tasks.sh status $section failed"
+
+        printf '%s' "$rows" | python3 -c '
+import json, sys
+
+section = sys.argv[1]
+data = json.loads(sys.stdin.read())
+
+assert isinstance(data, list) and len(data) > 0, "expected a non-empty list"
+
+valid_states = {"applied", "pending", "failed", "needs_admin", "unknown"}
+seen_ids = set()
+for row in data:
+    assert set(row.keys()) == {"id", "section", "group", "name", "state", "detail"}, sorted(row.keys())
+    assert row["section"] == section, row["section"]
+    assert row["state"] in valid_states, row["state"]
+    assert row["id"] not in seen_ids, "duplicate id: " + row["id"]
+    seen_ids.add(row["id"])
+' "$section" || fail "lib/tasks.sh status $section produced invalid rows"
+    done
+
+    local work_rows
+    work_rows="$("$REPO_ROOT/lib/tasks.sh" status defaults --profile work 2>/dev/null)" \
+        || fail "lib/tasks.sh status defaults --profile work failed"
+
+    printf '%s' "$work_rows" | python3 -c '
+import json, sys
+data = json.loads(sys.stdin.read())
+assert isinstance(data, list) and len(data) > 0, "expected a non-empty list"
+' || fail "lib/tasks.sh status defaults --profile work produced invalid JSON"
+}
+
+test_json_str_escaping() {
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Literal backslash, double quote, newline and tab in one string.
+    printf 'back\\slash "quote"\nnewline\ttab' > "$tmpdir/input.txt"
+
+    local output
+    output="$(
+        TMPDIR_FOR_TEST="$tmpdir" REPO_ROOT="$REPO_ROOT" bash <<'EOF'
+set -euo pipefail
+
+tmpdir="$TMPDIR_FOR_TEST"
+source "$REPO_ROOT/lib/tasks.sh"
+
+input="$(cat "$tmpdir/input.txt")"
+json_str "$input" > "$tmpdir/encoded.txt"
+
+python3 -c '
+import json, sys
+
+with open(sys.argv[1]) as f:
+    original = f.read()
+with open(sys.argv[2]) as f:
+    encoded = f.read()
+
+decoded = json.loads("\"" + encoded + "\"")
+assert decoded == original, (decoded, original)
+' "$tmpdir/input.txt" "$tmpdir/encoded.txt"
+
+echo "json-str-ok"
+EOF
+    )"
+
+    assert_contains "$output" "json-str-ok"
+}
+
+test_defaults_compare() {
+    if [[ "$(uname -s)" != "Darwin" ]]; then
+        echo "SKIP: test_defaults_compare (macOS only, current OS is $(uname -s))"
+        return 0
+    fi
+
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    # cfprefsd can leave an empty plist on disk after `defaults delete`, so
+    # remove the file directly too - otherwise a junk domain lingers forever.
+    trap 'rm -rf "$tmpdir"; defaults delete com.ops-desktop.smoke 2>/dev/null || true; rm -f "$HOME/Library/Preferences/com.ops-desktop.smoke.plist"' RETURN
+
+    defaults delete com.ops-desktop.smoke 2>/dev/null || true
+    rm -f "$HOME/Library/Preferences/com.ops-desktop.smoke.plist"
+
+    local output
+    output="$(
+        TMPDIR_FOR_TEST="$tmpdir" REPO_ROOT="$REPO_ROOT" bash <<'EOF'
+set -euo pipefail
+
+tmpdir="$TMPDIR_FOR_TEST"
+source "$REPO_ROOT/lib/tasks.sh"
+
+row_field() {
+    local last=$((${#TASK_ROWS[@]} - 1))
+    printf '%s' "${TASK_ROWS[$last]}" | python3 -c 'import json,sys; print(json.loads(sys.stdin.read())[sys.argv[1]])' "$1"
+}
+
+TASK_GROUP_ID="smoke"
+TASK_GROUP="Smoke"
+TASK_MODE="status"
+TASK_ONLY=""
+
+TASK_ROWS=()
+defaults_set com.ops-desktop.smoke Foo bool true "Foo"
+[[ "$(row_field state)" == "pending" ]] || { echo "expected pending, got $(row_field state)"; exit 1; }
+[[ "$(row_field detail)" == "not set" ]] || { echo "expected 'not set', got $(row_field detail)"; exit 1; }
+
+defaults write com.ops-desktop.smoke Foo -bool true
+
+TASK_ROWS=()
+defaults_set com.ops-desktop.smoke Foo bool true "Foo"
+[[ "$(row_field state)" == "applied" ]] || { echo "expected applied, got $(row_field state)"; exit 1; }
+
+TASK_ROWS=()
+defaults_set com.ops-desktop.smoke Foo bool false "Foo"
+[[ "$(row_field state)" == "pending" ]] || { echo "expected pending, got $(row_field state)"; exit 1; }
+[[ "$(row_field detail)" == "currently 1, want 0" ]] || { echo "expected 'currently 1, want 0', got $(row_field detail)"; exit 1; }
+
+defaults write com.ops-desktop.smoke Num -int 128
+
+TASK_ROWS=()
+defaults_set com.ops-desktop.smoke Num int 128 "Num"
+[[ "$(row_field state)" == "applied" ]] || { echo "expected applied, got $(row_field state)"; exit 1; }
+
+TASK_ROWS=()
+defaults_set com.ops-desktop.smoke Num int 64 "Num"
+[[ "$(row_field state)" == "pending" ]] || { echo "expected pending, got $(row_field state)"; exit 1; }
+
+# Real (non-dry-run) apply.
+TASK_MODE="apply"
+DRY_RUN="false"
+TASK_ONLY=""
+defaults_set com.ops-desktop.smoke Bar int 7 "Bar"
+applied_value="$(defaults read com.ops-desktop.smoke Bar)"
+[[ "$applied_value" == "7" ]] || { echo "expected Bar=7, got $applied_value"; exit 1; }
+
+# defaults_hook: status mode, check command decides applied/pending.
+TASK_MODE="status"
+TASK_ROWS=()
+defaults_hook "hooktest" "Hook Label" "true" "true"
+[[ "$(row_field state)" == "applied" ]] || { echo "expected hook applied, got $(row_field state)"; exit 1; }
+
+TASK_ROWS=()
+defaults_hook "hooktest" "Hook Label" "false" "true"
+[[ "$(row_field state)" == "pending" ]] || { echo "expected hook pending, got $(row_field state)"; exit 1; }
+
+# In apply mode, a non-matching TASK_ONLY must run nothing.
+TASK_MODE="apply"
+TASK_ONLY="defaults:smoke:does-not-match"
+rm -f "$tmpdir/touched"
+defaults_hook "hooktest" "Hook Label" "false" "touch $tmpdir/touched"
+[[ ! -e "$tmpdir/touched" ]] || { echo "hook ran despite non-matching TASK_ONLY"; exit 1; }
+
+echo "defaults-compare-ok"
+EOF
+    )"
+
+    assert_contains "$output" "defaults-compare-ok"
+}
+
+test_tasks_apply_unknown_id() {
+    if run_capture "$REPO_ROOT/lib/tasks.sh" apply defaults "nope:nope"; then
+        fail "lib/tasks.sh apply defaults nope:nope should have failed"
+    fi
+
+    assert_contains "$RUN_OUTPUT" "Unknown id"
+}
+
 test_mismatched_profile_rejected
 test_supported_dry_runs
 test_symlink_safety
 test_linux_package_failures_continue
 test_unsupported_linux_rejected
 test_macos_installer_scripts
+test_tasks_status_json
+test_json_str_escaping
+test_defaults_compare
+test_tasks_apply_unknown_id
 
 echo "bash smoke tests passed"
