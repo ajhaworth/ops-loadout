@@ -274,12 +274,13 @@ ops-workstation/
 the missing ones by shelling out to the same package managers `setup.sh` uses.
 
 ```bash
-cd app
-npm install     # Tauri CLI only, no frontend dependencies
-npm run dev     # run against the local checkout
-npm run build   # bundle to app/src-tauri/target/release/bundle/
-npm run install:mac   # build and copy "Ops Launcher.app" into /Applications (macOS)
+./setup.sh launcher         # build and copy "Ops Launcher.app" into /Applications
+./setup.sh launcher build   # bundle to app/src-tauri/target/release/bundle/
+./setup.sh launcher dev     # run against the local checkout
 ```
+
+Each runs `npm install` first (Tauri CLI only, no frontend dependencies) and
+needs `node` and `rust` from `./setup.sh formulae`.
 
 The bundle is unsigned, so the first launch of `Ops Launcher.app` needs
 right-click -> Open rather than a double-click.
