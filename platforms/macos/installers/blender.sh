@@ -30,9 +30,10 @@ cleanup() {
 do_install() {
     local action="$1" arch series dmg version current
 
-    # Never rm -rf a Blender we did not install (cask, manual download).
-    if [[ -d "$APP" ]] && ! do_status >/dev/null; then
-        echo "another Blender is installed at $APP; remove it first (brew uninstall --cask blender)" >&2
+    # Never rm -rf a Blender we did not install (cask, manual download). A portable symlink
+    # is ours even when it points at another checkout (a worktree); install just relinks it.
+    if [[ -d "$APP" && ! -L "$PORTABLE" ]]; then
+        echo "another Blender is installed at $APP; remove it first (rm the symlink, or brew uninstall --cask blender)" >&2
         return 1
     fi
 
