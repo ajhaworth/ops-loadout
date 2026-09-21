@@ -251,6 +251,28 @@ ops-workstation/
         └── debloat.ps1         # Bloatware removal
 ```
 
+## App Launcher
+
+`app/` is a small Tauri desktop app that shows every package in
+`config/packages/` as an icon grid, launches the installed ones and installs
+the missing ones by shelling out to the same package managers `setup.sh` uses.
+
+```bash
+cd app
+npm install     # Tauri CLI only, no frontend dependencies
+npm run dev     # run against the local checkout
+npm run build   # bundle to app/src-tauri/target/release/bundle/
+npm run install:mac   # build and copy "Ops Launcher.app" into /Applications (macOS)
+```
+
+The bundle is unsigned, so the first launch of `Ops Launcher.app` needs
+right-click -> Open rather than a double-click.
+
+It finds this repo through `OPS_DESKTOP_DIR`, then the path saved in its own
+config directory, then the checkout it was built from, then
+`~/Developer/ops/ops-desktop`, and asks with a folder picker if none of those
+work. Package lists are read at runtime: edit a `.txt` and hit refresh.
+
 ## Security
 
 This repository is designed to be public and contains no secrets. Personal information is stored in local override files (`~/.gitconfig.local`, `~/.zshrc.local`).

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ops Launcher</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header data-tauri-drag-region>
+      <input id="search" type="search" placeholder="Search" autocomplete="off" spellcheck="false" />
+      <span id="count" class="pill"></span>
+      <button id="refresh" title="Rescan">&#8635;</button>
+    </header>
+    <main id="sections"></main>
+    <div id="menu" hidden></div>
+    <aside id="drawer" hidden><pre id="log"></pre></aside>
+    <script src="main.js"></script>
+  </body>
+</html>

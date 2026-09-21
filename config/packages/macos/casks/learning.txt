@@ -1,0 +1,4 @@
+# learning.txt - Study and language tools
+
+anki                # Flashcards
+deepl               # Translator
