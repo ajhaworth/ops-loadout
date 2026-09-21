@@ -6,21 +6,40 @@ For Claude Code, Codex, tmux, and agentic coding configuration, see [ops-agents]
 
 ## Quick Start
 
+The primary way to use this repo is the Ops Launcher GUI. One command builds
+and installs it:
+
 ```bash
 # Clone the repository
 git clone <your-repo-url>
 cd ops-workstation
 
-# macOS/Linux
-./setup.sh --profile personal
-./setup.sh --dry-run --profile work
+# macOS
+./setup.sh launcher
 ```
 
 ```powershell
 # Windows (PowerShell)
-.\setup.ps1
-.\setup.ps1 -DryRun
+.\setup.ps1 launcher
 ```
+
+Each installs its own toolchain deps (Homebrew/Node/Rust on macOS; winget,
+Node, Rust and the VC++ Build Tools on Windows) before building the app, so a
+bare checkout is enough.
+
+On macOS, the app is unsigned: the first launch is blocked by Gatekeeper, so
+right-click (or Control-click) `Ops Launcher.app` in `/Applications` and
+choose **Open** once to trust it.
+
+Once installed, use the app instead of the CLI:
+- **Apps tab** — browse and install/update packages (Homebrew, GitHub
+  releases, ComfyUI nodes, etc.), mirroring `formulae`/`casks`/`packages`.
+- **Setup tab** (in progress) — drives the non-package stages: prerequisites,
+  dotfiles, system defaults, and (Windows) debloat, backed by the same status/
+  apply scripts the CLI uses.
+
+The CLI documented below remains available and is what the app and this guide
+both build on.
 
 ## Features
 
