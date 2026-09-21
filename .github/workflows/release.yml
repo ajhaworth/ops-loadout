@@ -35,9 +35,6 @@ jobs:
         with:
           projectPath: app
           args: --bundles dmg
-          # tauri-action calls `tauri build` directly, so the npm pre-hooks
-          # never fire - stage the bundled repo copy here instead.
-          beforeBuildCommand: npm run bundle-repo
           # Only cut a release on a tag; a manual run just uploads the artifact.
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: Ops Launcher ${{ github.ref_name }}

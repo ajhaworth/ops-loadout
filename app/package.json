@@ -6,10 +6,7 @@
     "tauri": "tauri",
     "dev": "tauri dev",
     "bundle-repo": "node scripts/bundle-repo.js",
-    "prebuild": "npm run bundle-repo",
     "build": "tauri build",
-    "preinstall:mac": "npm run bundle-repo",
-    "preinstall:win": "npm run bundle-repo",
     "install:mac": "tauri build --bundles app && rm -rf '/Applications/Ops Launcher.app' && ditto 'src-tauri/target/release/bundle/macos/Ops Launcher.app' '/Applications/Ops Launcher.app' && (pkill -x 'Ops Launcher' || true) && open '/Applications/Ops Launcher.app'",
     "install:win": "tauri build --bundles nsis"
   },
