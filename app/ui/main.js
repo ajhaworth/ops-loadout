@@ -670,6 +670,9 @@ function menuItems(app) {
     const update = { label: "Update", run: job("update"), strong: app.outdated };
     if (app.outdated) items.push(update);
     if (app.launchable) items.push({ label: "Open", run: () => call("launch", app) });
+    // ponytail: hardcoded; add a page column to installers/*.txt when a second DCC needs one.
+    if (app.id === "installer:blender")
+      items.push({ label: "Keymap", run: () => invoke("open_page", { path: "dcc/blender/keymap.html" }) });
     if (!app.outdated) items.push(update);
     if (app.kind !== "mas") items.push({ label: "Reinstall", run: job("reinstall") });
     if (app.launchable) items.push({ label: REVEAL, run: () => call("reveal", app) });

@@ -1,0 +1,7 @@
+portable/extensions/
+portable/cache/
+portable/config/recent-*.txt
+portable/config/platform_support.txt
+portable/config/bookmarks.txt
+portable/scripts/addons/
+__pycache__/

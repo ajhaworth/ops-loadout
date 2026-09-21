@@ -215,6 +215,66 @@ which the launcher alone does, so it doubles as "a GUI is present".
 `X.Y.ZZZ`) into `~/Library/Preferences/houdini/<X.Y>/packages/`
 and records the tag in `.ops-tag` for its own already-current check.
 
+### DCC Configs (`config/dcc/`)
+
+`config/dcc/<app>/` holds a DCC application's own config, tracked here; one
+installer script per app installs the app and links that directory into it.
+
+**Blender.** `platforms/macos/installers/blender.sh` installs the portable
+build into `/Applications/Blender.app` and symlinks
+`Contents/Resources/portable` -> `config/dcc/blender/portable`. Blender treats a
+`portable/` dir beside its resources as its config root, so everything it saves
+(prefs, startup file, keymap presets, extensions) lands in the repo and shows in
+`git status`; that directory's own `.gitignore` filters the noise (`extensions/`,
+`cache/`, `recent-*.txt`, `platform_support.txt`, `scripts/addons/`,
+`bookmarks.txt`). `status` requires that symlink, so a cask-installed or
+hand-downloaded Blender reads as *not installed* and `install` refuses to
+replace it rather than `rm -rf`-ing someone else's app.
+
+- **The real config is binary.** `portable/config/startup.blend` and
+  `userpref.blend` are the source of truth for scene/UI/prefs and are committed
+  as binaries. They are *generated* by `setup.py`: edit `setup.py` and re-run
+  `bin/blender --python setup.py` (windowed, not `-b` — it needs a live window
+  to walk the workspaces), then commit both `.blend` files.
+- **The keymap lives in `dcc.py`.** `portable/scripts/presets/keyconfig/dcc.py`
+  is a full preset (Industry Compatible plus our edits) and the source of truth;
+  `setup.py` activates it. Change keys in Preferences > Keymap, run
+  `bin/keymap-export`, commit. Export must run windowed too: headless Blender
+  never activates the preset, so it would export the stock keymap. No per-hotkey
+  Python; operators the keymap calls that Blender lacks live in
+  `portable/scripts/startup/`, which Blender auto-loads.
+- **Extensions are declared, not committed.** `extensions.txt` lists
+  `blender_org <id>`, `github <owner/repo>` or `forgejo <host/owner/repo>` lines
+  (Forgejo serves the same releases API under `/api/v1`); the installer puts them
+  in the ignored `portable/extensions/`. GitHub/Forgejo entries prefer the latest
+  release `.zip` asset and fall back to the repo zipball, which is re-zipped
+  because zipballs unpack to `owner-repo-sha/` — not a valid module name.
+- **Download mirror.** `ftp.nluug.nl` rather than `download.blender.org`, which
+  sits behind a Cloudflare JS challenge (`mirrors.dotsrc.org` started 403ing
+  listings in Sep 2026).
+- **MCP.** `extensions.txt` installs the official Blender Lab MCP add-on, which
+  autostarts a socket on localhost:9876 when Blender opens. The installer's last
+  step re-registers the `blender` server at Claude Code user scope, run via `uvx`
+  from upstream git so it is never vendored (skipped without `claude` + `uvx`).
+  Blender must be open for the tools to work.
+- **Keymap viewer.** `keymap.html`/`keymap.js` are served by the launcher at
+  `ops://localhost/dcc/blender/keymap.html` (`serve_ui` maps `dcc/*` to
+  `config/dcc/*`) and opened from the Blender tile's Keymap menu item. They read
+  `dcc.py` at runtime — never export a JSON copy, one source of truth.
+
+**Who Blender's config is for: an environment artist.** Weigh every config,
+hotkey and extension decision against environment-art work: modeling, placement,
+snapping, asset workflows. Leave out animation features (keyframes, timeline,
+frame stepping), as `setup.py` already does by dropping the Animation workspace
+and closing timelines. Industry Compatible is the keymap base only because it is
+the closest stock preset — never justify a setting or a key by "that's how Maya
+or Max does it", justify it by what it does for environment work. Target engine
+is Unreal (scene displays centimeters, 1 BU stays 1 m).
+
+Adding the next DCC (Houdini) means `config/dcc/houdini/` plus its own installer
+beside `sidefxlabs.sh`, linking into `~/Library/Preferences/houdini/<X.Y>/` and
+resolving that `X.Y` the way `sidefxlabs.sh` does.
+
 ### Ops Launcher (`app/`)
 
 The Tauri desktop app the README calls the primary interface. Plain
