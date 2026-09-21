@@ -95,6 +95,32 @@ fn mas_bundle_path(name: &str, id: &str) -> Option<PathBuf> {
     })
 }
 
+fn installer_script(repo: &Path, token: &str) -> PathBuf {
+    repo.join("platforms/macos/installers").join(format!("{token}.sh"))
+}
+
+/// The script prints where it installed to; a non-zero exit means "not here".
+fn installer_status(repo: &Path, token: &str) -> Option<PathBuf> {
+    let out = Command::new(installer_script(repo, token)).arg("status").output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .map(PathBuf::from)
+}
+
+/// Only a `.app` can be opened; anything else is still worth revealing.
+fn set_installer_target(app: &mut App, path: &Path, cache_dir: &Path) {
+    app.target = Some(path.to_string_lossy().to_string());
+    if path.is_dir() && path.extension().is_some_and(|e| e == "app") {
+        app.launchable = true;
+        app.icon = icon(path, &app.id, cache_dir);
+    }
+}
+
 fn icns_in(bundle: &Path) -> Option<PathBuf> {
     let resources = bundle.join("Contents/Resources");
 
@@ -157,7 +183,13 @@ pub fn icon(bundle: &Path, id: &str, cache_dir: &Path) -> Option<String> {
 }
 
 /// Re-read one app's icon after a successful install.
-pub fn refresh_icon(app: &mut App, cache_dir: &Path, _repo: &Path, _resources: &Path) {
+pub fn refresh_icon(app: &mut App, cache_dir: &Path, repo: &Path, _resources: &Path) {
+    if app.kind == "installer" {
+        if let Some(path) = installer_status(repo, &app.token) {
+            set_installer_target(app, &path, cache_dir);
+        }
+        return;
+    }
     let bundle = match app.kind.as_str() {
         "cask" => app.target.as_deref().and_then(bundle_path),
         "mas" => mas_bundle_path(&app.name, &app.token),
@@ -204,7 +236,7 @@ fn brew_outdated() -> (Vec<String>, Vec<String>) {
     (names("casks"), names("formulae"))
 }
 
-pub fn hydrate(apps: &mut [App], cache_dir: &Path, _repo: &Path, _resources: &Path) {
+pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, _resources: &Path) {
     let tokens = |kind: &str| -> Vec<String> {
         apps.iter()
             .filter(|a| a.kind == kind)
@@ -305,6 +337,14 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, _repo: &Path, _resources: &Pa
                     }
                 }
             }
+            // The script is the only source of truth here, and it reports no
+            // version, so `outdated` stays false.
+            "installer" => {
+                if let Some(path) = installer_status(repo, &app.token) {
+                    app.installed = true;
+                    set_installer_target(app, &path, cache_dir);
+                }
+            }
             _ => {}
         }
     }
@@ -326,7 +366,7 @@ fn brew_env() -> Vec<(String, String)> {
 }
 
 /// (program, args, extra env) for one package-manager action.
-pub fn job_command(action: &str, app: &App, _repo: &Path, _resources: &Path) -> Result<Cmd, String> {
+pub fn job_command(action: &str, app: &App, repo: &Path, _resources: &Path) -> Result<Cmd, String> {
     match app.kind.as_str() {
         "cask" | "formula" => {
             let verb = match action {
@@ -365,6 +405,15 @@ pub fn job_command(action: &str, app: &App, _repo: &Path, _resources: &Path) -> 
                 env: vec![],
             })
         }
+        // The script takes the action verbatim and handles its own sudo -A.
+        "installer" => match action {
+            "install" | "update" | "reinstall" | "uninstall" => Ok(Cmd {
+                program: installer_script(repo, &app.token).to_string_lossy().to_string(),
+                args: vec![action.to_string()],
+                env: vec![],
+            }),
+            other => Err(format!("unknown action {other}")),
+        },
         other => Err(format!("cannot {action} a {other} on macOS")),
     }
 }

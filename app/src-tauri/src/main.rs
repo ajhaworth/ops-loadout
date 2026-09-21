@@ -467,6 +467,18 @@ mod smoke {
             "unexpected script: {}",
             args[1]
         );
+        // Installers take the action verbatim; the script is the program.
+        let inst = app_of("installer", "houdini");
+        for action in ["install", "update", "reinstall", "uninstall"] {
+            let (program, args) = argv(action, &inst);
+            assert!(
+                program.ends_with("platforms/macos/installers/houdini.sh"),
+                "unexpected program: {program}"
+            );
+            assert_eq!(args, [action.to_string()]);
+        }
+        assert!(crate::platform::job_command("frobnicate", &inst, here, here).is_err());
+
         // A no-op over an installed app, so it is not offered either.
         assert!(crate::platform::job_command("reinstall", &mas, here, here).is_err());
         assert!(crate::platform::job_command("frobnicate", &cask, here, here).is_err());
