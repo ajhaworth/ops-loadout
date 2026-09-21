@@ -8,7 +8,8 @@ mod window;
 
 use catalog::App;
 use serde::{Deserialize, Serialize};
-use settings::{find_repo, saved_profile, Store};
+use settings::{find_repo, parse_env_file, saved_profile, Store};
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -20,7 +21,7 @@ use window::{serve_ui, show_main, toggle_quick};
 
 // Addressed at the crate root by the tests at the bottom of this file.
 #[cfg(test)]
-use settings::{list_profiles, parse_env_file};
+use settings::list_profiles;
 #[cfg(test)]
 use window::panel_origin;
 
@@ -67,9 +68,27 @@ fn set_dock_badge(handle: &AppHandle, apps: &[App]) {
     }
 }
 
+/// The saved profile's `KEY="value"` flags, or `None` when no profile is chosen
+/// or its file will not read - an unusable profile shows the whole catalog
+/// rather than failing the scan.
+fn profile_flags(app: &AppHandle, repo: &Path) -> Option<HashMap<String, String>> {
+    let name = saved_profile(app)?;
+    let path = repo.join(format!("config/profiles/{name}.conf"));
+    match std::fs::read_to_string(&path) {
+        Ok(text) => Some(parse_env_file(&text).into_iter().collect()),
+        Err(e) => {
+            eprintln!("profile {}: {e}", path.display());
+            None
+        }
+    }
+}
+
 fn rescan(app: &AppHandle, store: &Store) -> Result<Vec<App>, String> {
     let repo = repo_of(app, store).ok_or("no ops-desktop repo found")?;
     let mut apps = catalog::scan(&repo);
+    if let Some(flags) = profile_flags(app, &repo) {
+        apps = catalog::filter_by_profile(apps, &flags);
+    }
     platform::hydrate(&mut apps, &cache_dir(app), &repo, &resource_dir(app));
     *store.apps.lock().unwrap() = apps.clone();
     set_dock_badge(app, &apps);
@@ -517,7 +536,7 @@ mod smoke {
     #[test]
     fn list_profiles_filters_by_os() {
         let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        assert_eq!(crate::list_profiles(&repo), vec!["personal", "work"]);
+        assert_eq!(crate::list_profiles(&repo), vec!["personal", "workstation"]);
     }
 
     fn app_of(kind: &str, token: &str) -> crate::catalog::App {
@@ -598,8 +617,19 @@ mod smoke {
     #[ignore]
     fn uninstall_argv_runs() {
         let here = std::path::Path::new(".");
-        let app = app_of("cask", "blender");
-        assert!(!app.installed, "pick a cask that is not installed");
+        // Whichever cask this machine does not have - hardcoding one breaks
+        // the day it is installed, or moved out of the cask lists.
+        let out = std::process::Command::new("brew")
+            .args(["list", "--cask", "-1"])
+            .output()
+            .unwrap();
+        let installed = String::from_utf8_lossy(&out.stdout).to_string();
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let app = crate::catalog::scan(&repo)
+            .into_iter()
+            .find(|a| a.kind == "cask" && !installed.lines().any(|l| l == a.token))
+            .expect("every cask in the lists is installed");
+        println!("uninstalling {}", app.token);
 
         let cmd = crate::platform::job_command("uninstall", &app, here, here).unwrap();
         let out = std::process::Command::new(&cmd.program)

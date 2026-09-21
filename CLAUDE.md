@@ -13,9 +13,26 @@ Cross-platform workstation setup tool. Automates installation of packages, dotfi
 Profiles (`config/profiles/*.conf`) control what gets installed. Profile variables are bash-style `KEY="value"` pairs parsed by both bash (source) and PowerShell (regex).
 
 - `personal.conf` - Full installation for personal macOS devices
-- `work.conf` - Minimal installation for work macOS devices
+- `workstation.conf` - Work macOS device: Blender, Houdini, Fork, Ghostty and core CLI tools, from the launcher
 - `linux.conf` - Full dev station setup for Linux (Debian/Ubuntu)
 - `windows.conf` - Gaming workstation setup for Windows
+
+Two profile-wide switches sit above the per-category flags. `PROFILE_HOMEBREW="false"`
+disables every formula, cask and MAS app at once, makes `homebrew.sh` and the
+launcher's prerequisites row skip Homebrew entirely, and stops the launcher
+executing `brew`/`mas` at all - not even for status - so a Mac without Homebrew
+never sees a "command not found". `INSTALLERS_<CATEGORY>` gates
+`config/packages/macos/installers/<category>.txt` the same way `CASKS_*` gates
+casks. `workstation.conf` keeps Homebrew (core and shell formulae only, no
+casks, no MAS) and leaves `installers/dcc.txt` (Blender, Houdini) and
+`installers/development.txt` (Fork, Ghostty) visible; the user installs those
+by hand from the launcher tiles. Apps added for the work Mac go in as installer
+scripts, not casks, so the allow-list stays explicit.
+
+`.github/workflows/release.yml` builds the launcher on a macOS runner for every
+`v*` tag and attaches the dmg to a GitHub Release (`tauri-apps/tauri-action`).
+It is unsigned, so README tells downloaders to use Open Anyway or clear the
+quarantine flag. The app still needs the repo checkout for its UI and scripts.
 
 ### Package Lists
 
@@ -288,8 +305,12 @@ points straight at `../ui`) over a Rust backend in `app/src-tauri/src/`:
   `install-log`/`install-done` events.
 - `catalog.rs` — pure parser of `config/packages/**` into `App` structs; never
   shells out. Kinds: `formula`, `cask`, `mas`, `installer` (macOS) and
-  `github`, `comfynode` (Windows). **It ignores profiles on purpose** — the
-  launcher shows every list file (`ponytail:` note in `catalog.rs`).
+  `github`, `comfynode` (Windows). `scan` reads every list file;
+  `filter_by_profile` then drops what the profile saved in Settings disables,
+  using the same `<PREFIX>_<CATEGORY>` / `PROFILE_MAS` / `PROFILE_HOMEBREW`
+  semantics as the bash side, before `hydrate` runs. `hydrate` only shells to
+  `brew`/`mas` when the filtered set still contains an app of that kind. With
+  no profile saved the launcher opens Settings first so one gets picked.
 - `platform.rs` picks `platform/macos.rs` or `platform/windows.rs` by
   `cfg(target_os)`; Linux is a stub that errors. macOS talks to `brew`/`mas`/
   the installer scripts directly. Windows shells *everything* to
@@ -306,9 +327,29 @@ the repo isn't found. So HTML/CSS/JS edits and `git pull` reach the installed
 app on the next window load; only Rust changes need `./setup.sh launcher`.
 
 Repo discovery (`find_repo`): `OPS_DESKTOP_DIR` → saved config → the checkout
-it was built from → `~/Developer/ops/ops-desktop` → folder picker. Settings
-(`repo`, `profile`) persist in the app config dir as `config.json`; the SideFX
-credentials go to `<repo>/config/sidefx.local` at mode 0600.
+it was built from → `~/Developer/ops/ops-desktop` → the copy seeded from the
+bundle → folder picker. Settings (`repo`, `profile`) persist in the app config
+dir as `config.json`; the SideFX credentials go to `<repo>/config/sidefx.local`
+at mode 0600.
+
+**A release ships the repo content, so a downloaded app needs no checkout.**
+`app/scripts/bundle-repo.js` (npm `bundle-repo`, run by the `pre*` hooks and by
+tauri-action's `beforeBuildCommand`) stages `config/`, `lib/` and `platforms/`
+into the gitignored `app/src-tauri/bundled/` via `git archive HEAD` — tracked
+files only, so gitignored Blender extensions and `*.local` can never ship — and
+`tauri.conf.json` bundles it as a resource.
+
+`seed_bundled_repo` copies that out to `<app data>/repo` on launch, because the
+scripts write back into the repo (`config/sidefx.local`, Blender's portable
+prefs) and editing the .app would break its ad-hoc seal. `.bundled-version`
+holds the app version: a mismatch re-copies, overwriting tracked files but
+**never deleting**, so local state survives an update. The seed runs before the
+candidate list is walked, since a saved path pointing at the seeded copy matches
+earlier. A real checkout still wins, so development is unaffected -
+`OPS_DESKTOP_DIR=bundled` forces the seeded copy instead, unsaved, for testing a
+release build on a machine that has one. The seeded
+copy has no `app/` — `serve_ui` finds no file there and falls back to the
+embedded UI, which is the built-in behaviour.
 
 `capabilities/default.json` grants no shell/fs plugin permissions: all process
 execution is native `std::process::Command`, so the capabilities file does not
@@ -532,7 +573,7 @@ throws at runtime.
 ```bash
 # macOS/Linux
 ./setup.sh --profile personal       # Full setup with profile
-./setup.sh --dry-run --profile work  # Preview changes
+./setup.sh --dry-run --profile workstation  # Preview changes
 ./setup.sh dotfiles                  # Dotfiles only
 ./setup.sh dotfiles ls               # Check symlink status
 ./setup.sh homebrew                  # All Homebrew packages (macOS)

@@ -1,8 +1,6 @@
 # development.txt - Development applications
 
 visual-studio-code  # Code editor
-fork                # Git client
-ghostty             # Terminal emulator
 claude              # Claude desktop app
 chatgpt             # ChatGPT desktop app
 cmux

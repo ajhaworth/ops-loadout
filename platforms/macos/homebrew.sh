@@ -33,6 +33,11 @@ setup_homebrew() {
 install_homebrew() {
     log_step "Checking Homebrew installation"
 
+    if [[ "${PROFILE_HOMEBREW:-true}" == "false" ]]; then
+        log_info "Homebrew disabled by profile (PROFILE_HOMEBREW=false)"
+        return 0
+    fi
+
     if command_exists brew; then
         log_success "Homebrew already installed"
         eval_brew_shellenv
@@ -69,6 +74,11 @@ eval_brew_shellenv() {
 
 # Update Homebrew
 update_homebrew() {
+    if [[ "${PROFILE_HOMEBREW:-true}" == "false" ]]; then
+        log_info "Homebrew disabled by profile (PROFILE_HOMEBREW=false)"
+        return 0
+    fi
+
     log_step "Updating Homebrew"
 
     if is_dry_run; then
@@ -87,6 +97,11 @@ install_brew_packages() {
     local category_prefix="$2"
     local is_cask="${3:-}"
     local packages=()
+
+    if [[ "${PROFILE_HOMEBREW:-true}" == "false" ]]; then
+        log_info "Homebrew disabled by profile (PROFILE_HOMEBREW=false)"
+        return 0
+    fi
 
     # Collect all enabled packages
     for file in "$packages_dir"/*.txt; do
@@ -158,6 +173,11 @@ install_casks() {
 install_mas_apps() {
     log_step "Installing Mac App Store apps"
 
+    if [[ "${PROFILE_HOMEBREW:-true}" == "false" ]]; then
+        log_info "Homebrew disabled by profile (PROFILE_HOMEBREW=false)"
+        return 0
+    fi
+
     # Install mas CLI if not present
     if ! command_exists mas; then
         log_info "Installing mas CLI..."
@@ -206,6 +226,11 @@ install_mas_apps() {
 
 # Cleanup Homebrew
 cleanup_homebrew() {
+    if [[ "${PROFILE_HOMEBREW:-true}" == "false" ]]; then
+        log_info "Homebrew disabled by profile (PROFILE_HOMEBREW=false)"
+        return 0
+    fi
+
     log_step "Cleaning up Homebrew"
 
     if is_dry_run; then
