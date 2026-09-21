@@ -37,6 +37,7 @@ let tab = "All";
 // GUI first, then the App Store, then the CLI grab-bag.
 const GROUPS = [
   { kind: "cask", open: true },
+  { kind: "installer", open: true },
   { kind: "github", open: true },
   { kind: "mas", open: true },
   { kind: "comfynode", open: true },

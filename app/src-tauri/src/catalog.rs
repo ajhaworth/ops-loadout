@@ -13,7 +13,7 @@ pub struct App {
     pub id: String,
     pub name: String,
     pub category: String,
-    /// "cask" | "formula" | "mas" | "github" | "comfynode"
+    /// "cask" | "formula" | "mas" | "github" | "comfynode" | "installer"
     pub kind: String,
     pub installed: bool,
     /// An installed app with a newer version available.
@@ -163,6 +163,23 @@ fn github(repo: &Path) -> Vec<App> {
         .collect()
 }
 
+fn installers(repo: &Path) -> Vec<App> {
+    read_dir_lists(&repo.join("config/packages/macos/installers"))
+        .into_iter()
+        .flat_map(|(stem, entries)| {
+            let category = title_case(&stem);
+            entries.into_iter().filter_map(move |line| {
+                // token | display-name | homepage
+                let token = field(&line, 0)?;
+                let name = field(&line, 1).unwrap_or_else(|| token.clone());
+                let mut app = App::new("installer", &token, &name, &category);
+                app.homepage = field(&line, 2);
+                Some(app)
+            })
+        })
+        .collect()
+}
+
 fn comfynodes(repo: &Path) -> Vec<App> {
     read_dir_lists(&repo.join("config/packages/windows/comfynodes"))
         .into_iter()
@@ -194,6 +211,7 @@ pub fn scan(repo: &Path) -> Vec<App> {
         apps
     } else {
         let mut apps = casks(repo);
+        apps.extend(installers(repo));
         apps.extend(mas(repo));
         apps.extend(formulae(repo));
         apps
@@ -218,6 +236,7 @@ ripgrep   # trailing comment
 497799835|Xcode
 Nonary/Vibepollo | VibepolloSetup-*.exe | Vibepollo | /quiet
 willmiao/ComfyUI-Lora-Manager
+houdini | Houdini | https://www.sidefx.com/
 #still a comment
 ";
         let lines = parse_list(text);
@@ -229,6 +248,7 @@ willmiao/ComfyUI-Lora-Manager
                 "497799835|Xcode",
                 "Nonary/Vibepollo | VibepolloSetup-*.exe | Vibepollo | /quiet",
                 "willmiao/ComfyUI-Lora-Manager",
+                "houdini | Houdini | https://www.sidefx.com/",
             ]
         );
 
@@ -243,6 +263,10 @@ willmiao/ComfyUI-Lora-Manager
         assert_eq!(field(&lines[3], 3).as_deref(), Some("/quiet"));
         // comfynode: directory defaults to the repo name
         assert_eq!(field(&lines[4], 1), None);
+        // installer: token | display-name | homepage
+        assert_eq!(field(&lines[5], 0).as_deref(), Some("houdini"));
+        assert_eq!(field(&lines[5], 1).as_deref(), Some("Houdini"));
+        assert_eq!(field(&lines[5], 2).as_deref(), Some("https://www.sidefx.com/"));
 
         assert_eq!(title_case("software-dev"), "Software Dev");
         assert_eq!(title_case("core"), "Core");

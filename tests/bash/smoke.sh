@@ -28,6 +28,31 @@ run_capture() {
     return $status
 }
 
+test_macos_installer_scripts() {
+    local houdini="$REPO_ROOT/platforms/macos/installers/houdini.sh"
+    local labs="$REPO_ROOT/platforms/macos/installers/sidefxlabs.sh"
+
+    [[ -x "$houdini" ]] || fail "houdini.sh is not executable"
+    [[ -x "$labs" ]] || fail "sidefxlabs.sh is not executable"
+
+    bash -n "$houdini" || fail "houdini.sh has a syntax error"
+    bash -n "$labs" || fail "sidefxlabs.sh has a syntax error"
+
+    # Without Houdini, SideFX Labs cannot be installed or reported as present.
+    if ! run_capture "$houdini" status; then
+        if run_capture "$labs" status; then
+            fail "sidefxlabs.sh status should fail when Houdini is absent"
+        fi
+    fi
+
+    # Missing credentials must explain how to create the file, not fail obscurely.
+    if run_capture env SIDEFX_CREDENTIALS="$REPO_ROOT/config/nonexistent-sidefx.local" "$houdini" install; then
+        fail "houdini.sh install should fail without credentials"
+    fi
+
+    assert_contains "$RUN_OUTPUT" "sidefx.local"
+}
+
 test_mismatched_profile_rejected() {
     local current_os mismatched_profile output
     current_os="$(uname -s)"
@@ -238,5 +263,6 @@ test_supported_dry_runs
 test_symlink_safety
 test_linux_package_failures_continue
 test_unsupported_linux_rejected
+test_macos_installer_scripts
 
 echo "bash smoke tests passed"
