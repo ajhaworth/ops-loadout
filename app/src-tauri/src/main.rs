@@ -220,10 +220,8 @@ fn parse_env_file(text: &str) -> Vec<(String, String)> {
             }
             let (key, value) = line.split_once('=')?;
             let value = value.trim();
-            let value = value
-                .strip_prefix('"')
-                .and_then(|v| v.strip_suffix('"'))
-                .unwrap_or(value);
+            let unquote = |q: char| value.strip_prefix(q).and_then(|v| v.strip_suffix(q));
+            let value = unquote('\'').or_else(|| unquote('"')).unwrap_or(value);
             Some((key.trim().to_string(), value.to_string()))
         })
         .collect()
@@ -260,9 +258,10 @@ async fn set_settings(
     let path = settings_file(&handle, &store)?;
     let id = sidefx_client_id.trim();
     let secret = sidefx_client_secret.trim();
-    // The file is sourced by bash, so either character would end the value.
-    if [id, secret].iter().any(|v| v.contains('"') || v.contains('\n')) {
-        return Err("credentials cannot contain a quote or a newline".into());
+    // The file is sourced by bash. Single quotes expand nothing, so only the
+    // quote itself and a newline could break out of the value.
+    if [id, secret].iter().any(|v| v.contains('\'') || v.contains('\n')) {
+        return Err("credentials cannot contain a single quote or a newline".into());
     }
 
     if id.is_empty() && secret.is_empty() {
@@ -274,8 +273,8 @@ async fn set_settings(
 
     let body = format!(
         "# SideFX web API credentials for platforms/macos/installers/houdini.sh (gitignored)\n\
-         SIDEFX_CLIENT_ID=\"{id}\"\n\
-         SIDEFX_CLIENT_SECRET=\"{secret}\"\n"
+         SIDEFX_CLIENT_ID='{id}'\n\
+         SIDEFX_CLIENT_SECRET='{secret}'\n"
     );
     // Created 0600, never briefly world-readable; an existing file keeps its
     // own mode, so narrow that one too.
@@ -527,13 +526,14 @@ mod smoke {
     #[test]
     fn env_file_parses_quoted_and_bare_values() {
         let vars = crate::parse_env_file(
-            "# comment\nSIDEFX_CLIENT_ID=\"abc\"\n\nSIDEFX_CLIENT_SECRET = bare\n#KEY=no\n",
+            "# comment\nSIDEFX_CLIENT_ID='a$(b)'\n\nSIDEFX_CLIENT_SECRET = bare\nQ=\"dq\"\n#KEY=no\n",
         );
         assert_eq!(
             vars,
             [
-                ("SIDEFX_CLIENT_ID".to_string(), "abc".to_string()),
+                ("SIDEFX_CLIENT_ID".to_string(), "a$(b)".to_string()),
                 ("SIDEFX_CLIENT_SECRET".to_string(), "bare".to_string()),
+                ("Q".to_string(), "dq".to_string()),
             ]
         );
     }
