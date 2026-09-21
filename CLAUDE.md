@@ -215,6 +215,40 @@ which the launcher alone does, so it doubles as "a GUI is present".
 `X.Y.ZZZ`) into `~/Library/Preferences/houdini/<X.Y>/packages/`
 and records the tag in `.ops-tag` for its own already-current check.
 
+### Ops Launcher (`app/`)
+
+The Tauri desktop app the README calls the primary interface. Plain
+HTML/CSS/vanilla JS in `app/ui/` (no framework, no bundler; `frontendDist`
+points straight at `../ui`) over a Rust backend in `app/src-tauri/src/`:
+
+- `main.rs` — Tauri commands (`list_apps`, `refresh`, `install`/`update`/
+  `uninstall`/`reinstall`, `launch`, `tasks_status`, `run_task`,
+  `get_settings`/`set_settings`, ...), invoked from `main.js` as
+  `window.__TAURI__.core.invoke("<name>")`. Job output streams over
+  `install-log`/`install-done` events.
+- `catalog.rs` — pure parser of `config/packages/**` into `App` structs; never
+  shells out. Kinds: `formula`, `cask`, `mas`, `installer` (macOS) and
+  `github`, `comfynode` (Windows). **It ignores profiles on purpose** — the
+  launcher shows every list file (`ponytail:` note in `catalog.rs`).
+- `platform.rs` picks `platform/macos.rs` or `platform/windows.rs` by
+  `cfg(target_os)`; Linux is a stub that errors. macOS talks to `brew`/`mas`/
+  the installer scripts directly. Windows shells *everything* to
+  `app/src-tauri/bridge.ps1` (verbs: `status|install|uninstall|update|icon|
+  launch|open|tasks-status|tasks-apply`), which is bundled as a Tauri
+  resource so the built app can find it. Package/task logic lives in
+  `lib/windows/*.psm1`, not in the bridge or in Rust — add features there.
+
+Repo discovery (`find_repo`): `OPS_DESKTOP_DIR` → saved config → the checkout
+it was built from → `~/Developer/ops/ops-desktop` → folder picker. Settings
+(`repo`, `profile`) persist in the app config dir as `config.json`; the SideFX
+credentials go to `<repo>/config/sidefx.local` at mode 0600.
+
+`capabilities/default.json` grants no shell/fs plugin permissions: all process
+execution is native `std::process::Command`, so the capabilities file does not
+gate it. The CSP allows no external scripts or styles; images only from
+`data:` and Google's favicon hosts. `src-tauri/gen/` and `target/` are build
+output and gitignored.
+
 ### Setup Tasks (launcher)
 
 The launcher's **Setup** tab drives the non-package stages: prerequisites,
@@ -439,6 +473,13 @@ throws at runtime.
 ./setup.sh casks                     # GUI apps only (macOS)
 ./setup.sh defaults                  # System preferences (macOS)
 ./setup.sh packages                  # APT packages (Linux)
+./setup.sh launcher                  # Build app, install to /Applications
+./setup.sh launcher dev              # Run app against this checkout
+./setup.sh launcher build            # Bundle only
+
+bash tests/bash/smoke.sh             # Smoke tests
+(cd app/src-tauri && cargo test)     # Rust unit tests
+(cd app/src-tauri && cargo test -- --ignored --nocapture)  # + live repo scan
 ```
 
 ```powershell
@@ -454,13 +495,17 @@ throws at runtime.
 .\setup.ps1 debloat                  # Remove bloatware
 .\setup.ps1 -Debloat -Force          # Full setup with debloat
 .\setup.ps1 -Help                    # Usage
+.\setup.ps1 launcher                 # Build app (nsis) and install
 
 pwsh tests\windows\smoke.ps1         # Smoke tests
 ```
 
 The smoke tests run on any platform: syntax, helper-function and
 config-consistency checks work everywhere, and the dry-run invocations are
-skipped off Windows.
+skipped off Windows. Both suites are flat scripts with no single-test
+selector; run one check by commenting out the rest. `smoke.ps1` also parses
+`bridge.ps1` and asserts its verb set. The Rust side is covered only by
+`cargo test`.
 
 ## Common Tasks
 
@@ -531,6 +576,12 @@ setup.ps1 (Windows entry point — thin wrapper)
         ├── dotfiles.ps1 (manifest.windows.txt processing)
         ├── defaults.ps1 (dynamically loads defaults/*.ps1)
         └── debloat.ps1 (optional bloatware removal)
+
+app/ (Ops Launcher, Tauri)
+    ├── ui/ (static HTML/JS, no build step)
+    └── src-tauri/src/main.rs → catalog.rs (parse lists), platform/{macos,windows}.rs
+        ├── macOS: brew / mas / platforms/macos/installers/*.sh / lib/tasks.sh
+        └── Windows: bridge.ps1 → lib/windows/*.psm1
 ```
 
 Stages report failures through exit codes: each stage script exits non-zero when
