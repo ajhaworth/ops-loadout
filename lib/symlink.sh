@@ -147,6 +147,21 @@ backup_file() {
     return 0  # Signal that we backed up a real file
 }
 
+# Resolve a manifest source/destination pair to absolute paths.
+# Usage: resolve_manifest_paths <repo_root> <source> <destination>
+# Sets: MANIFEST_ABS_SOURCE, MANIFEST_ABS_DEST
+resolve_manifest_paths() {
+    local repo_root="$1"
+    local source="$2"
+    local destination="$3"
+
+    if [[ "$source" != /* ]]; then
+        source="$repo_root/$source"
+    fi
+    MANIFEST_ABS_SOURCE="$(normalize_path "$source")"
+    MANIFEST_ABS_DEST="${destination/#\~/$HOME}"
+}
+
 # Process a manifest file
 # Format: source|destination|backup|condition
 #   - backup is optional, defaults to yes
@@ -184,14 +199,10 @@ process_manifest() {
             fi
         fi
 
-        # Make source path absolute (relative to repo root)
-        if [[ "$source" != /* ]]; then
-            source="$repo_root/$source"
-        fi
-        source="$(normalize_path "$source")"
+        resolve_manifest_paths "$repo_root" "$source" "$destination"
 
         # Create symlink
-        create_symlink "$source" "$destination"
+        create_symlink "$MANIFEST_ABS_SOURCE" "$destination"
     done < "$manifest"
 }
 
@@ -249,17 +260,12 @@ check_manifest() {
             fi
         fi
 
-        # Make paths absolute
-        if [[ "$source" != /* ]]; then
-            source="$repo_root/$source"
-        fi
-        source="$(normalize_path "$source")"
-        destination="${destination/#\~/$HOME}"
+        resolve_manifest_paths "$repo_root" "$source" "$destination"
         local short_dest
-        short_dest="$(shorten_path "$destination")"
+        short_dest="$(shorten_path "$MANIFEST_ABS_DEST")"
 
         # Check symlink status
-        case "$(manifest_state "$source" "$destination")" in
+        case "$(manifest_state "$MANIFEST_ABS_SOURCE" "$MANIFEST_ABS_DEST")" in
             linked)
                 echo -e "  ${GREEN}✓${RESET} ${short_dest}"
                 ;;

@@ -255,13 +255,7 @@ cmd_dotfiles_ls() {
             fi
         fi
 
-        # Make paths absolute
-        local abs_source="$source"
-        if [[ "$source" != /* ]]; then
-            abs_source="$SCRIPT_DIR/$source"
-        fi
-        abs_source="$(normalize_path "$abs_source")"
-        local abs_dest="${destination/#\~/$HOME}"
+        resolve_manifest_paths "$SCRIPT_DIR" "$source" "$destination"
 
         # Shorten paths for display
         local display_source="${source#config/dotfiles/}"
@@ -269,7 +263,7 @@ cmd_dotfiles_ls() {
 
         # Check symlink status
         local status status_color
-        case "$(manifest_state "$abs_source" "$abs_dest")" in
+        case "$(manifest_state "$MANIFEST_ABS_SOURCE" "$MANIFEST_ABS_DEST")" in
             linked)
                 status="linked"
                 status_color="${GREEN}"
