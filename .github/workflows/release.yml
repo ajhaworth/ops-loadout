@@ -45,7 +45,10 @@ jobs:
           # Only cut a release on a tag; a manual run just uploads the artifact.
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: Ops Launcher ${{ github.ref_name }}
-          releaseBody: Unsigned macOS build. Standalone - allow it under Privacy & Security > Open Anyway on first launch.
+          releaseBody: |
+            Standalone macOS build, not notarized. If macOS says the app is damaged, drag it to Applications and run once:
+
+                xattr -dr com.apple.quarantine "/Applications/Ops Launcher.app"
       - uses: actions/upload-artifact@v4
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
