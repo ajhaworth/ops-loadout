@@ -198,8 +198,16 @@ pub(crate) fn parse_env_file(text: &str) -> Vec<(String, String)> {
             }
             let (key, value) = line.split_once('=')?;
             let value = value.trim();
-            let unquote = |q: char| value.strip_prefix(q).and_then(|v| v.strip_suffix(q));
-            let value = unquote('\'').or_else(|| unquote('"')).unwrap_or(value);
+            // A quoted value ends at its closing quote; a bare one at the first
+            // `#`. Either way a trailing `# comment` is dropped, as bash does.
+            let unquote = |q: char| {
+                let rest = value.strip_prefix(q)?;
+                let end = rest.find(q)?;
+                Some(&rest[..end])
+            };
+            let value = unquote('\'')
+                .or_else(|| unquote('"'))
+                .unwrap_or_else(|| value.split('#').next().unwrap_or("").trim());
             Some((key.trim().to_string(), value.to_string()))
         })
         .collect()
@@ -326,6 +334,19 @@ pub(crate) async fn set_settings(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn env_file_drops_trailing_comments() {
+        let vars = super::parse_env_file(
+            "A=\"false\"   # why\nB='x'#c\nC=bare # c\nD=\"a # b\"\n# E=1\n",
+        );
+        let get = |k: &str| vars.iter().find(|(n, _)| n == k).map(|(_, v)| v.as_str());
+        assert_eq!(get("A"), Some("false"));
+        assert_eq!(get("B"), Some("x"));
+        assert_eq!(get("C"), Some("bare"));
+        assert_eq!(get("D"), Some("a # b"));
+        assert_eq!(get("E"), None);
+    }
+
     use super::seed_dir;
 
     fn write(path: &std::path::Path, body: &str) {
