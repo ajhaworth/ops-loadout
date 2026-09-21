@@ -303,6 +303,19 @@ fn emit_line(handle: &AppHandle, id: &str, action: &str, line: &str) {
     );
 }
 
+#[cfg(target_os = "macos")]
+fn install_askpass(dir: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    let script = dir.join("askpass.sh");
+    let body = "#!/bin/sh\nexec osascript -e 'display dialog \"Ops Launcher needs your password to finish this update.\" with title \"Ops Launcher\" default answer \"\" with hidden answer buttons {\"Cancel\", \"OK\"} default button \"OK\"' -e 'text returned of result'\n";
+    let ok = std::fs::create_dir_all(dir).is_ok()
+        && std::fs::write(&script, body).is_ok()
+        && std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).is_ok();
+    if ok {
+        std::env::set_var("SUDO_ASKPASS", &script);
+    }
+}
+
 fn main() {
     // Launched from Finder, the app inherits launchd's minimal PATH, which lacks
     // Homebrew's bin dir, so brew and mas would look absent. Fix it once here
@@ -330,6 +343,12 @@ fn main() {
 
             #[cfg(target_os = "windows")]
             window_vibrancy::apply_mica(&window, None).ok();
+
+            // Some casks (istat-menus) and mas run sudo, which has no terminal
+            // here to prompt from. SUDO_ASKPASS points it at a native password
+            // dialog instead; brew passes -A along when the variable is set.
+            #[cfg(target_os = "macos")]
+            install_askpass(&cache_dir(app.handle()));
 
             let _ = &window;
             Ok(())

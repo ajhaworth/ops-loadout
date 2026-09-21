@@ -8,9 +8,10 @@
   </head>
   <body>
     <header data-tauri-drag-region>
+      <nav id="tabs"></nav>
       <input id="search" type="search" placeholder="Search" autocomplete="off" spellcheck="false" />
-      <span id="count" class="pill"></span>
-      <button id="update-all" hidden>Update all</button>
+      <span id="count"></span>
+      <button id="update-all" title="Update all" hidden>&#8593;<span class="n"></span></button>
       <button id="refresh" title="Rescan">&#8635;</button>
     </header>
     <main id="sections"></main>
