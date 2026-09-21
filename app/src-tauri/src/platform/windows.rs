@@ -86,6 +86,11 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, resources: &Path
             .get("installed")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        app.outdated = app.installed
+            && row
+                .get("outdated")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
 
         let exe = row.get("exe").and_then(Value::as_str).unwrap_or("");
         if app.installed && !exe.is_empty() {

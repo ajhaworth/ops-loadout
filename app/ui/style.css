@@ -212,6 +212,17 @@ summary .n { color: var(--dim); font-weight: 400; margin-left: 6px; }
 }
 .tile.failed .badge { background: var(--bad); }
 
+/* Update badge: a white chevron drawn from two borders, no glyph needed. */
+.badge.update { background: #3478f6; }
+.badge.update::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-top: 2px solid #fff;
+  border-right: 2px solid #fff;
+  transform: translateY(1px) rotate(-45deg);
+}
+
 .tile.busy .icon::after {
   content: "";
   position: absolute;
@@ -257,6 +268,7 @@ summary .n { color: var(--dim); font-weight: 400; margin-left: 6px; }
 }
 #menu button:hover { background: #5b6bff; color: #fff; }
 #menu button.danger:hover { background: var(--bad); }
+#menu button.strong { font-weight: 600; }
 #menu button:disabled { opacity: 0.4; }
 #menu button:disabled:hover { background: none; color: inherit; }
 #menu hr {
