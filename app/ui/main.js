@@ -55,12 +55,11 @@ function setupSections() {
 
 // GUI first, then the App Store, then the CLI grab-bag.
 const GROUPS = [
-  { kind: "cask", open: true },
-  { kind: "installer", open: true },
-  { kind: "github", open: true },
-  { kind: "mas", open: true },
-  { kind: "comfynode", open: true },
-  { kind: "formula", open: false, wrap: "Command line" },
+  { kinds: ["cask", "installer"], open: true },
+  { kinds: ["github"], open: true },
+  { kinds: ["mas"], open: true },
+  { kinds: ["comfynode"], open: true },
+  { kinds: ["formula"], open: false, wrap: "Command line" },
 ];
 
 // localStorage throws when storage is disabled or full; a collapsed section is
@@ -245,7 +244,7 @@ function render() {
   sectionsEl.replaceChildren();
 
   for (const group of GROUPS) {
-    const mine = shown.filter((a) => a.kind === group.kind);
+    const mine = shown.filter((a) => group.kinds.includes(a.kind));
     if (!mine.length) continue;
     const categories = [...new Set(mine.map((a) => a.category))];
     const built = categories.map((c) =>
