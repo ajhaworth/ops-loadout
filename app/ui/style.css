@@ -82,6 +82,23 @@ header button {
 }
 header button:active { opacity: 0.6; }
 
+/* Same height and radius as the refresh button, but sized to its label. */
+#update-all {
+  width: auto;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #3478f6;
+  background: none;
+  white-space: nowrap;
+}
+#update-all:hover:not(:disabled) { background: var(--chip); }
+#update-all:disabled {
+  color: var(--dim);
+  cursor: default;
+  opacity: 1;
+}
+
 main {
   flex: 1;
   overflow-y: auto;
