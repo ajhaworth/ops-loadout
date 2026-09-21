@@ -75,7 +75,15 @@ install_eza() {
     sudo mkdir -p /etc/apt/keyrings
 
     # Download and install GPG key
-    wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | sudo gpg --dearmor -o /etc/apt/keyrings/gierens.gpg
+    local key_tmp
+    key_tmp="$(mktemp)"
+    if ! wget -qO "$key_tmp" https://raw.githubusercontent.com/eza-community/eza/main/deb.asc; then
+        log_error "Failed to download eza GPG key"
+        rm -f "$key_tmp"
+        return 1
+    fi
+    sudo gpg --dearmor -o /etc/apt/keyrings/gierens.gpg "$key_tmp"
+    rm -f "$key_tmp"
 
     # Add repository
     echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main" | sudo tee /etc/apt/sources.list.d/gierens.list
