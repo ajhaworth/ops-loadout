@@ -4,6 +4,7 @@
 mod catalog;
 mod platform;
 mod settings;
+mod update;
 mod window;
 
 use catalog::App;
@@ -319,7 +320,7 @@ fn run_streaming(handle: &AppHandle, id: &str, action: &str, cmd: platform::Cmd)
     child.wait().map(|s| s.success()).unwrap_or(false)
 }
 
-fn emit_line(handle: &AppHandle, id: &str, action: &str, line: &str) {
+pub(crate) fn emit_line(handle: &AppHandle, id: &str, action: &str, line: &str) {
     let _ = handle.emit(
         "install-log",
         serde_json::json!({ "id": id, "line": line, "action": action }),
@@ -351,6 +352,7 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -388,6 +390,7 @@ fn main() {
 
             let menu = MenuBuilder::new(app)
                 .text("open", "Open Ops Launcher")
+                .text("check-updates", "Check for Updates\u{2026}")
                 .separator()
                 .quit_with_text("Quit")
                 .build()?;
@@ -396,10 +399,10 @@ fn main() {
                 .tooltip("Ops Launcher")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(|app, event| {
-                    if event.id().as_ref() == "open" {
-                        show_main(app);
-                    }
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    "open" => show_main(app),
+                    "check-updates" => update::check_for_updates(app),
+                    _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::Click {

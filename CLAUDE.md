@@ -351,6 +351,22 @@ release build on a machine that has one. The seeded
 copy has no `app/` — `serve_ui` finds no file there and falls back to the
 embedded UI, which is the built-in behaviour.
 
+**Self-update.** The tray's "Check for Updates..." runs `tauri-plugin-updater`
+(`src/update.rs`) against the `latest.json` attached to the newest GitHub
+release, then `download_and_install` and `AppHandle::restart` - no
+tauri-plugin-process, since restart is core Tauri. `bundle.createUpdaterArtifacts`
+makes the build emit `Ops Launcher.app.tar.gz` plus a minisign `.sig` - but only
+for the `app` bundle target, so `release.yml` builds `--bundles dmg,app`;
+`includeUpdaterJson` in `release.yml` writes the `latest.json` that indexes them.
+The private key is `~/.tauri/ops-launcher.key` and lives in CI as the secrets
+`TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (empty); the
+public half is `plugins.updater.pubkey`, and `requireSignedVersion` makes the
+updater reject an artifact whose signed version differs from the one the
+endpoint announced, since `latest.json` itself is not signed. This signature is the updater's own and
+is unrelated to Apple signing, which the app still lacks. **A release must bump
+`version` in both `tauri.conf.json` and `Cargo.toml`** - the updater compares
+against the running app's version, so an unbumped release is invisible to it.
+
 `capabilities/default.json` grants no shell/fs plugin permissions: all process
 execution is native `std::process::Command`, so the capabilities file does not
 gate it. The CSP allows no external scripts or styles; images only from
