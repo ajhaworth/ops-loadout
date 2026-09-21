@@ -575,12 +575,17 @@ function Invoke-UninstallString {
     }
 
     Write-Host "Running: $exe $($argList -join ' ')"
-    if ($argList.Count -gt 0) {
-        $proc = Start-Process -FilePath $exe -ArgumentList $argList -Wait -PassThru
-    } else {
-        $proc = Start-Process -FilePath $exe -Wait -PassThru
+    try {
+        if ($argList.Count -gt 0) {
+            $proc = Start-Process -FilePath $exe -ArgumentList $argList -Wait -PassThru
+        } else {
+            $proc = Start-Process -FilePath $exe -Wait -PassThru
+        }
+        return $proc.ExitCode
+    } catch {
+        Write-Err "Failed to run uninstaller ${exe}: $_"
+        return 1
     }
-    return $proc.ExitCode
 }
 
 # --- ComfyUI custom nodes ---------------------------------------------------
