@@ -62,8 +62,8 @@ header input, header button, header nav {
   -webkit-app-region: no-drag;
 }
 
-/* Segmented control: one workspace at a time. */
-#tabs {
+/* Segmented control: top-level tabs in the header, categories above the grid. */
+.seg {
   display: flex;
   gap: 2px;
   height: 28px;
@@ -71,17 +71,20 @@ header input, header button, header nav {
   border-radius: 8px;
   background: var(--chip);
 }
-#tabs button {
+.seg button {
   width: auto;
   height: 24px;
   padding: 0 10px;
+  border: 0;
+  font: inherit;
   font-size: 12px;
+  cursor: pointer;
   font-weight: 500;
   color: var(--dim);
   background: none;
   border-radius: 6px;
 }
-#tabs button.on {
+.seg button.on {
   color: var(--fg);
   background: var(--tile);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
@@ -405,6 +408,7 @@ summary .n { color: var(--dim); font-weight: 400; margin-left: 6px; }
 }
 
 .empty { color: var(--dim); padding: 24px 2px; }
+main > .seg { width: fit-content; margin: 0 0 12px; }
 
 .setup-bar {
   display: flex;

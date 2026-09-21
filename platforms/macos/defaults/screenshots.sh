@@ -2,12 +2,7 @@
 # macos/defaults/screenshots.sh - Screenshot preferences
 
 apply_screenshots() {
-    defaults_hook "screenshots-dir" "Create ~/Pictures/Screenshots" \
-        '[[ -d "$HOME/Pictures/Screenshots" ]]' \
-        'mkdir -p "$HOME/Pictures/Screenshots"'
-
-    # Save screenshots to ~/Pictures/Screenshots
-    defaults_set com.apple.screencapture location string "$HOME/Pictures/Screenshots" "Save screenshots to ~/Pictures/Screenshots"
+    defaults_set com.apple.screencapture location string "$HOME/Desktop" "Save screenshots to ~/Desktop"
 
     # Save screenshots in PNG format (other options: BMP, GIF, JPG, PDF, TIFF, HEIC)
     # NOTE: macOS 26 Tahoe defaults to HEIC format. This explicitly sets PNG.

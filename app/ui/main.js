@@ -22,18 +22,20 @@ const failed = new Map();
 const pending = new Map();
 let updatingAll = false;
 
-// Workspace tabs: each narrows the grid to the apps it is about. Categories
+// Two top-level tabs: Apps is the grid, Updates is outdated packages plus the
+// setup tasks. Within Apps, a category sub-tab narrows the grid. Categories
 // are list-file names; the ids are App Store apps that belong with the others.
+const TABS = ["Apps", "Updates"];
 const DEV_IDS = new Set(["mas:497799835", "mas:899247664"]); // Xcode, TestFlight
-const WORKSPACES = {
+const CATEGORIES = {
   All: () => true,
   Learning: (a) => a.category === "Learning",
   Creative: (a) => a.category === "Creative" || a.kind === "comfynode",
   Development: (a) =>
     ["Development", "Software Dev", "Devops"].includes(a.category) || DEV_IDS.has(a.id),
-  Setup: () => false, // handled by renderSetup(), not the app grid
 };
-let tab = "All";
+let tab = "Apps";
+let category = "All";
 
 const IS_WINDOWS = navigator.userAgent.includes("Windows");
 
@@ -61,6 +63,10 @@ const GROUPS = [
   { kinds: ["comfynode"], open: true },
   { kinds: ["formula"], open: false, wrap: "Command line" },
 ];
+
+// A cask that installed but produced no .app (fuse-t, pkg-only tools) is a
+// CLI thing; file it with the formulae rather than among the apps.
+const isCli = (a) => a.kind === "formula" || (a.kind === "cask" && a.installed && !a.launchable);
 
 // localStorage throws when storage is disabled or full; a collapsed section is
 // not worth losing the render over.
@@ -225,32 +231,34 @@ function sectionEl(title, list, open) {
   return details;
 }
 
-function renderTabs() {
-  tabsEl.replaceChildren(...Object.keys(WORKSPACES).map((name) => {
+// Segmented control; `key` is the localStorage slot the choice persists in.
+function segEl(names, current, key, pick) {
+  const nav = document.createElement("nav");
+  nav.className = "seg";
+  nav.append(...names.map((name) => {
     const b = document.createElement("button");
     b.type = "button";
     b.textContent = name;
-    b.classList.toggle("on", name === tab);
+    b.classList.toggle("on", name === current);
     b.onclick = () => {
-      tab = name;
-      try { localStorage.setItem("tab", name); } catch { /* not persisted */ }
+      pick(name);
+      try { localStorage.setItem(key, name); } catch { /* not persisted */ }
       render();
     };
     return b;
   }));
+  return nav;
 }
 
-function render() {
-  renderTabs();
-  if (tab === "Setup") return renderSetup();
-  const q = searchEl.value.trim().toLowerCase();
-  const inTab = WORKSPACES[tab];
-  const shown = apps.filter((a) =>
-    inTab(a) && (!q || (a.name + " " + a.id + " " + a.category).toLowerCase().includes(q)));
-  sectionsEl.replaceChildren();
+function renderTabs() {
+  tabsEl.replaceChildren(segEl(TABS, tab, "tab", (n) => (tab = n)));
+}
 
+// The app grid, grouped by kind then category, for `shown`.
+function appSectionEls(shown, q) {
+  const out = [];
   for (const group of GROUPS) {
-    const mine = shown.filter((a) => group.kinds.includes(a.kind));
+    const mine = shown.filter((a) => group.wrap ? isCli(a) : group.kinds.includes(a.kind) && !isCli(a));
     if (!mine.length) continue;
     const categories = [...new Set(mine.map((a) => a.category))];
     const built = categories.map((c) =>
@@ -260,13 +268,34 @@ function render() {
       built.forEach((d) => d.classList.add("nested"));
       const outer = sectionEl(group.wrap, mine, isOpen(group.wrap, group.open) || !!q);
       outer.lastChild.replaceWith(...built);
-      sectionsEl.append(outer);
+      out.push(outer);
     } else {
-      sectionsEl.append(...built);
+      out.push(...built);
     }
   }
+  return out;
+}
 
-  if (!sectionsEl.children.length) {
+const matchesApp = (a, q) => (a.name + " " + a.id + " " + a.category).toLowerCase().includes(q);
+
+function render() {
+  renderTabs();
+  const q = searchEl.value.trim().toLowerCase();
+  sectionsEl.replaceChildren();
+
+  if (q) {
+    // A search spans both tabs: every matching app, then every matching task.
+    sectionsEl.append(...appSectionEls(apps.filter((a) => matchesApp(a, q)), q), ...setupEls(q));
+  } else if (tab === "Apps") {
+    sectionsEl.append(segEl(Object.keys(CATEGORIES), category, "category", (n) => (category = n)));
+    sectionsEl.append(...appSectionEls(apps.filter(CATEGORIES[category]), q));
+  } else {
+    const outdated = apps.filter((a) => a.outdated);
+    if (outdated.length) sectionsEl.append(sectionEl("App updates", outdated, true));
+    sectionsEl.append(...setupEls(q));
+  }
+
+  if (!sectionsEl.querySelector("details, .setup-section")) {
     const p = document.createElement("p");
     p.className = "empty";
     p.textContent = apps.length ? "Nothing matches." : "No packages found.";
@@ -451,12 +480,17 @@ function setupSectionEl(sec, q) {
   return wrap;
 }
 
-function renderSetup() {
+// The Updates tab's task half: summary bar plus one block per section. With a
+// query, only sections that match are returned and the bar is left out.
+function setupEls(q) {
   const sections = setupSections();
   if (tasks.size === 0) sections.forEach((s) => loadSection(s.id));
 
-  const q = searchEl.value.trim().toLowerCase();
-  sectionsEl.replaceChildren();
+  if (q) {
+    const hit = (s) => (tasks.get(s.id)?.items || [])
+      .some((t) => (t.name + " " + t.group + " " + t.detail).toLowerCase().includes(q));
+    return sections.filter(hit).map((sec) => setupSectionEl(sec, q));
+  }
 
   const bar = document.createElement("div");
   bar.className = "setup-bar";
@@ -480,9 +514,7 @@ function renderSetup() {
   runEverythingBtn.onclick = () => runEverything();
   bar.append(runEverythingBtn);
 
-  sectionsEl.append(bar);
-
-  sections.forEach((sec) => sectionsEl.append(setupSectionEl(sec, q)));
+  return [bar, ...sections.map((sec) => setupSectionEl(sec, q))];
 }
 
 async function loadSection(id) {
@@ -763,10 +795,16 @@ addEventListener("contextmenu", (e) => {
   if (!e.target.matches("input, textarea")) e.preventDefault();
 });
 
-try { if (localStorage.getItem("tab") in WORKSPACES) tab = localStorage.getItem("tab"); } catch { /* default */ }
+try {
+  if (TABS.includes(localStorage.getItem("tab"))) tab = localStorage.getItem("tab");
+  if (localStorage.getItem("category") in CATEGORIES) category = localStorage.getItem("category");
+} catch { /* default */ }
 searchEl.oninput = render;
 updateAllEl.onclick = updateAll;
-document.getElementById("refresh").onclick = () => (tab === "Setup" ? refreshSetup() : load("refresh"));
+document.getElementById("refresh").onclick = () => {
+  load("refresh");
+  if (tasks.size) refreshSetup();
+};
 document.getElementById("settings").onclick = async () => {
   try {
     const settings = await invoke("get_settings");
@@ -808,7 +846,7 @@ settingsEl.onclose = async () => {
       logLine(String(e));
     }
     logLine("Settings saved");
-    if (tab === "Setup") refreshSetup();
+    if (tasks.size) refreshSetup();
   } catch (e) {
     logLine(String(e));
   }

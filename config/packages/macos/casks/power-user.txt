@@ -2,3 +2,4 @@
 
 raycast             # Spotlight replacement
 istat-menus         # System monitor
+swish               # Trackpad window/app gestures
