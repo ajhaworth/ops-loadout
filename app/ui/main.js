@@ -4,7 +4,6 @@ const { ask } = window.__TAURI__.dialog;
 
 const sectionsEl = document.getElementById("sections");
 const searchEl = document.getElementById("search");
-const countEl = document.getElementById("count");
 const drawerEl = document.getElementById("drawer");
 const menuEl = document.getElementById("menu");
 const updateAllEl = document.getElementById("update-all");
@@ -269,7 +268,6 @@ function render() {
     sectionsEl.append(p);
   }
   const updates = apps.filter((a) => a.outdated).length;
-  countEl.textContent = `${apps.filter((a) => a.installed).length}/${apps.length}`;
 
   // Stays put while a run is in progress even as the count drains.
   updateAllEl.hidden = !updates && !updatingAll;
@@ -286,15 +284,27 @@ function countStates(items) {
   };
 }
 
-function countBadge(items) {
+// Small tinted pills for a state breakdown; only nonzero states render.
+function countPills(items) {
   const c = countStates(items);
+  return [
+    c.applied && ["applied", `${c.applied} applied`],
+    c.pending && ["pending", `${c.pending} pending`],
+    c.failed && ["failed", `${c.failed} failed`],
+  ].filter(Boolean).map(([cls, text]) => {
+    const span = document.createElement("span");
+    span.className = `pill pill-${cls}`;
+    span.textContent = text;
+    return span;
+  });
+}
+
+const GLYPHS = { applied: "\u2713", pending: "\u25cf", failed: "!", needs_admin: "\ud83d\udd12", unknown: "\u25cb" };
+
+function stateGlyph(state) {
   const span = document.createElement("span");
-  span.className = "count";
-  span.textContent = [
-    c.applied && `${c.applied} applied`,
-    c.pending && `${c.pending} pending`,
-    c.failed && `${c.failed} failed`,
-  ].filter(Boolean).join(" \u00b7 ");
+  span.className = `task-glyph state-${state}`;
+  span.textContent = GLYPHS[state] || GLYPHS.unknown;
   return span;
 }
 
@@ -302,106 +312,138 @@ function taskRowEl(t) {
   const row = document.createElement("div");
   row.className = "task";
   const state = failed.has(t.id) ? "failed" : t.state;
-  if (inflight.has(t.id)) row.classList.add("busy");
-  if (state === "applied") row.classList.add("done");
+  const busy = inflight.has(t.id);
+  if (busy) row.classList.add("busy");
 
-  const dot = document.createElement("span");
-  dot.className = "dot";
-  dot.dataset.state = state;
-  row.append(dot);
+  row.append(stateGlyph(state));
 
-  const name = document.createElement("span");
-  name.className = "name";
-  name.textContent = t.name;
-  row.append(name);
+  const main = document.createElement("div");
+  main.className = "task-main";
+  const title = document.createElement("div");
+  title.className = "task-title";
+  title.textContent = t.name;
+  title.title = t.name;
+  main.append(title);
 
-  const why = failed.get(t.id);
-  const detail = document.createElement("span");
-  detail.className = "detail";
-  detail.textContent = why || t.detail;
-  detail.title = why || t.detail;
-  row.append(detail);
+  const detailText = failed.get(t.id) || t.detail;
+  if (detailText) {
+    const sub = document.createElement("div");
+    sub.className = "task-sub";
+    sub.textContent = detailText;
+    sub.title = detailText;
+    main.append(sub);
+  }
+  row.append(main);
 
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.textContent = "Apply";
-  const needsAdmin = t.state === "needs_admin";
-  btn.disabled = inflight.has(t.id) || needsAdmin;
-  if (needsAdmin) btn.title = "Run the launcher as Administrator to apply this";
-  btn.onclick = () => doTask(t);
-  row.append(btn);
+  const right = document.createElement("div");
+  right.className = "task-right";
+  if (busy) {
+    const spin = document.createElement("span");
+    spin.className = "task-spinner";
+    right.append(spin);
+  } else if (state === "applied") {
+    const applied = document.createElement("span");
+    applied.className = "task-applied";
+    applied.textContent = "Applied";
+    right.append(applied);
+  } else if (state === "needs_admin") {
+    const admin = document.createElement("span");
+    admin.className = "task-needs-admin";
+    admin.textContent = "Needs admin";
+    admin.title = "Run the launcher as Administrator to apply this";
+    right.append(admin);
+  } else {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "task-apply pill-btn primary";
+    btn.textContent = "Apply";
+    btn.onclick = () => doTask(t);
+    right.append(btn);
+  }
+  row.append(right);
 
   return row;
 }
 
-function groupEl(name, items, forceOpen) {
-  const details = document.createElement("details");
-  details.className = "nested";
-  const key = "setup-group:" + name;
-  details.open = forceOpen || isOpen(key, true);
-  details.ontoggle = () => { if (!forceOpen) setOpen(key, details.open); };
-
-  const summary = document.createElement("summary");
-  summary.append(name, countBadge(items));
-  details.append(summary);
-  items.forEach((t) => details.append(taskRowEl(t)));
-  return details;
+// One card per group. `name` is null for a section with a single group, in
+// which case the card has no header row.
+function groupEl(name, items) {
+  const card = document.createElement("div");
+  card.className = "card";
+  if (name) {
+    const header = document.createElement("div");
+    header.className = "card-header";
+    const title = document.createElement("span");
+    title.className = "card-title";
+    title.textContent = name;
+    header.append(title, ...countPills(items));
+    card.append(header);
+  }
+  items.forEach((t) => card.append(taskRowEl(t)));
+  return card;
 }
 
 function setupSectionEl(sec, q) {
   const bucket = tasks.get(sec.id);
-  const details = document.createElement("details");
-  const key = "setup:" + sec.id;
-  details.open = !!q || isOpen(key, sec.open);
-  details.ontoggle = () => { if (!q) setOpen(key, details.open); };
+  const wrap = document.createElement("div");
+  wrap.className = "setup-section";
 
-  const summary = document.createElement("summary");
-  summary.append(sec.name);
+  const label = document.createElement("div");
+  label.className = "setup-label";
+  const labelText = document.createElement("span");
+  labelText.textContent = sec.name;
+  label.append(labelText);
+
+  const labelRight = document.createElement("div");
+  labelRight.className = "setup-label-right";
   if (bucket?.items) {
-    summary.append(countBadge(bucket.items));
+    labelRight.append(...countPills(bucket.items));
     const runBtn = document.createElement("button");
     runBtn.type = "button";
-    const label = sectionRunning.get(sec.id);
-    runBtn.textContent = label || "Run all";
-    runBtn.disabled = !!label;
-    runBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); runAll(sec.id); };
-    summary.append(runBtn);
+    runBtn.className = "pill-btn";
+    const runLabel = sectionRunning.get(sec.id);
+    runBtn.textContent = runLabel || "Run all";
+    runBtn.disabled = !!runLabel;
+    runBtn.onclick = () => runAll(sec.id);
+    labelRight.append(runBtn);
   }
-  details.append(summary);
+  label.append(labelRight);
+  wrap.append(label);
 
   const desc = document.createElement("p");
   desc.className = "setup-desc";
   desc.textContent = sec.desc;
-  details.append(desc);
+  wrap.append(desc);
 
   if (!bucket || bucket.loading) {
     const p = document.createElement("p");
     p.className = "setup-desc";
     p.textContent = "Checking\u2026";
-    details.append(p);
+    wrap.append(p);
   } else if (bucket.error) {
     const p = document.createElement("p");
     p.className = "setup-error";
     p.textContent = bucket.error;
-    details.append(p);
+    wrap.append(p);
     const retry = document.createElement("button");
     retry.type = "button";
+    retry.className = "pill-btn";
     retry.textContent = "Retry";
     retry.onclick = () => loadSection(sec.id);
-    details.append(retry);
+    wrap.append(retry);
   } else {
     const items = q
       ? bucket.items.filter((t) => (t.name + " " + t.group + " " + t.detail).toLowerCase().includes(q))
       : bucket.items;
     const groups = [...new Set(items.map((t) => t.group))];
     if (groups.length > 1) {
-      groups.forEach((g) => details.append(groupEl(g, items.filter((t) => t.group === g), !!q)));
+      groups.forEach((g) => wrap.append(groupEl(g, items.filter((t) => t.group === g))));
     } else {
-      items.forEach((t) => details.append(taskRowEl(t)));
+      wrap.append(groupEl(null, items));
     }
   }
 
-  return details;
+  return wrap;
 }
 
 function renderSetup() {
@@ -413,19 +455,26 @@ function renderSetup() {
 
   const bar = document.createElement("div");
   bar.className = "setup-bar";
-  const runEverythingBtn = document.createElement("button");
-  runEverythingBtn.type = "button";
-  runEverythingBtn.textContent = everythingLabel || "Run everything";
-  runEverythingBtn.disabled = !!everythingLabel;
-  runEverythingBtn.onclick = () => runEverything();
-  bar.append(runEverythingBtn);
 
   const all = sections.flatMap((s) => tasks.get(s.id)?.items || []);
   const c = countStates(all);
   const summary = document.createElement("span");
   summary.className = "setup-summary";
-  summary.textContent = `${c.applied} applied \u00b7 ${c.pending} pending \u00b7 ${c.failed} failed`;
+  summary.textContent = [
+    c.applied && `${c.applied} applied`,
+    c.pending && `${c.pending} pending`,
+    c.failed && `${c.failed} failed`,
+  ].filter(Boolean).join(" \u00b7 ");
   bar.append(summary);
+
+  const runEverythingBtn = document.createElement("button");
+  runEverythingBtn.type = "button";
+  runEverythingBtn.className = "pill-btn primary";
+  runEverythingBtn.textContent = everythingLabel || "Run everything";
+  runEverythingBtn.disabled = !!everythingLabel;
+  runEverythingBtn.onclick = () => runEverything();
+  bar.append(runEverythingBtn);
+
   sectionsEl.append(bar);
 
   sections.forEach((sec) => sectionsEl.append(setupSectionEl(sec, q)));
@@ -499,7 +548,6 @@ async function runEverything() {
 }
 
 async function load(command) {
-  countEl.textContent = "\u2026";
   try {
     apps = await invoke(command);
   } catch (e) {
