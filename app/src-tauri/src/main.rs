@@ -222,17 +222,17 @@ fn rescan(app: &AppHandle, store: &Store) -> Result<Vec<App>, String> {
 }
 
 #[tauri::command]
-async fn list_apps(app: AppHandle, store: State<'_, Store>) -> Result<Vec<App>, String> {
+async fn list_apps(handle: AppHandle, store: State<'_, Store>) -> Result<Vec<App>, String> {
     let cached = store.apps.lock().unwrap().clone();
     if !cached.is_empty() {
         return Ok(cached);
     }
-    rescan(&app, &store)
+    rescan(&handle, &store)
 }
 
 #[tauri::command]
-async fn refresh(app: AppHandle, store: State<'_, Store>) -> Result<Vec<App>, String> {
-    rescan(&app, &store)
+async fn refresh(handle: AppHandle, store: State<'_, Store>) -> Result<Vec<App>, String> {
+    rescan(&handle, &store)
 }
 
 fn find_app(store: &Store, id: &str) -> Option<App> {
@@ -685,14 +685,14 @@ fn toggle_quick(app: &AppHandle, rect: tauri::Rect) {
 }
 
 #[tauri::command]
-async fn open_full(app: AppHandle) -> Result<(), String> {
-    show_main(&app);
+async fn open_full(handle: AppHandle) -> Result<(), String> {
+    show_main(&handle);
     Ok(())
 }
 
 /// Opens a page served by `serve_ui` in its own window, one per path.
 #[tauri::command]
-async fn open_page(app: AppHandle, path: String) -> Result<(), String> {
+async fn open_page(handle: AppHandle, path: String) -> Result<(), String> {
     let url = if cfg!(windows) {
         format!("http://ops.localhost/{path}")
     } else {
@@ -701,13 +701,13 @@ async fn open_page(app: AppHandle, path: String) -> Result<(), String> {
     let label: String =
         path.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
 
-    if let Some(window) = app.get_webview_window(&label) {
+    if let Some(window) = handle.get_webview_window(&label) {
         let _ = window.show();
         let _ = window.set_focus();
         return Ok(());
     }
     let url = url.parse().map_err(|e| format!("bad page url: {e}"))?;
-    tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::External(url))
+    tauri::WebviewWindowBuilder::new(&handle, label, tauri::WebviewUrl::External(url))
         .title("Ops Launcher")
         .inner_size(1100.0, 780.0)
         .build()
@@ -716,8 +716,8 @@ async fn open_page(app: AppHandle, path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn hide_quick(app: AppHandle) -> Result<(), String> {
-    if let Some(quick) = app.get_webview_window("quick") {
+async fn hide_quick(handle: AppHandle) -> Result<(), String> {
+    if let Some(quick) = handle.get_webview_window("quick") {
         let _ = quick.hide();
     }
     Ok(())
