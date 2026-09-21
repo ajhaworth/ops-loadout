@@ -39,6 +39,10 @@ deleting anything already in it, so local state survives.
 A git checkout at `~/Developer/ops/ops-desktop` takes precedence over the
 copied one, so development still edits the repo live.
 
+**Check for Updates...** in the tray menu pulls the next release: it asks the
+GitHub release for the newer build, and on your go-ahead downloads, installs
+and relaunches the app in place.
+
 On macOS, the app is unsigned: the first launch is blocked by Gatekeeper.
 Open it once from System Settings > Privacy & Security > **Open Anyway**, or
 clear the quarantine flag on a downloaded copy:
