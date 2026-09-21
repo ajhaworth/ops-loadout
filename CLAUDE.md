@@ -238,6 +238,13 @@ points straight at `../ui`) over a Rust backend in `app/src-tauri/src/`:
   resource so the built app can find it. Package/task logic lives in
   `lib/windows/*.psm1`, not in the bridge or in Rust — add features there.
 
+The UI is served off disk, not from the binary. `serve_ui` in `main.rs`
+registers an `ops://` scheme (`http://ops.localhost` on Windows, hence
+`tauri.windows.conf.json` restating the window URLs) that reads
+`<repo>/app/ui/<path>` and falls back to the embedded `frontendDist` copy when
+the repo isn't found. So HTML/CSS/JS edits and `git pull` reach the installed
+app on the next window load; only Rust changes need `./setup.sh launcher`.
+
 Repo discovery (`find_repo`): `OPS_DESKTOP_DIR` → saved config → the checkout
 it was built from → `~/Developer/ops/ops-desktop` → folder picker. Settings
 (`repo`, `profile`) persist in the app config dir as `config.json`; the SideFX

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "url": "http://ops.localhost/index.html",
+        "visible": false,
+        "title": "Ops Launcher",
+        "width": 920,
+        "height": 680,
+        "minWidth": 480,
+        "maxWidth": 1100,
+        "minHeight": 360,
+        "transparent": true,
+        "decorations": false
+      },
+      {
+        "label": "quick",
+        "url": "http://ops.localhost/quick.html",
+        "title": "Ops Launcher",
+        "width": 340,
+        "height": 400,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false
+      }
+    ]
+  }
+}
