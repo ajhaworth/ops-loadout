@@ -292,7 +292,12 @@ Adding the next DCC (Houdini) means `config/dcc/houdini/` plus its own installer
 beside `sidefxlabs.sh`, linking into `~/Library/Preferences/houdini/<X.Y>/` and
 resolving that `X.Y` the way `sidefxlabs.sh` does.
 
-### Ops Launcher (`app/`)
+### Launchbay (`app/`)
+
+Renamed from "Ops Launcher" to "Launchbay" on 2026-09-21. The identifier change
+(`dev.alx.ops-launcher` → `dev.alx.launchbay`) means the tray updater on a machine
+still running Ops Launcher cannot update across the rename; moving to Launchbay
+there is a manual download.
 
 The Tauri desktop app the README calls the primary interface. Plain
 HTML/CSS/vanilla JS in `app/ui/` (no framework, no bundler; `frontendDist`
@@ -355,7 +360,7 @@ embedded UI, which is the built-in behaviour.
 (`src/update.rs`) against the `latest.json` attached to the newest GitHub
 release, then `download_and_install` and `AppHandle::restart` - no
 tauri-plugin-process, since restart is core Tauri. `bundle.createUpdaterArtifacts`
-makes the build emit `Ops Launcher.app.tar.gz` plus a minisign `.sig` - but only
+makes the build emit `Launchbay.app.tar.gz` plus a minisign `.sig` - but only
 for the `app` bundle target, so `release.yml` builds `--bundles dmg,app`;
 `includeUpdaterJson` in `release.yml` writes the `latest.json` that indexes them.
 The private key is `~/.tauri/ops-launcher.key` and lives in CI as the secrets
@@ -701,7 +706,7 @@ setup.ps1 (Windows entry point — thin wrapper)
         ├── defaults.ps1 (dynamically loads defaults/*.ps1)
         └── debloat.ps1 (optional bloatware removal)
 
-app/ (Ops Launcher, Tauri)
+app/ (Launchbay, Tauri)
     ├── ui/ (static HTML/JS, no build step)
     └── src-tauri/src/main.rs → catalog.rs (parse lists), platform/{macos,windows}.rs
         ├── macOS: brew / mas / platforms/macos/installers/*.sh / lib/tasks.sh

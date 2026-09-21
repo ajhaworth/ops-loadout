@@ -6,7 +6,7 @@ For Claude Code, Codex, tmux, and agentic coding configuration, see [ops-agents]
 
 ## Quick Start
 
-The primary way to use this repo is the Ops Launcher GUI. One command builds
+The primary way to use this repo is the Launchbay GUI. One command builds
 and installs it:
 
 ```bash
@@ -32,7 +32,7 @@ A prebuilt macOS app is attached to each
 (`.github/workflows/release.yml`, run on every `v*` tag). It is standalone -
 no checkout needed. The release carries `config/`, `lib/` and `platforms/`
 inside the app and copies them out on first launch to a working copy at
-`~/Library/Application Support/dev.alx.ops-launcher/repo`, which is where its
+`~/Library/Application Support/dev.alx.launchbay/repo`, which is where its
 scripts then read and write. Each app update refreshes that copy without
 deleting anything already in it, so local state survives.
 
@@ -47,7 +47,7 @@ The app is not notarized by Apple, so macOS reports a downloaded copy as
 "damaged and can't be opened". Drag it to Applications, then run this once:
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/Ops Launcher.app"
+xattr -dr com.apple.quarantine "/Applications/Launchbay.app"
 ```
 
 Updates installed from the tray menu's **Check for Updates** don't need it
@@ -91,7 +91,7 @@ Full installation for personal macOS devices including all package categories, M
 
 ### Workstation (`--profile workstation`)
 
-Work Mac, driven from the Ops Launcher: Blender, Houdini, Fork and Ghostty (installer scripts) plus the core and shell CLI formulae, no casks, no MAS apps, no system preferences. Terminal dotfiles (zsh, bash, starship, Ghostty) apply, with the existing zshrc backed up and `~/.zshrc.local` for work-only lines; gitconfig is left alone.
+Work Mac, driven from Launchbay: Blender, Houdini, Fork and Ghostty (installer scripts) plus the core and shell CLI formulae, no casks, no MAS apps, no system preferences. Terminal dotfiles (zsh, bash, starship, Ghostty) apply, with the existing zshrc backed up and `~/.zshrc.local` for work-only lines; gitconfig is left alone.
 
 ### Linux (`--profile linux`)
 
@@ -318,7 +318,7 @@ ops-workstation/
 the missing ones by shelling out to the same package managers `setup.sh` uses.
 
 ```bash
-./setup.sh launcher         # build and copy "Ops Launcher.app" into /Applications
+./setup.sh launcher         # build and copy "Launchbay.app" into /Applications
 ./setup.sh launcher build   # bundle to app/src-tauri/target/release/bundle/
 ./setup.sh launcher dev     # run against the local checkout
 ```
@@ -326,7 +326,7 @@ the missing ones by shelling out to the same package managers `setup.sh` uses.
 Each runs `npm install` first (Tauri CLI only, no frontend dependencies) and
 needs `node` and `rust` from `./setup.sh formulae`.
 
-The bundle is unsigned, so the first launch of `Ops Launcher.app` needs
+The bundle is unsigned, so the first launch of `Launchbay.app` needs
 right-click -> Open rather than a double-click.
 
 It finds this repo through `OPS_DESKTOP_DIR`, then the path saved in its own

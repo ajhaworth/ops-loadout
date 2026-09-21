@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <!-- macOS-style squircle, ~82% of the canvas, centred -->
+    <clipPath id="sq">
+      <path d="M512 92 C 250 92 92 250 92 512 C 92 774 250 932 512 932 C 774 932 932 774 932 512 C 932 250 774 92 512 92 Z"/>
+    </clipPath>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="28" stdDeviation="30" flood-color="#1b1447" flood-opacity="0.35"/>
+    </filter>
+    <filter id="inner-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#2a1d6b" flood-opacity="0.38"/>
+    </filter>
+    <linearGradient id="plate" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff9ef"/>
+      <stop offset="0.55" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e2e6fb"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- tile mosaic: 3x3, hues running warm (top-left) to cool (bottom-right) -->
+  <g clip-path="url(#sq)" filter="url(#shadow)">
+    <rect x="92"  y="92"  width="280" height="280" fill="#ffb02e"/>
+    <rect x="372" y="92"  width="280" height="280" fill="#ff8a3d"/>
+    <rect x="652" y="92"  width="280" height="280" fill="#ff5a4e"/>
+    <rect x="92"  y="372" width="280" height="280" fill="#c96bff"/>
+    <rect x="372" y="372" width="280" height="280" fill="#a06cff"/>
+    <rect x="652" y="372" width="280" height="280" fill="#7d5cff"/>
+    <rect x="92"  y="652" width="280" height="280" fill="#6a7cff"/>
+    <rect x="372" y="652" width="280" height="280" fill="#4f8bff"/>
+    <rect x="652" y="652" width="280" height="280" fill="#3aa0ff"/>
+    <!-- soft top-light sheen across the mosaic -->
+    <rect x="92" y="92" width="840" height="840" fill="url(#sheen)"/>
+  </g>
+
+  <!-- inset plate, a smaller squircle, off-white with a faint warm-to-cool tint -->
+  <g filter="url(#inner-shadow)">
+    <path d="M512 296 C 372 296 296 372 296 512 C 296 652 372 728 512 728 C 652 728 728 652 728 512 C 728 372 652 296 512 296 Z" fill="url(#plate)"/>
+  </g>
+</svg>

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lib/tasks.sh - macOS status/apply feed for the Ops Launcher's Setup tab
+# lib/tasks.sh - macOS status/apply feed for Launchbay's Setup tab
 #
 # Usage:
 #   lib/tasks.sh status <section> [--profile name]
@@ -203,7 +203,7 @@ defaults_set() {
         # Sandboxed apps keep their plist in ~/Library/Containers, which TCC
         # gates per calling app - the launcher needs Full Disk Access.
         if [[ "$write_err" == *"/Library/Containers/"* ]]; then
-            write_err="$write_err (grant Ops Launcher Full Disk Access in System Settings > Privacy & Security)"
+            write_err="$write_err (grant Launchbay Full Disk Access in System Settings > Privacy & Security)"
         fi
         log_error "$label: $write_err"
         TASK_FAILED=$((TASK_FAILED + 1))

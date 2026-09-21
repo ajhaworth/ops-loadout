@@ -690,7 +690,7 @@ function menuItems(app) {
       danger: true,
       run: async () => {
         // Destructive, so confirm before the package manager is touched.
-        const go = await ask(`Uninstall ${app.name}?`, { title: "Ops Launcher", kind: "warning" });
+        const go = await ask(`Uninstall ${app.name}?`, { title: "Launchbay", kind: "warning" });
         if (go) doJob(app, "uninstall");
       },
     });
