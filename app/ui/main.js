@@ -446,4 +446,9 @@ try { if (localStorage.getItem("tab") in WORKSPACES) tab = localStorage.getItem(
 searchEl.oninput = render;
 updateAllEl.onclick = updateAll;
 document.getElementById("refresh").onclick = () => load("refresh");
+document.getElementById("copy").onclick = async (e) => {
+  await navigator.clipboard.writeText(logEl.textContent);
+  e.target.textContent = "Copied";
+  setTimeout(() => (e.target.textContent = "Copy"), 1200);
+};
 load("list_apps");

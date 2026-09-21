@@ -351,11 +351,27 @@ summary .n { color: var(--dim); font-weight: 400; margin-left: 6px; }
 #menu .row:hover .row-host { color: rgba(255, 255, 255, 0.75); }
 
 #drawer {
+  position: relative;
   border-top: 1px solid var(--line);
   background: var(--chip);
   max-height: 140px;
   overflow-y: auto;
 }
+#copy {
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  border: 0;
+  border-radius: 5px;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--dim);
+  background: var(--chip);
+  cursor: pointer;
+}
+#copy:hover { color: var(--fg); }
+
 #log {
   margin: 0;
   padding: 8px 16px;
