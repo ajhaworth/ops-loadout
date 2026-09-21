@@ -14,7 +14,6 @@
 
 param(
     [switch]$DryRun,
-    [switch]$Force,
     [ValidateSet('', 'bloat', 'xbox', 'gamedvr', 'gamebar', 'wol', 'suggested')]
     [string]$Only = ''
 )
@@ -467,7 +466,6 @@ function Invoke-DebloatWolGroup {
 function Invoke-DebloatMain {
     param(
         [switch]$DryRun,
-        [switch]$Force,
         [string]$Only = ''
     )
 
@@ -554,5 +552,5 @@ function Invoke-DebloatMain {
 }
 
 if ($MyInvocation.InvocationName -ne '.') {
-    Invoke-DebloatMain -DryRun:$DryRun -Force:$Force -Only $Only
+    Invoke-DebloatMain -DryRun:$DryRun -Only $Only
 }

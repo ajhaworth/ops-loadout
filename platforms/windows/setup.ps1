@@ -103,7 +103,6 @@ function Invoke-DebloatCommand {
     # debloat.ps1 takes no profile or -List
     Invoke-Stage -Path (Join-Path $scriptDir "debloat.ps1") -Arguments @{
         DryRun = [bool]$DryRun
-        Force  = [bool]$Force
     }
 }
 
