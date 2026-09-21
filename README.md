@@ -156,6 +156,21 @@ Packages are defined in text files under `config/packages/`:
 - `formulae/*.txt` - Homebrew CLI tools (one package per line)
 - `casks/*.txt` - Homebrew GUI apps (one package per line)
 - `mas/apps.txt` - Mac App Store apps (`ID|Name` format)
+- `installers/*.txt` - Apps with no cask, `token | display-name | homepage`.
+  Each token is a script `platforms/macos/installers/<token>.sh` that takes
+  one of `status|install|update|reinstall|uninstall`; `status` prints the
+  `.app` path and exits 0 when installed. Only the launcher runs these, not
+  `setup.sh`. Root work goes through `sudo -A`.
+  - `houdini` - latest production build via the SideFX download API. The
+    API key is entered once in the launcher's Settings dialog (gear icon),
+    which explains how to create it on sidefx.com, and is stored in
+    `config/sidefx.local`. After installing, a dialog explains the free
+    Apprentice license, which only Houdini itself can activate (License
+    Administrator -> "Activate Apprentice", no login needed, renews every
+    30 days). Older versions are left in place on update.
+  - `sidefxlabs` - SideFX Labs from GitHub releases, into
+    `~/Library/Preferences/houdini/<X.Y>/packages/` for the installed Houdini.
+    Needs redoing once per Houdini `X.Y`; restart Houdini after.
 
 **Linux** (`config/packages/linux/`):
 - `apt/*.txt` - APT packages (Debian/Ubuntu only)
@@ -184,6 +199,7 @@ their version-stamp/compare logic has no clean Ansible equivalent.
 Machine-specific settings go in `.local` files (not tracked by git):
 - `~/.zshrc.local` - Shell customizations
 - `~/.gitconfig.local` - Git user info and signing key
+- `config/sidefx.local` - SideFX web API credentials for the Houdini installer
 
 ### Creating a New Profile
 
