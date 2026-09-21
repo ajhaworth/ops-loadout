@@ -13,7 +13,7 @@ Cross-platform workstation setup tool. Automates installation of packages, dotfi
 Profiles (`config/profiles/*.conf`) control what gets installed. Profile variables are bash-style `KEY="value"` pairs parsed by both bash (source) and PowerShell (regex).
 
 - `personal.conf` - Full installation for personal macOS devices
-- `workstation.conf` - Work macOS device, installs through the Ops Launcher only, no Homebrew
+- `workstation.conf` - Work macOS device: Blender, Houdini, Fork, Ghostty and core CLI tools, from the launcher
 - `linux.conf` - Full dev station setup for Linux (Debian/Ubuntu)
 - `windows.conf` - Gaming workstation setup for Windows
 
@@ -23,10 +23,16 @@ launcher's prerequisites row skip Homebrew entirely, and stops the launcher
 executing `brew`/`mas` at all - not even for status - so a Mac without Homebrew
 never sees a "command not found". `INSTALLERS_<CATEGORY>` gates
 `config/packages/macos/installers/<category>.txt` the same way `CASKS_*` gates
-casks. `workstation.conf` uses both: it leaves only `installers/dcc.txt`
-(Blender, Houdini) and `installers/development.txt` (Fork, Ghostty) visible, and
-the user installs those by hand from the launcher tiles. Anything added for the
-work Mac goes in as an installer script, never a cask.
+casks. `workstation.conf` keeps Homebrew (core and shell formulae only, no
+casks, no MAS) and leaves `installers/dcc.txt` (Blender, Houdini) and
+`installers/development.txt` (Fork, Ghostty) visible; the user installs those
+by hand from the launcher tiles. Apps added for the work Mac go in as installer
+scripts, not casks, so the allow-list stays explicit.
+
+`.github/workflows/release.yml` builds the launcher on a macOS runner for every
+`v*` tag and attaches the dmg to a GitHub Release (`tauri-apps/tauri-action`).
+It is unsigned, so README tells downloaders to use Open Anyway or clear the
+quarantine flag. The app still needs the repo checkout for its UI and scripts.
 
 ### Package Lists
 
