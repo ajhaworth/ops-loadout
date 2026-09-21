@@ -258,7 +258,7 @@ output and gitignored.
 
 ### Setup Tasks (launcher)
 
-The launcher's **Setup** tab drives the non-package stages: prerequisites,
+The launcher's **Updates** tab (below outdated packages) drives the non-package stages: prerequisites,
 dotfiles, system defaults and (Windows) debloat. Every section is fed by one
 status verb per platform and applied by one apply verb:
 

@@ -200,6 +200,11 @@ defaults_set() {
         log_substep "$label"
         TASK_CHANGED=$((TASK_CHANGED + 1))
     else
+        # Sandboxed apps keep their plist in ~/Library/Containers, which TCC
+        # gates per calling app - the launcher needs Full Disk Access.
+        if [[ "$write_err" == *"/Library/Containers/"* ]]; then
+            write_err="$write_err (grant Ops Launcher Full Disk Access in System Settings > Privacy & Security)"
+        fi
         log_error "$label: $write_err"
         TASK_FAILED=$((TASK_FAILED + 1))
         if [[ -n "$TASK_ONLY" ]]; then

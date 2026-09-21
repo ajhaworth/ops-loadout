@@ -14,10 +14,10 @@
         "url": "ops://localhost/index.html",
         "visible": false,
         "title": "Ops Launcher",
-        "width": 920,
+        "width": 550,
         "height": 680,
         "minWidth": 480,
-        "maxWidth": 1100,
+        "maxWidth": 550,
         "minHeight": 360,
         "transparent": true,
         "decorations": false

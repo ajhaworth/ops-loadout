@@ -1,0 +1,4 @@
+# media.txt - Media apps with no Homebrew cask, installed by platforms/macos/installers/<token>.sh
+# token | display-name | homepage
+
+moonlight-nightly | Moonlight Nightly | https://github.com/moonlight-stream/moonlight-qt

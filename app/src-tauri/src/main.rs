@@ -615,6 +615,9 @@ fn show_main(app: &AppHandle) {
         let _ = quick.hide();
     }
     if let Some(main) = app.get_webview_window("main") {
+        // A Dock tile while the full window is up; back to tray-only on close.
+        #[cfg(target_os = "macos")]
+        let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
         let _ = main.show();
         let _ = main.unminimize();
         let _ = main.set_focus();
@@ -779,6 +782,10 @@ fn main() {
             WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
                 let _ = window.hide();
+                #[cfg(target_os = "macos")]
+                if window.label() == "main" {
+                    let _ = window.app_handle().set_activation_policy(tauri::ActivationPolicy::Accessory);
+                }
             }
             WindowEvent::Focused(false) if window.label() == "quick" => {
                 let _ = window.hide();
