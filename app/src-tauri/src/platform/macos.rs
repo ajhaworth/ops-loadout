@@ -344,34 +344,44 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, _resources: &Pat
             .collect()
     };
 
+    // A profile can leave no brew or mas apps in the catalog at all (see
+    // `catalog::filter_by_profile`), so every lookup below is gated on its own
+    // kind being present - a machine without Homebrew is then never asked for
+    // it.
+    let (cask_tokens, formula_tokens, mas_tokens) = (tokens("cask"), tokens("formula"), tokens("mas"));
+
     // Casks: `installed` is the version string, null when absent.
-    let cask_info = brew_info("--cask", &tokens("cask"));
-    let installed_casks: Vec<String> = if cask_info.is_none() {
+    let cask_info = brew_info("--cask", &cask_tokens);
+    let installed_casks: Vec<String> = if cask_info.is_none() && !cask_tokens.is_empty() {
         lines_of("brew", &["list", "--cask", "-1"])
     } else {
         Vec::new()
     };
 
     // Formulae: `installed` is an array of installed kegs.
-    let formula_info = brew_info("--formula", &tokens("formula"));
-    let installed_formulae: Vec<String> = if formula_info.is_none() {
+    let formula_info = brew_info("--formula", &formula_tokens);
+    let installed_formulae: Vec<String> = if formula_info.is_none() && !formula_tokens.is_empty() {
         lines_of("brew", &["list", "--formula", "-1"])
     } else {
         Vec::new()
     };
 
-    // `mas list` is "<id>  <name>  (<version>)".
-    let installed_mas: Vec<String> = lines_of("mas", &["list"])
-        .iter()
-        .filter_map(|l| l.split_whitespace().next().map(str::to_string))
-        .collect();
+    let ids = |lines: Vec<String>| -> Vec<String> {
+        lines.iter().filter_map(|l| l.split_whitespace().next().map(str::to_string)).collect()
+    };
+    // `mas list` is "<id>  <name>  (<version>)", `mas outdated` the same with
+    // "(<old> -> <new>)".
+    let (installed_mas, outdated_mas) = if mas_tokens.is_empty() {
+        (Vec::new(), Vec::new())
+    } else {
+        (ids(lines_of("mas", &["list"])), ids(lines_of("mas", &["outdated"])))
+    };
 
-    let (outdated_casks, outdated_formulae) = brew_outdated();
-    // `mas outdated` is "<id>  <name>  (<old> -> <new>)".
-    let outdated_mas: Vec<String> = lines_of("mas", &["outdated"])
-        .iter()
-        .filter_map(|l| l.split_whitespace().next().map(str::to_string))
-        .collect();
+    let (outdated_casks, outdated_formulae) = if cask_tokens.is_empty() && formula_tokens.is_empty() {
+        (Vec::new(), Vec::new())
+    } else {
+        brew_outdated()
+    };
 
     let find = |info: &Option<Value>, key: &str, token: &str| -> Option<Value> {
         info.as_ref()?

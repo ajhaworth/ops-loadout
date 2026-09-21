@@ -13,9 +13,20 @@ Cross-platform workstation setup tool. Automates installation of packages, dotfi
 Profiles (`config/profiles/*.conf`) control what gets installed. Profile variables are bash-style `KEY="value"` pairs parsed by both bash (source) and PowerShell (regex).
 
 - `personal.conf` - Full installation for personal macOS devices
-- `work.conf` - Minimal installation for work macOS devices
+- `workstation.conf` - Work macOS device, installs through the Ops Launcher only, no Homebrew
 - `linux.conf` - Full dev station setup for Linux (Debian/Ubuntu)
 - `windows.conf` - Gaming workstation setup for Windows
+
+Two profile-wide switches sit above the per-category flags. `PROFILE_HOMEBREW="false"`
+disables every formula, cask and MAS app at once, makes `homebrew.sh` and the
+launcher's prerequisites row skip Homebrew entirely, and stops the launcher
+executing `brew`/`mas` at all - not even for status - so a Mac without Homebrew
+never sees a "command not found". `INSTALLERS_<CATEGORY>` gates
+`config/packages/macos/installers/<category>.txt` the same way `CASKS_*` gates
+casks. `workstation.conf` uses both: it leaves only `installers/dcc.txt`
+(Blender, Houdini) and `installers/development.txt` (Fork, Ghostty) visible, and
+the user installs those by hand from the launcher tiles. Anything added for the
+work Mac goes in as an installer script, never a cask.
 
 ### Package Lists
 
@@ -288,8 +299,12 @@ points straight at `../ui`) over a Rust backend in `app/src-tauri/src/`:
   `install-log`/`install-done` events.
 - `catalog.rs` — pure parser of `config/packages/**` into `App` structs; never
   shells out. Kinds: `formula`, `cask`, `mas`, `installer` (macOS) and
-  `github`, `comfynode` (Windows). **It ignores profiles on purpose** — the
-  launcher shows every list file (`ponytail:` note in `catalog.rs`).
+  `github`, `comfynode` (Windows). `scan` reads every list file;
+  `filter_by_profile` then drops what the profile saved in Settings disables,
+  using the same `<PREFIX>_<CATEGORY>` / `PROFILE_MAS` / `PROFILE_HOMEBREW`
+  semantics as the bash side, before `hydrate` runs. `hydrate` only shells to
+  `brew`/`mas` when the filtered set still contains an app of that kind. With
+  no profile saved the launcher opens Settings first so one gets picked.
 - `platform.rs` picks `platform/macos.rs` or `platform/windows.rs` by
   `cfg(target_os)`; Linux is a stub that errors. macOS talks to `brew`/`mas`/
   the installer scripts directly. Windows shells *everything* to
@@ -532,7 +547,7 @@ throws at runtime.
 ```bash
 # macOS/Linux
 ./setup.sh --profile personal       # Full setup with profile
-./setup.sh --dry-run --profile work  # Preview changes
+./setup.sh --dry-run --profile workstation  # Preview changes
 ./setup.sh dotfiles                  # Dotfiles only
 ./setup.sh dotfiles ls               # Check symlink status
 ./setup.sh homebrew                  # All Homebrew packages (macOS)
