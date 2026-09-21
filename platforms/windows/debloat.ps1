@@ -402,7 +402,7 @@ function Get-WakeOnLanAdapter {
     return Get-NetAdapter | Where-Object { $_.InterfaceDescription -match 'AQtion' }
 }
 
-function Fix-WakeOnLan {
+function Set-WakeOnLan {
     param([switch]$DryRun)
 
     $adapter = Get-WakeOnLanAdapter
@@ -452,7 +452,7 @@ function Invoke-DebloatWolGroup {
         }
     }
 
-    Fix-WakeOnLan -DryRun:$DryRun
+    Set-WakeOnLan -DryRun:$DryRun
 
     return @{ Pending = $pending; NeedsAdmin = $false; Failed = 0 }
 }
