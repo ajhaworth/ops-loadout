@@ -274,6 +274,14 @@ Both manifests: condition is a profile variable name; entry is skipped when that
 
 System preferences are set via `defaults write` commands in `platforms/macos/defaults/*.sh`. Each file defines an `apply_<name>()` function that is dynamically discovered and invoked.
 
+Each `apply_<name>()` is built from two declarative helpers in `lib/tasks.sh`:
+`defaults_set <domain> <key> <type> <value> <label>` compares the current
+`defaults read` value against the desired one and writes only on a mismatch;
+`defaults_hook <hook-id> <label> <check-cmd> <apply-cmd>` covers anything that
+isn't a scalar `defaults write` (an `-array` write, a `chflags`, a `mkdir -p`).
+Both branch on the same code path for status (writes off) and apply, per
+"Setup Tasks (launcher)" above - there is no separate checker to keep in sync.
+
 ### Windows Defaults
 
 Same pattern in PowerShell. `platforms/windows/defaults/*.ps1` each define an
@@ -282,18 +290,37 @@ Same pattern in PowerShell. `platforms/windows/defaults/*.ps1` each define an
 
 Registry writes go through `lib/windows/registry.psm1` (`Set-RegistryValue`,
 `Set-RegistryValueSet`, `Remove-RegistryKey`), which is idempotent, dry-run
-aware, and records changed/skipped/failed counts. `debloat.ps1` uses the same
-helpers.
+aware, and buckets every setting into `Changed`/`Skipped`/`Pending`/`Failed`/
+`NeedsAdmin` (`Get-RegistryResults`). `debloat.ps1` uses the same helpers.
+Each bucket entry is `@{ Id; Label; Detail }`, not a bare string — `Id` is the
+stable `"$Path\$Name"` (or bare `$Path` for `Remove-RegistryKey`) that the
+launcher's Setup tab uses to target one setting.
+
+A `-DryRun` write that would change something lands in `Pending` rather than
+`Skipped`, so the launcher's tasks-status (see "Setup Tasks (launcher)") can
+tell "already correct" from "would change this" without a second checker.
 
 `Label` states the *outcome*, not the registry value — `HideFileExt = 0` is
 labelled "Show file extensions". So the log prints the label alone; printing
 `Show file extensions = 0` reads as the exact opposite of what happened. Dry-run
 still shows the key and value, since that output exists to be verified against.
 
-Access-denied errors are reported as "needs Administrator" and counted as
-skipped, not failed (`Test-AccessDeniedError`). Policy branches like
+Access-denied errors are reported as "needs Administrator" and land in
+`NeedsAdmin`, not `Failed` (`Test-AccessDeniedError`) — the CLI's own summary
+still counts them alongside `Skipped` as unchanged. Policy branches like
 `HKCU:\SOFTWARE\Policies` require an elevated token despite living under HKCU,
 so a non-elevated run legitimately cannot write them.
+
+`Set-RegistryOnlyId` (module-scoped, cleared by passing `$null`) restricts
+`Set-RegistryValue`/`Remove-RegistryKey` to a single id, no-oping everything
+else without recording it. That is how the launcher applies one setting from
+a defaults module that writes several: it re-runs the whole module with the
+filter set, so every other setting in it is inert. `Invoke-DefaultsModules`
+(also in `registry.psm1`) is the discovery-and-invoke loop itself — the one
+place that walks `platforms\windows\defaults\*.ps1`, gates each file by its
+`DEFAULTS_<NAME>` flag, and calls `Apply-<Name>`. `defaults.ps1` (the CLI) and
+`bridge.ps1` (the launcher) both call it rather than each keeping their own
+copy of that loop.
 
 Filenames map to profile variables like package lists: `taskbar.ps1` →
 `DEFAULTS_TASKBAR`. `power.ps1` and the HKLM half of `privacy.ps1` need
