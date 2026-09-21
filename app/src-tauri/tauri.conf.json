@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "identifier": "dev.alx.ops-launcher",
   "build": {
+    "beforeBuildCommand": "npm run bundle-repo",
     "frontendDist": "../ui"
   },
   "app": {
@@ -43,6 +44,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -54,6 +56,15 @@
     "resources": {
       "bridge.ps1": "bridge.ps1",
       "bundled/": "bundled/"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/ajhaworth/ops-workstation/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYyMDhERDlFMTU0OUE3NzYKUldSMnAwa1ZudDBJOGp3QVgyd0JGTkJsQlVXb1YrbWs0aUxhSmo1cldxZFlSUVhFQUFYY0wwM3oK"
     }
   }
 }
