@@ -85,6 +85,27 @@ fn saved_profile(app: &AppHandle) -> Option<String> {
 /// OPS_DESKTOP_DIR -> saved path -> the source checkout -> ~/Developer/ops/ops-desktop
 /// -> ask once and remember.
 fn find_repo(app: &AppHandle) -> Option<PathBuf> {
+    if let Some(path) = find_repo_on_disk(app) {
+        return Some(path);
+    }
+
+    // Nothing on disk: ask. Runs off the main thread (commands here are async).
+    use tauri_plugin_dialog::DialogExt;
+    let picked = app
+        .dialog()
+        .file()
+        .set_title("Where is the ops-desktop repo?")
+        .blocking_pick_folder()?;
+    let picked = picked.into_path().ok()?;
+    if catalog::is_repo(&picked) {
+        save_repo(app, &picked);
+        return Some(picked);
+    }
+    None
+}
+
+/// The non-interactive half of `find_repo`: safe to call from anywhere.
+fn find_repo_on_disk(app: &AppHandle) -> Option<PathBuf> {
     let compiled = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let home = app.path().home_dir().ok();
 
@@ -102,20 +123,50 @@ fn find_repo(app: &AppHandle) -> Option<PathBuf> {
             return Some(path);
         }
     }
-
-    // Nothing on disk: ask. Runs off the main thread (commands here are async).
-    use tauri_plugin_dialog::DialogExt;
-    let picked = app
-        .dialog()
-        .file()
-        .set_title("Where is the ops-desktop repo?")
-        .blocking_pick_folder()?;
-    let picked = picked.into_path().ok()?;
-    if catalog::is_repo(&picked) {
-        save_repo(app, &picked);
-        return Some(picked);
-    }
     None
+}
+
+/// Serves `<repo>/app/ui/*` straight off disk so a `git pull` (or an edit)
+/// updates the installed launcher's UI without a rebuild. Falls back to the
+/// assets baked in at build time when the repo isn't found.
+fn serve_ui(
+    ctx: tauri::UriSchemeContext<'_, tauri::Wry>,
+    req: tauri::http::Request<Vec<u8>>,
+) -> tauri::http::Response<Vec<u8>> {
+    let path = req.uri().path().trim_start_matches('/');
+    let path = if path.is_empty() { "index.html" } else { path };
+    let app = ctx.app_handle();
+
+    let from_disk = find_repo_on_disk(app)
+        .map(|r| r.join("app/ui").join(path))
+        .filter(|p| p.is_file() && !path.contains(".."))
+        .and_then(|p| std::fs::read(p).ok());
+    let (bytes, mime) = match from_disk {
+        Some(bytes) => {
+            let mime = match path.rsplit('.').next() {
+                Some("html") => "text/html",
+                Some("js") => "text/javascript",
+                Some("css") => "text/css",
+                Some("svg") => "image/svg+xml",
+                Some("png") => "image/png",
+                Some("json") => "application/json",
+                _ => "application/octet-stream",
+            };
+            (bytes, mime.to_string())
+        }
+        None => match app.asset_resolver().get(format!("/{path}")) {
+            Some(asset) => (asset.bytes, asset.mime_type),
+            None => {
+                return tauri::http::Response::builder().status(404).body(Vec::new()).unwrap()
+            }
+        },
+    };
+    let csp = app.config().app.security.csp.as_ref().map(|c| c.to_string()).unwrap_or_default();
+    tauri::http::Response::builder()
+        .header("Content-Type", mime)
+        .header("Content-Security-Policy", csp)
+        .body(bytes)
+        .unwrap()
 }
 
 fn repo_of(app: &AppHandle, store: &Store) -> Option<PathBuf> {
@@ -662,6 +713,7 @@ fn main() {
             None,
         ))
         .manage(Store::default())
+        .register_uri_scheme_protocol("ops", serve_ui)
         .setup(|app| {
             // The tray is the app's home; no Dock tile, no menubar of our own.
             #[cfg(target_os = "macos")]
