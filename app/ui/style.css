@@ -585,6 +585,9 @@ dialog input, dialog select {
   outline: none;
 }
 dialog input:focus, dialog select:focus { border-color: #5b6bff; }
+/* A checkbox reads as a row with its text, not as a full-width stacked field. */
+dialog label.check { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+dialog label.check input { display: inline-block; width: auto; height: auto; margin: 0; padding: 0; }
 /* Reversed, so Save is first in the DOM (Enter submits it) yet sits rightmost. */
 dialog menu {
   display: flex;

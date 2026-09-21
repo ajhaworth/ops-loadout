@@ -3,12 +3,14 @@
   "identifier": "default",
   "description": "Permissions the launcher window needs",
   "windows": [
-    "main"
+    "main",
+    "quick"
   ],
   "permissions": [
     "core:default",
     "dialog:default",
     "dialog:allow-ask",
-    "core:window:allow-start-dragging"
+    "core:window:allow-start-dragging",
+    "autostart:default"
   ]
 }
