@@ -47,7 +47,12 @@ install_homebrew() {
     fi
 
     # Install Homebrew (non-interactive)
-    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL $HOMEBREW_INSTALL_URL)"
+    local install_script
+    if ! install_script="$(curl -fsSL "$HOMEBREW_INSTALL_URL")" || [[ -z "$install_script" ]]; then
+        log_error "Failed to download Homebrew install script from $HOMEBREW_INSTALL_URL"
+        return 1
+    fi
+    NONINTERACTIVE=1 /bin/bash -c "$install_script"
 
     eval_brew_shellenv
     log_success "Homebrew installed"
