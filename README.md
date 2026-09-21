@@ -67,9 +67,9 @@ Profiles control which package categories get installed. Edit `config/profiles/*
 
 Full installation for personal macOS devices including all package categories, Mac App Store apps, and system preferences.
 
-### Work (`--profile work`)
+### Workstation (`--profile workstation`)
 
-Minimal installation for work macOS devices - core development tools only, skips media/graphics apps and Mac App Store.
+Work Mac where everything installs through the Ops Launcher instead of Homebrew - no formulae, casks, MAS apps, dotfiles, or system preferences from this tool.
 
 ### Linux (`--profile linux`)
 

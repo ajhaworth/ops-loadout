@@ -96,8 +96,8 @@ $windowsProfile = Read-Profile -ProfileName "windows"
 Assert-True ($null -ne $windowsProfile) "windows profile loads"
 Assert-True (Assert-ProfileOS -Profile $windowsProfile -ExpectedOS "windows" -ProfileName "windows") "windows profile validates on Windows"
 
-$workProfile = Read-Profile -ProfileName "work"
-Assert-True (-not (Assert-ProfileOS -Profile $workProfile -ExpectedOS "windows" -ProfileName "work")) "work profile is rejected on Windows"
+$workProfile = Read-Profile -ProfileName "workstation"
+Assert-True (-not (Assert-ProfileOS -Profile $workProfile -ExpectedOS "windows" -ProfileName "workstation")) "workstation profile is rejected on Windows"
 
 Assert-True (Test-ProfileFlag -Profile $windowsProfile -Flag 'DEFINITELY_NOT_SET') "unset profile flags default to enabled"
 Assert-True (-not (Test-ProfileFlag -Profile $windowsProfile -Flag 'PROFILE_DEBLOAT')) "PROFILE_DEBLOAT is disabled"

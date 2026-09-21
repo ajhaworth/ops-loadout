@@ -5,6 +5,7 @@
 //! the mas / windows-github / windows-comfynodes lists.
 
 use serde::Serialize;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -13,6 +14,9 @@ pub struct App {
     pub id: String,
     pub name: String,
     pub category: String,
+    /// The list file's stem (`software-dev`), as the profile variable spells
+    /// it. `category` is its title case, which is not reliably reversible.
+    pub list: String,
     /// "cask" | "formula" | "mas" | "github" | "comfynode" | "installer"
     pub kind: String,
     pub installed: bool,
@@ -34,11 +38,12 @@ pub struct App {
 }
 
 impl App {
-    fn new(kind: &str, token: &str, name: &str, category: &str) -> Self {
+    fn new(kind: &str, token: &str, name: &str, category: &str, list: &str) -> Self {
         App {
             id: format!("{kind}:{token}"),
             name: name.to_string(),
             category: category.to_string(),
+            list: list.to_string(),
             kind: kind.to_string(),
             installed: false,
             outdated: false,
@@ -113,7 +118,7 @@ fn casks(repo: &Path) -> Vec<App> {
             let category = title_case(&stem);
             entries
                 .into_iter()
-                .map(move |token| App::new("cask", &token, &token, &category))
+                .map(move |token| App::new("cask", &token, &token, &category, &stem))
         })
         .collect()
 }
@@ -125,7 +130,7 @@ fn formulae(repo: &Path) -> Vec<App> {
             let category = title_case(&stem);
             entries
                 .into_iter()
-                .map(move |name| App::new("formula", &name, &name, &category))
+                .map(move |name| App::new("formula", &name, &name, &category, &stem))
         })
         .collect()
 }
@@ -133,15 +138,16 @@ fn formulae(repo: &Path) -> Vec<App> {
 fn mas(repo: &Path) -> Vec<App> {
     read_dir_lists(&repo.join("config/packages/macos/mas"))
         .into_iter()
-        .flat_map(|(_, entries)| entries)
-        .filter_map(|line| {
-            // ID|Name
-            let id = field(&line, 0)?;
-            if !id.chars().all(|c| c.is_ascii_digit()) {
-                return None;
-            }
-            let name = field(&line, 1).unwrap_or_else(|| id.clone());
-            Some(App::new("mas", &id, &name, "App Store"))
+        .flat_map(|(stem, entries)| {
+            entries.into_iter().filter_map(move |line| {
+                // ID|Name
+                let id = field(&line, 0)?;
+                if !id.chars().all(|c| c.is_ascii_digit()) {
+                    return None;
+                }
+                let name = field(&line, 1).unwrap_or_else(|| id.clone());
+                Some(App::new("mas", &id, &name, "App Store", &stem))
+            })
         })
         .collect()
 }
@@ -156,7 +162,7 @@ fn github(repo: &Path) -> Vec<App> {
                 let repo_slug = field(&line, 0)?;
                 let default_name = repo_slug.split('/').nth(1)?.to_string();
                 let name = field(&line, 2).unwrap_or(default_name);
-                let mut app = App::new("github", &repo_slug, &name, &category);
+                let mut app = App::new("github", &repo_slug, &name, &category, &stem);
                 app.token = line.clone(); // the installer wants the whole spec
                 app.id = format!("github:{repo_slug}");
                 app.homepage = Some(format!("https://github.com/{repo_slug}"));
@@ -175,7 +181,7 @@ fn installers(repo: &Path) -> Vec<App> {
                 // token | display-name | homepage
                 let token = field(&line, 0)?;
                 let name = field(&line, 1).unwrap_or_else(|| token.clone());
-                let mut app = App::new("installer", &token, &name, &category);
+                let mut app = App::new("installer", &token, &name, &category, &stem);
                 app.homepage = field(&line, 2);
                 Some(app)
             })
@@ -186,17 +192,18 @@ fn installers(repo: &Path) -> Vec<App> {
 fn comfynodes(repo: &Path) -> Vec<App> {
     read_dir_lists(&repo.join("config/packages/windows/comfynodes"))
         .into_iter()
-        .flat_map(|(_, entries)| entries)
-        .filter_map(|line| {
-            // owner/repo | directory-name
-            let repo_slug = field(&line, 0)?;
-            let default_dir = repo_slug.split('/').nth(1)?.to_string();
-            let dir = field(&line, 1).unwrap_or(default_dir);
-            let mut app = App::new("comfynode", &repo_slug, &dir, "ComfyUI Nodes");
-            app.token = line.clone();
-            app.id = format!("comfynode:{repo_slug}");
-            app.homepage = Some(format!("https://github.com/{repo_slug}"));
-            Some(app)
+        .flat_map(|(stem, entries)| {
+            entries.into_iter().filter_map(move |line| {
+                // owner/repo | directory-name
+                let repo_slug = field(&line, 0)?;
+                let default_dir = repo_slug.split('/').nth(1)?.to_string();
+                let dir = field(&line, 1).unwrap_or(default_dir);
+                let mut app = App::new("comfynode", &repo_slug, &dir, "ComfyUI Nodes", &stem);
+                app.token = line.clone();
+                app.id = format!("comfynode:{repo_slug}");
+                app.homepage = Some(format!("https://github.com/{repo_slug}"));
+                Some(app)
+            })
         })
         .collect()
 }
@@ -204,9 +211,8 @@ fn comfynodes(repo: &Path) -> Vec<App> {
 /// Every app this repo manages for the current platform, before the platform
 /// backend fills in installed state, homepage and icons.
 ///
-/// Profile flags are ignored on purpose: the launcher shows every list file.
-// ponytail: no profile filtering; add it if the work/personal split ever
-// matters here.
+/// Every list file is here; `filter_by_profile` narrows it to the profile
+/// saved in Settings.
 pub fn scan(repo: &Path) -> Vec<App> {
     if cfg!(target_os = "windows") {
         let mut apps = github(repo);
@@ -219,6 +225,33 @@ pub fn scan(repo: &Path) -> Vec<App> {
         apps.extend(formulae(repo));
         apps
     }
+}
+
+/// `CASKS` + `software-dev` -> `CASKS_SOFTWARE_DEV`, the way
+/// `lib/common.sh:get_category_var` spells it.
+fn category_var(prefix: &str, list: &str) -> String {
+    format!("{prefix}_{}", list.to_uppercase().replace('-', "_"))
+}
+
+/// Drop the apps a profile turns off. A flag is enabled unless it reads exactly
+/// `"false"`, and an unset flag is enabled - the same rule as the bash and
+/// PowerShell sides. `mas` has no per-list flag, only `PROFILE_MAS`, and
+/// `PROFILE_HOMEBREW="false"` drops every brew-managed kind.
+pub fn filter_by_profile(apps: Vec<App>, flags: &HashMap<String, String>) -> Vec<App> {
+    let on = |key: &str| flags.get(key).map_or(true, |v| v != "false");
+    let homebrew = on("PROFILE_HOMEBREW");
+
+    apps.into_iter()
+        .filter(|app| match app.kind.as_str() {
+            "mas" => homebrew && on("PROFILE_MAS"),
+            "cask" => homebrew && on(&category_var("CASKS", &app.list)),
+            "formula" => homebrew && on(&category_var("FORMULAE", &app.list)),
+            "installer" => on(&category_var("INSTALLERS", &app.list)),
+            "github" => on(&category_var("GITHUB", &app.list)),
+            "comfynode" => on(&category_var("COMFYNODES", &app.list)),
+            _ => true,
+        })
+        .collect()
 }
 
 pub fn is_repo(path: &Path) -> bool {
@@ -273,5 +306,42 @@ houdini | Houdini | https://www.sidefx.com/
 
         assert_eq!(title_case("software-dev"), "Software Dev");
         assert_eq!(title_case("core"), "Core");
+    }
+
+    #[test]
+    fn profile_flags_drop_disabled_lists() {
+        let app = |kind: &str, list: &str| App::new(kind, list, list, &title_case(list), list);
+        let apps = vec![
+            app("formula", "core"),
+            app("cask", "software-dev"),
+            app("cask", "development"),
+            app("mas", "apps"),
+            app("installer", "creative"),
+            app("installer", "dcc"),
+        ];
+        let flags = |pairs: &[(&str, &str)]| -> HashMap<String, String> {
+            pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+        };
+        let listed = |apps: &[App]| -> Vec<String> {
+            apps.iter().map(|a| format!("{}:{}", a.kind, a.list)).collect()
+        };
+
+        // No Homebrew takes the casks, the formulae and the App Store apps with
+        // it; a per-list flag only reaches its own list.
+        let kept = filter_by_profile(
+            apps.clone(),
+            &flags(&[("PROFILE_HOMEBREW", "false"), ("INSTALLERS_CREATIVE", "false")]),
+        );
+        assert_eq!(listed(&kept), ["installer:dcc"]);
+
+        // The variable names one list file, not one kind.
+        let kept = filter_by_profile(apps.clone(), &flags(&[("CASKS_SOFTWARE_DEV", "false")]));
+        assert_eq!(
+            listed(&kept),
+            ["formula:core", "cask:development", "mas:apps", "installer:creative", "installer:dcc"]
+        );
+
+        // Unset means enabled, everywhere.
+        assert_eq!(listed(&filter_by_profile(apps.clone(), &HashMap::new())), listed(&apps));
     }
 }
