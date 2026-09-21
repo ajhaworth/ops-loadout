@@ -3,3 +3,4 @@
 
 houdini    | Houdini     | https://www.sidefx.com/
 sidefxlabs | SideFX Labs | https://github.com/sideeffects/SideFXLabs
+compositor | Compositor  | https://github.com/robbietilton/Compositor

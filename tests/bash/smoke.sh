@@ -31,12 +31,15 @@ run_capture() {
 test_macos_installer_scripts() {
     local houdini="$REPO_ROOT/platforms/macos/installers/houdini.sh"
     local labs="$REPO_ROOT/platforms/macos/installers/sidefxlabs.sh"
+    local compositor="$REPO_ROOT/platforms/macos/installers/compositor.sh"
 
     [[ -x "$houdini" ]] || fail "houdini.sh is not executable"
     [[ -x "$labs" ]] || fail "sidefxlabs.sh is not executable"
+    [[ -x "$compositor" ]] || fail "compositor.sh is not executable"
 
     bash -n "$houdini" || fail "houdini.sh has a syntax error"
     bash -n "$labs" || fail "sidefxlabs.sh has a syntax error"
+    bash -n "$compositor" || fail "compositor.sh has a syntax error"
 
     # Without Houdini, SideFX Labs cannot be installed or reported as present.
     if ! run_capture "$houdini" status; then
