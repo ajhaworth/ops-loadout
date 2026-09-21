@@ -297,7 +297,7 @@ fn list_profiles(repo: &Path) -> Vec<String> {
                 .into_iter()
                 .find(|(k, _)| k == "PROFILE_OS")
                 .map(|(_, v)| v);
-            its_os.is_none_or(|v| v == os).then_some(stem)
+            its_os.map_or(true, |v| v == os).then_some(stem)
         })
         .collect();
     names.sort();
