@@ -44,27 +44,6 @@ do_status() {
 
 # --- SideFX API ------------------------------------------------------------
 
-# Under the launcher (the only thing that sets SUDO_ASKPASS) credentials are
-# asked for with native dialogs and saved; in a terminal, print the steps.
-prompt_credentials() {
-    local out
-    out="$(osascript <<'EOF'
-set msg to "Houdini is downloaded through the SideFX web API, which needs a one-time API key from your SideFX account (the same free account used for Apprentice)." & return & return & "1. Click Open sidefx.com and log in." & return & "2. Click Register a new application." & return & "3. Name: anything. Client type: Confidential. Authorization grant type: Authorization code. Redirect URL: https://www.sidefx.com" & return & "4. Save, then copy the Client ID and Client Secret." & return & "5. Come back here and paste them into the next two prompts." & return & return & "They are stored only on this Mac (config/sidefx.local)."
-set r to display dialog msg with title "Ops Launcher" buttons {"Cancel", "Open sidefx.com", "Continue"} default button "Continue"
-if button returned of r is "Open sidefx.com" then open location "https://www.sidefx.com/oauth2/applications/"
-set cid to text returned of (display dialog "SideFX Client ID" with title "Ops Launcher" default answer "")
-set sec to text returned of (display dialog "SideFX Client Secret" with title "Ops Launcher" default answer "" with hidden answer)
-return cid & linefeed & sec
-EOF
-)" || { echo "Cancelled."; return 1; }
-    SIDEFX_CLIENT_ID="$(printf '%s' "${out%%$'\n'*}" | tr -d '[:space:]')"
-    SIDEFX_CLIENT_SECRET="$(printf '%s' "${out#*$'\n'}" | tr -d '[:space:]')"
-    [[ -n "$SIDEFX_CLIENT_ID" && -n "$SIDEFX_CLIENT_SECRET" ]] || { echo "Empty credentials." >&2; return 1; }
-    (umask 077; printf 'SIDEFX_CLIENT_ID="%s"\nSIDEFX_CLIENT_SECRET="%s"\n' \
-        "$SIDEFX_CLIENT_ID" "$SIDEFX_CLIENT_SECRET" > "$CREDS")
-    echo "Saved credentials to $CREDS"
-}
-
 load_credentials() {
     if [[ -f "$CREDS" ]]; then
         # shellcheck disable=SC1090
@@ -72,21 +51,9 @@ load_credentials() {
     fi
     [[ -n "${SIDEFX_CLIENT_ID:-}" && -n "${SIDEFX_CLIENT_SECRET:-}" ]] && return 0
 
-    if [[ -n "${SUDO_ASKPASS:-}" ]]; then
-        prompt_credentials
-        return
-    fi
-    cat <<MSG
-SideFX API credentials are missing ($CREDS).
-
-  1. Go to https://www.sidefx.com/oauth2/applications/ (Services ->
-     Developers API -> "Manage applications authentication") and
-     "Register a new application".
-     Client type: confidential. Grant: authorization code.
-     Redirect URL: https://www.sidefx.com
-  2. Write config/sidefx.local with:
-         SIDEFX_CLIENT_ID="..."
-         SIDEFX_CLIENT_SECRET="..."
+    cat <<'MSG'
+SideFX API credentials are not set. In Ops Launcher, open Settings (gear icon, top right) and follow the steps there.
+(From a terminal: write config/sidefx.local with SIDEFX_CLIENT_ID="..." and SIDEFX_CLIENT_SECRET="...", from https://www.sidefx.com/oauth2/applications/)
 MSG
     return 1
 }
@@ -100,7 +67,7 @@ get_token() {
     ACCESS_TOKEN="$(curl -fsS -u "$SIDEFX_CLIENT_ID:$SIDEFX_CLIENT_SECRET" \
         -X POST "$TOKEN_URL" | jq -r '.access_token')"
     [[ -n "$ACCESS_TOKEN" && "$ACCESS_TOKEN" != "null" ]] || {
-        echo "Could not get a SideFX access token - check the credentials in $CREDS." >&2
+        echo "Could not get a SideFX access token - check the Client ID and secret in Settings." >&2
         return 1
     }
 }
@@ -123,12 +90,7 @@ do_install() {
     load_credentials
 
     echo "==> Resolving latest production build"
-    if ! get_token; then
-        # Wrong credentials saved: let the launcher user re-enter them.
-        [[ -n "${SUDO_ASKPASS:-}" ]] || return 1
-        prompt_credentials
-        get_token
-    fi
+    get_token
     latest="$(api_call '["download.get_daily_builds_list", ["houdini"], {"platform":"'"$PLATFORM"'","only_production":true}]' \
         | jq -r '[.[] | select(.status == "good")]
                  | max_by((.version | split(".") | map(tonumber)) + [(.build | tonumber)])

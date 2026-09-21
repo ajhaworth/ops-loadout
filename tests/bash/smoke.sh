@@ -45,12 +45,13 @@ test_macos_installer_scripts() {
         fi
     fi
 
-    # Missing credentials must explain how to create the file, not fail obscurely.
-    if run_capture env -u SUDO_ASKPASS SIDEFX_CREDENTIALS="$REPO_ROOT/config/nonexistent-sidefx.local" "$houdini" install; then
+    # Missing credentials must point at the launcher's Settings dialog, not
+    # fail obscurely.
+    if run_capture env SIDEFX_CREDENTIALS="$REPO_ROOT/config/nonexistent-sidefx.local" "$houdini" install; then
         fail "houdini.sh install should fail without credentials"
     fi
 
-    assert_contains "$RUN_OUTPUT" "sidefx.local"
+    assert_contains "$RUN_OUTPUT" "Settings"
 }
 
 test_mismatched_profile_rejected() {

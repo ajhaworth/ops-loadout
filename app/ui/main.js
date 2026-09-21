@@ -10,6 +10,7 @@ const menuEl = document.getElementById("menu");
 const updateAllEl = document.getElementById("update-all");
 const tabsEl = document.getElementById("tabs");
 const logEl = document.getElementById("log");
+const settingsEl = document.getElementById("settings-dialog");
 
 let apps = [];
 const lastLog = new Map();
@@ -441,12 +442,42 @@ addEventListener("click", hideMenu);
 addEventListener("keydown", (e) => e.key === "Escape" && hideMenu());
 sectionsEl.addEventListener("scroll", hideMenu);
 // Nothing here wants the webview's own context menu.
-addEventListener("contextmenu", (e) => e.preventDefault());
+// Text fields keep the native menu so a secret can be right-click pasted.
+addEventListener("contextmenu", (e) => {
+  if (!e.target.matches("input, textarea")) e.preventDefault();
+});
 
 try { if (localStorage.getItem("tab") in WORKSPACES) tab = localStorage.getItem("tab"); } catch { /* default */ }
 searchEl.oninput = render;
 updateAllEl.onclick = updateAll;
 document.getElementById("refresh").onclick = () => load("refresh");
+document.getElementById("settings").onclick = async () => {
+  try {
+    const settings = await invoke("get_settings");
+    document.getElementById("sidefx-id").value = settings.sidefx_client_id;
+    document.getElementById("sidefx-secret").value = settings.sidefx_client_secret;
+    // Escape leaves the previous value in place, which would re-save on close.
+    settingsEl.returnValue = "";
+    settingsEl.showModal();
+  } catch (e) {
+    logLine(String(e));
+  }
+};
+document.getElementById("sidefx-open").onclick = () =>
+  invoke("open_url", { url: "https://www.sidefx.com/oauth2/applications/" })
+    .catch((e) => logLine(String(e)));
+settingsEl.onclose = async () => {
+  if (settingsEl.returnValue !== "save") return;
+  try {
+    await invoke("set_settings", {
+      sidefxClientId: document.getElementById("sidefx-id").value,
+      sidefxClientSecret: document.getElementById("sidefx-secret").value,
+    });
+    logLine("Settings saved");
+  } catch (e) {
+    logLine(String(e));
+  }
+};
 document.getElementById("copy").onclick = async (e) => {
   await navigator.clipboard.writeText(logEl.textContent);
   e.target.textContent = "Copied";

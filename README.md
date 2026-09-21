@@ -161,11 +161,10 @@ Packages are defined in text files under `config/packages/`:
   one of `status|install|update|reinstall|uninstall`; `status` prints the
   `.app` path and exits 0 when installed. Only the launcher runs these, not
   `setup.sh`. Root work goes through `sudo -A`.
-  - `houdini` - latest production build via the SideFX download API. On
-    first use the launcher walks through creating an API key on sidefx.com
-    and asks for the Client ID and secret in native dialogs, saving them to
-    `config/sidefx.local` (from a terminal, it prints the same steps). Wrong
-    credentials are re-asked. After installing, a dialog explains the free
+  - `houdini` - latest production build via the SideFX download API. The
+    API key is entered once in the launcher's Settings dialog (gear icon),
+    which explains how to create it on sidefx.com, and is stored in
+    `config/sidefx.local`. After installing, a dialog explains the free
     Apprentice license, which only Houdini itself can activate (License
     Administrator -> "Activate Apprentice", no login needed, renews every
     30 days). Older versions are left in place on update.

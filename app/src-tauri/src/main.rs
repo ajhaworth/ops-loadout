@@ -195,6 +195,113 @@ async fn open_homepage(handle: AppHandle, store: State<'_, Store>, id: String) -
     platform::open_url(url, &resource_dir(&handle))
 }
 
+/// Opens a link the UI itself points at (the Settings help). Same http(s)-only
+/// rule as `open_homepage`.
+#[tauri::command]
+async fn open_url(handle: AppHandle, url: String) -> Result<(), String> {
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err(format!("refusing to open {url}"));
+    }
+    platform::open_url(&url, &resource_dir(&handle))
+}
+
+fn settings_file(handle: &AppHandle, store: &Store) -> Result<PathBuf, String> {
+    let repo = repo_of(handle, store).ok_or("no ops-desktop repo found")?;
+    Ok(repo.join("config/sidefx.local"))
+}
+
+/// `KEY="value"` / `KEY=value` lines with `#` comments - the shape bash sources.
+fn parse_env_file(text: &str) -> Vec<(String, String)> {
+    text.lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            if line.starts_with('#') {
+                return None;
+            }
+            let (key, value) = line.split_once('=')?;
+            let value = value.trim();
+            let value = value
+                .strip_prefix('"')
+                .and_then(|v| v.strip_suffix('"'))
+                .unwrap_or(value);
+            Some((key.trim().to_string(), value.to_string()))
+        })
+        .collect()
+}
+
+/// The SideFX credentials `platforms/macos/installers/houdini.sh` reads.
+/// Missing file or missing key reads as empty, so the dialog just opens blank.
+#[tauri::command]
+async fn get_settings(
+    handle: AppHandle,
+    store: State<'_, Store>,
+) -> Result<serde_json::Value, String> {
+    let path = settings_file(&handle, &store)?;
+    let vars = parse_env_file(&std::fs::read_to_string(path).unwrap_or_default());
+    let value = |key: &str| {
+        vars.iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, v)| v.clone())
+            .unwrap_or_default()
+    };
+    Ok(serde_json::json!({
+        "sidefx_client_id": value("SIDEFX_CLIENT_ID"),
+        "sidefx_client_secret": value("SIDEFX_CLIENT_SECRET"),
+    }))
+}
+
+#[tauri::command]
+async fn set_settings(
+    handle: AppHandle,
+    store: State<'_, Store>,
+    sidefx_client_id: String,
+    sidefx_client_secret: String,
+) -> Result<(), String> {
+    let path = settings_file(&handle, &store)?;
+    let id = sidefx_client_id.trim();
+    let secret = sidefx_client_secret.trim();
+    // The file is sourced by bash, so either character would end the value.
+    if [id, secret].iter().any(|v| v.contains('"') || v.contains('\n')) {
+        return Err("credentials cannot contain a quote or a newline".into());
+    }
+
+    if id.is_empty() && secret.is_empty() {
+        return match std::fs::remove_file(&path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
+            _ => Ok(()),
+        };
+    }
+
+    let body = format!(
+        "# SideFX web API credentials for platforms/macos/installers/houdini.sh (gitignored)\n\
+         SIDEFX_CLIENT_ID=\"{id}\"\n\
+         SIDEFX_CLIENT_SECRET=\"{secret}\"\n"
+    );
+    // Created 0600, never briefly world-readable; an existing file keeps its
+    // own mode, so narrow that one too.
+    #[cfg(unix)]
+    let file = {
+        use std::os::unix::fs::OpenOptionsExt;
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&path)
+    };
+    #[cfg(not(unix))]
+    let file = std::fs::File::create(&path);
+    use std::io::Write;
+    file.and_then(|mut f| f.write_all(body.as_bytes()))
+        .map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
+}
+
 /// Runs one package-manager job in the background, streaming its output to the
 /// UI as `install-log` and finishing with `install-done`. Both events carry the
 /// action, so the frontend can tell an install from an uninstall.
@@ -363,7 +470,10 @@ fn main() {
             update,
             reinstall,
             reveal,
-            open_homepage
+            open_homepage,
+            open_url,
+            get_settings,
+            set_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running Ops Launcher");
@@ -412,6 +522,20 @@ mod smoke {
         assert!(!apps.is_empty());
         // Informational only: a fully up-to-date machine legitimately has none.
         println!("  outdated: {}", apps.iter().filter(|a| a.outdated).count());
+    }
+
+    #[test]
+    fn env_file_parses_quoted_and_bare_values() {
+        let vars = crate::parse_env_file(
+            "# comment\nSIDEFX_CLIENT_ID=\"abc\"\n\nSIDEFX_CLIENT_SECRET = bare\n#KEY=no\n",
+        );
+        assert_eq!(
+            vars,
+            [
+                ("SIDEFX_CLIENT_ID".to_string(), "abc".to_string()),
+                ("SIDEFX_CLIENT_SECRET".to_string(), "bare".to_string()),
+            ]
+        );
     }
 
     fn app_of(kind: &str, token: &str) -> crate::catalog::App {
