@@ -16,6 +16,8 @@ pub struct App {
     /// "cask" | "formula" | "mas" | "github" | "comfynode"
     pub kind: String,
     pub installed: bool,
+    /// An installed app with a newer version available.
+    pub outdated: bool,
     pub homepage: Option<String>,
     /// data URL
     pub icon: Option<String>,
@@ -37,6 +39,7 @@ impl App {
             category: category.to_string(),
             kind: kind.to_string(),
             installed: false,
+            outdated: false,
             homepage: None,
             icon: None,
             launchable: false,

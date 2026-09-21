@@ -103,6 +103,12 @@ function tileEl(app) {
     badge.className = "badge";
     badge.textContent = "!";
     icon.append(badge);
+  } else if (app.outdated) {
+    // A failure outranks an update: the user has to deal with it first.
+    tile.title = "Update available";
+    const badge = document.createElement("span");
+    badge.className = "badge update";
+    icon.append(badge);
   }
 
   const label = document.createElement("span");
@@ -204,7 +210,10 @@ function render() {
     p.textContent = apps.length ? "Nothing matches." : "No packages found.";
     sectionsEl.append(p);
   }
-  countEl.textContent = `${apps.filter((a) => a.installed).length} / ${apps.length} installed`;
+  const updates = apps.filter((a) => a.outdated).length;
+  countEl.textContent =
+    `${apps.filter((a) => a.installed).length} / ${apps.length} installed` +
+    (updates ? ` \u00b7 ${updates} update${updates > 1 ? "s" : ""}` : "");
 }
 
 async function load(command) {
@@ -257,9 +266,11 @@ function menuItems(app) {
   if (!app.installed) {
     items.push({ label: "Install", run: job("install") });
   } else {
-    // Open and Reveal need a resolved path, which formulae never have.
+    // An update waiting is the reason the user opened this menu, so it leads.
+    const update = { label: "Update", run: job("update"), strong: app.outdated };
+    if (app.outdated) items.push(update);
     if (app.launchable) items.push({ label: "Open", run: () => call("launch", app) });
-    items.push({ label: "Update", run: job("update") });
+    if (!app.outdated) items.push(update);
     if (app.kind !== "mas") items.push({ label: "Reinstall", run: job("reinstall") });
     if (app.launchable) items.push({ label: REVEAL, run: () => call("reveal", app) });
   }
@@ -296,6 +307,7 @@ function showMenu(e, app) {
     button.type = "button";
     button.textContent = item.label;
     if (item.danger) button.className = "danger";
+    if (item.strong) button.className = "strong";
     if (item.why) {
       button.disabled = true;
       button.title = item.why;

@@ -92,11 +92,23 @@ fn resource_dir(app: &AppHandle) -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("."))
 }
 
+/// Dock badge with the number of updates waiting. Windows has no badge count -
+/// it wants an overlay icon instead - so this is macOS only.
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+fn set_dock_badge(handle: &AppHandle, apps: &[App]) {
+    #[cfg(target_os = "macos")]
+    if let Some(window) = handle.get_webview_window("main") {
+        let n = apps.iter().filter(|a| a.outdated).count() as i64;
+        let _ = window.set_badge_count((n > 0).then_some(n));
+    }
+}
+
 fn rescan(app: &AppHandle, store: &Store) -> Result<Vec<App>, String> {
     let repo = repo_of(app, store).ok_or("no ops-desktop repo found")?;
     let mut apps = catalog::scan(&repo);
     platform::hydrate(&mut apps, &cache_dir(app), &repo, &resource_dir(app));
     *store.apps.lock().unwrap() = apps.clone();
+    set_dock_badge(app, &apps);
     Ok(apps)
 }
 
@@ -207,6 +219,8 @@ fn run_job(
             // refresh_icon shells out, so work on a clone with the lock released.
             let mut fresh = find_app(&store, &id);
             if let Some(app) = fresh.as_mut() {
+                // Whatever the job was, the app is no longer behind.
+                app.outdated = false;
                 if action == "uninstall" {
                     app.installed = false;
                     app.launchable = false;
@@ -218,13 +232,18 @@ fn run_job(
             }
 
             if let Some(fresh) = fresh {
-                let mut apps = store.apps.lock().unwrap();
-                if let Some(app) = apps.iter_mut().find(|a| a.id == id) {
-                    app.installed = fresh.installed;
-                    app.launchable = fresh.launchable;
-                    app.icon = fresh.icon;
-                    app.target = fresh.target;
-                }
+                let snapshot = {
+                    let mut apps = store.apps.lock().unwrap();
+                    if let Some(app) = apps.iter_mut().find(|a| a.id == id) {
+                        app.installed = fresh.installed;
+                        app.outdated = fresh.outdated;
+                        app.launchable = fresh.launchable;
+                        app.icon = fresh.icon;
+                        app.target = fresh.target;
+                    }
+                    apps.clone()
+                };
+                set_dock_badge(&handle, &snapshot);
             }
         }
 
@@ -344,17 +363,24 @@ mod smoke {
         let mut apps = crate::catalog::scan(&repo);
         crate::platform::hydrate(&mut apps, &std::env::temp_dir().join("ops-launcher-test"), &repo, &repo);
 
-        let mut by_kind: std::collections::BTreeMap<&str, (usize, usize, usize)> = Default::default();
+        let mut by_kind: std::collections::BTreeMap<&str, (usize, usize, usize, usize)> =
+            Default::default();
         let mut categories: std::collections::BTreeSet<(&str, &str)> = Default::default();
         for a in &apps {
             let e = by_kind.entry(&a.kind).or_default();
             e.0 += 1;
             e.1 += a.installed as usize;
             e.2 += a.icon.is_some() as usize;
+            e.3 += a.outdated as usize;
             categories.insert((&a.kind, &a.category));
         }
-        for (kind, (total, installed, icons)) in &by_kind {
-            println!("{kind:10} total={total:3} installed={installed:3} icons={icons:3}");
+        for (kind, (total, installed, icons, outdated)) in &by_kind {
+            println!(
+                "{kind:10} total={total:3} installed={installed:3} icons={icons:3} outdated={outdated:3}"
+            );
+        }
+        for a in apps.iter().filter(|a| a.outdated) {
+            println!("  update available: {}", a.id);
         }
         for (kind, cat) in &categories {
             println!("  {kind}/{cat}");
@@ -365,6 +391,8 @@ mod smoke {
             }
         }
         assert!(!apps.is_empty());
+        // Informational only: a fully up-to-date machine legitimately has none.
+        println!("  outdated: {}", apps.iter().filter(|a| a.outdated).count());
     }
 
     fn app_of(kind: &str, token: &str) -> crate::catalog::App {

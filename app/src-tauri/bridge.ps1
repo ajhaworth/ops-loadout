@@ -90,6 +90,38 @@ function Get-ProgramExe {
     return ''
 }
 
+# Is a newer release available? This mirrors exactly how Install-GitHubRelease
+# decides to upgrade: tag against the recorded stamp when there is one, else the
+# app's own DisplayVersion with numeric cores only. A null comparison means
+# "cannot tell", which is not an update.
+function Test-GitHubOutdated {
+    param(
+        [Parameter(Mandatory)]
+        [hashtable]$Spec,
+        [string]$InstalledVersion
+    )
+
+    try {
+        $release = Get-GitHubLatestRelease -Repo $Spec.Repo
+    } catch {
+        # No network, rate limited, no releases: report nothing rather than guess.
+        return $false
+    }
+    if ($null -eq $release -or -not $release.tag_name) { return $false }
+
+    $latest = $release.tag_name -replace '^[vV]', ''
+    $stamp = Get-GitHubReleaseStamp -Repo $Spec.Repo
+
+    if ($stamp) {
+        $comparison = Compare-VersionString -Left $latest -Right ($stamp -replace '^[vV]', '')
+    } else {
+        $comparison = Compare-VersionString -Left $latest -Right $InstalledVersion -IgnorePreRelease
+    }
+
+    if ($null -eq $comparison) { return $false }
+    return ($comparison -gt 0)
+}
+
 # Run an UninstallString. These are free-form command lines, so exe and
 # arguments are split here and handed to Start-Process separately - nothing is
 # re-parsed as script.
@@ -149,10 +181,15 @@ switch ($Verb) {
             try { $parsed = ConvertFrom-GitHubPackageSpec -Spec $spec } catch { continue }
             $existing = Get-InstalledProgram -NamePattern $parsed.DisplayName
             $exe = ''
-            if ($null -ne $existing) { $exe = Get-ProgramExe -DisplayName $existing.Name }
+            $outdated = $false
+            if ($null -ne $existing) {
+                $exe = Get-ProgramExe -DisplayName $existing.Name
+                $outdated = Test-GitHubOutdated -Spec $parsed -InstalledVersion $existing.Version
+            }
             $result += [pscustomobject]@{
                 id        = "github:$(Get-SpecRepo $spec)"
                 installed = ($null -ne $existing)
+                outdated  = $outdated
                 exe       = $exe
             }
         }
@@ -169,9 +206,11 @@ switch ($Verb) {
                 if ($customNodes) {
                     $installed = Test-ComfyNodeInstalled -PackageSpec $spec -CustomNodesDir $customNodes
                 }
+                # No cheap way to know a node checkout is behind without fetching.
                 $result += [pscustomobject]@{
                     id        = "comfynode:$(Get-SpecRepo $spec)"
                     installed = $installed
+                    outdated  = $false
                     exe       = ''
                 }
             }
