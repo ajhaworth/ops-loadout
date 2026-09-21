@@ -14,7 +14,7 @@ param(
 
     # Subcommands
     [Parameter(Position = 0)]
-    [ValidateSet('', 'packages', 'dotfiles', 'defaults', 'debloat')]
+    [ValidateSet('', 'packages', 'dotfiles', 'defaults', 'debloat', 'launcher')]
     [string]$Command = '',
 
     [Parameter(Position = 1)]
@@ -107,6 +107,94 @@ function Invoke-DebloatCommand {
     }
 }
 
+# Installs the toolchain the launcher needs (Rust, Node, VC++ Build Tools),
+# then builds and silently installs the Ops Launcher app via its NSIS bundle.
+function Invoke-LauncherCommand {
+    Write-Step "Ops Launcher prerequisites"
+
+    if (Get-Command cargo -ErrorAction SilentlyContinue) {
+        Write-Skip "Rust toolchain already installed"
+    } elseif ($DryRun) {
+        Write-DryRun "winget install --exact --id Rustlang.Rustup --accept-package-agreements --accept-source-agreements"
+    } else {
+        Write-SubStep "Installing Rust toolchain (winget)"
+        winget install --exact --id Rustlang.Rustup --accept-package-agreements --accept-source-agreements
+        if ($LASTEXITCODE -ne 0) {
+            $script:StageFailures++
+        }
+    }
+
+    if (Get-Command npm -ErrorAction SilentlyContinue) {
+        Write-Skip "Node.js already installed"
+    } elseif ($DryRun) {
+        Write-DryRun "winget install --exact --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements"
+    } else {
+        Write-SubStep "Installing Node.js LTS (winget)"
+        winget install --exact --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements
+        if ($LASTEXITCODE -ne 0) {
+            $script:StageFailures++
+        }
+    }
+
+    $vcToolsDir = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\2022\BuildTools\VC"
+    if ((Get-Command cl.exe -ErrorAction SilentlyContinue) -or (Test-Path -LiteralPath $vcToolsDir)) {
+        Write-Skip "VC++ Build Tools already installed"
+    } elseif ($DryRun) {
+        Write-DryRun 'winget install --exact --id Microsoft.VisualStudio.2022.BuildTools --accept-package-agreements --accept-source-agreements --override "--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"'
+    } else {
+        Write-SubStep "Installing VC++ Build Tools (winget)"
+        winget install --exact --id Microsoft.VisualStudio.2022.BuildTools --accept-package-agreements --accept-source-agreements --override "--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+        if ($LASTEXITCODE -ne 0) {
+            $script:StageFailures++
+        }
+    }
+
+    if ($DryRun) {
+        Write-DryRun "Would rebuild session PATH, run 'npm install' and 'npm run install:win' in app\, then run the NSIS installer silently"
+        return
+    }
+
+    Update-SessionPath
+
+    $appDir = Join-Path $repoRoot "app"
+    Push-Location $appDir
+    try {
+        Write-Step "Building Ops Launcher"
+        npm install
+        if ($LASTEXITCODE -ne 0) {
+            $script:StageFailures++
+            return
+        }
+        npm run install:win
+        if ($LASTEXITCODE -ne 0) {
+            $script:StageFailures++
+            return
+        }
+    } finally {
+        Pop-Location
+    }
+
+    $bundleDir = Join-Path $appDir "src-tauri\target\release\bundle\nsis"
+    $installer = Get-ChildItem -LiteralPath $bundleDir -Filter "*-setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $installer) {
+        Write-Err "NSIS installer not found under $bundleDir"
+        $script:StageFailures++
+        return
+    }
+
+    Write-SubStep "Running installer: $($installer.Name)"
+    Start-Process -Wait -FilePath $installer.FullName -ArgumentList '/S'
+    Write-Success "Ops Launcher installed"
+}
+
+# winget-installed tools register their PATH entries in the registry, but
+# those changes are invisible to the current session until it re-reads them.
+function Update-SessionPath {
+    $machinePath = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
+    $userPath = [System.Environment]::GetEnvironmentVariable('Path', 'User')
+    $env:Path = "$machinePath;$userPath"
+}
+
 function Invoke-FullSetup {
     Write-Banner
 
@@ -165,6 +253,9 @@ switch ($Command) {
     }
     'debloat' {
         Invoke-DebloatCommand
+    }
+    'launcher' {
+        Invoke-LauncherCommand
     }
     default {
         Invoke-FullSetup

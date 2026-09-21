@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
-    "install:mac": "tauri build --bundles app && rm -rf '/Applications/Ops Launcher.app' && ditto 'src-tauri/target/release/bundle/macos/Ops Launcher.app' '/Applications/Ops Launcher.app' && open -R '/Applications/Ops Launcher.app'"
+    "install:mac": "tauri build --bundles app && rm -rf '/Applications/Ops Launcher.app' && ditto 'src-tauri/target/release/bundle/macos/Ops Launcher.app' '/Applications/Ops Launcher.app' && open -R '/Applications/Ops Launcher.app'",
+    "install:win": "tauri build --bundles nsis"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.5"

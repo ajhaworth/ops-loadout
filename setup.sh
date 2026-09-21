@@ -307,9 +307,18 @@ cmd_launcher() {
         exit 1
     fi
 
+    # Install the launcher's own toolchain deps rather than erroring out.
+    source "$SCRIPT_DIR/platforms/macos/setup.sh"
+    ensure_xcode_clt
+    source "$SCRIPT_DIR/platforms/macos/homebrew.sh"
+    install_homebrew
+
+    command_exists node || run_cmd brew install node
+    command_exists cargo || run_cmd brew install rust
+
     local tool
     for tool in npm cargo; do
-        if ! command_exists "$tool"; then
+        if ! command_exists "$tool" && ! is_dry_run; then
             log_error "$tool not found (run: ./setup.sh formulae)"
             exit 1
         fi
