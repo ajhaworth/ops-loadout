@@ -304,14 +304,7 @@ list_brew_package_status() {
 
         echo -e "  ${BOLD}${category}${RESET}"
 
-        while IFS= read -r package || [[ -n "$package" ]]; do
-            package="$(echo "$package" | xargs)"
-            [[ -z "$package" ]] && continue
-            [[ "$package" =~ ^# ]] && continue
-            package="${package%%#*}"
-            package="$(echo "$package" | xargs)"
-            [[ -z "$package" ]] && continue
-
+        while IFS= read -r package; do
             ((total_count++))
 
             local status status_color
@@ -326,7 +319,7 @@ list_brew_package_status() {
             fi
 
             printf "    %-35s ${status_color}%s${RESET}\n" "$package" "$status"
-        done < "$file"
+        done < <(parse_package_list "$file")
 
         echo ""
     done
@@ -363,13 +356,8 @@ cmd_mas_ls() {
     local installed_count=0
     local missing_count=0
 
-    while IFS='|' read -r id name || [[ -n "$id" ]]; do
-        id="$(echo "$id" | xargs)"
-        name="$(echo "$name" | xargs)"
-
+    while IFS=$'\t' read -r id name; do
         [[ -z "$id" ]] && continue
-        [[ "$id" =~ ^# ]] && continue
-        [[ "$id" =~ ^[0-9]+$ ]] || continue
 
         ((total_count++))
 
@@ -385,7 +373,7 @@ cmd_mas_ls() {
         fi
 
         printf "  %-12s  %-35s  ${status_color}%s${RESET}\n" "$id" "$name" "$status"
-    done < "$mas_file"
+    done < <(parse_mas_list "$mas_file")
 
     echo ""
     printf "  ${DIM}%-12s  %-35s  %s${RESET}\n" "$(printf '─%.0s' {1..12})" "$(printf '─%.0s' {1..35})" "$(printf '─%.0s' {1..12})"
