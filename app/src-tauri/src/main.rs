@@ -137,8 +137,15 @@ fn serve_ui(
     let path = if path.is_empty() { "index.html" } else { path };
     let app = ctx.app_handle();
 
+    // `dcc/...` serves `<repo>/config/dcc/...` - the DCC helper pages (the
+    // Blender keymap viewer) live with their configs, not in the launcher UI.
+    // No embedded copy of those, so a missing repo just 404s below.
+    let rel = match path.strip_prefix("dcc/") {
+        Some(rest) => Path::new("config/dcc").join(rest),
+        None => Path::new("app/ui").join(path),
+    };
     let from_disk = find_repo_on_disk(app)
-        .map(|r| r.join("app/ui").join(path))
+        .map(|r| r.join(rel))
         .filter(|p| p.is_file() && !path.contains(".."))
         .and_then(|p| std::fs::read(p).ok());
     let (bytes, mime) = match from_disk {
@@ -150,6 +157,7 @@ fn serve_ui(
                 Some("svg") => "image/svg+xml",
                 Some("png") => "image/png",
                 Some("json") => "application/json",
+                Some("py") => "text/plain",
                 _ => "application/octet-stream",
             };
             (bytes, mime.to_string())
@@ -692,6 +700,31 @@ fn open_full(app: AppHandle) {
     show_main(&app);
 }
 
+/// Opens a page served by `serve_ui` in its own window, one per path.
+#[tauri::command]
+fn open_page(app: AppHandle, path: String) -> Result<(), String> {
+    let url = if cfg!(windows) {
+        format!("http://ops.localhost/{path}")
+    } else {
+        format!("ops://localhost/{path}")
+    };
+    let label: String =
+        path.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
+
+    if let Some(window) = app.get_webview_window(&label) {
+        let _ = window.show();
+        let _ = window.set_focus();
+        return Ok(());
+    }
+    let url = url.parse().map_err(|e| format!("bad page url: {e}"))?;
+    tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::External(url))
+        .title("Ops Launcher")
+        .inner_size(1100.0, 780.0)
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 fn hide_quick(app: AppHandle) {
     if let Some(quick) = app.get_webview_window("quick") {
@@ -810,6 +843,7 @@ fn main() {
             tasks_status,
             run_task,
             open_full,
+            open_page,
             hide_quick
         ])
         .run(tauri::generate_context!())
@@ -919,11 +953,11 @@ mod smoke {
             ("brew".to_string(), args.iter().map(|s| s.to_string()).collect::<Vec<_>>())
         };
 
-        let cask = app_of("cask", "blender");
-        assert_eq!(argv("install", &cask), brew(&["install", "--cask", "blender"]));
-        assert_eq!(argv("uninstall", &cask), brew(&["uninstall", "--cask", "blender"]));
-        assert_eq!(argv("update", &cask), brew(&["upgrade", "--cask", "blender"]));
-        assert_eq!(argv("reinstall", &cask), brew(&["reinstall", "--cask", "blender"]));
+        let cask = app_of("cask", "gimp");
+        assert_eq!(argv("install", &cask), brew(&["install", "--cask", "gimp"]));
+        assert_eq!(argv("uninstall", &cask), brew(&["uninstall", "--cask", "gimp"]));
+        assert_eq!(argv("update", &cask), brew(&["upgrade", "--cask", "gimp"]));
+        assert_eq!(argv("reinstall", &cask), brew(&["reinstall", "--cask", "gimp"]));
 
         let formula = app_of("formula", "ripgrep");
         assert_eq!(argv("uninstall", &formula), brew(&["uninstall", "ripgrep"]));

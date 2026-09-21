@@ -190,6 +190,9 @@ Packages are defined in text files under `config/packages/`:
   - `sidefxlabs` - SideFX Labs from GitHub releases, into
     `~/Library/Preferences/houdini/<X.Y>/packages/` for the installed Houdini.
     Needs redoing once per Houdini `X.Y`; restart Houdini after.
+  - `blender` - latest Blender into `/Applications`, with its portable config
+    dir symlinked to `config/dcc/blender/` so prefs, startup file, keymap and
+    extensions are tracked in this repo. See that directory's README.
 
 **Linux** (`config/packages/linux/`):
 - `apt/*.txt` - APT packages (Debian/Ubuntu only)

@@ -1,0 +1,119 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>dcc keymap</title>
+<style>
+:root{--bg:#15171b;--panel:#1d2026;--line:#2d323b;--fg:#d8dbe1;--dim:#7f8894;--acc:#4c9aff;--glow:#ffb547;
+      --u:clamp(32px,calc((100vw - 36px)/19.7),140px);--g:calc(var(--u)*.08)}  /* key unit: keyboard is ~19.7 units wide (15 main + 3 side + gaps), so it fills the window */
+*{box-sizing:border-box}
+body{margin:0;padding:14px 18px 40px;background:var(--bg);color:var(--fg);
+     font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+h1{font-size:18px;margin:0 14px 0 0;font-weight:600}
+a{color:var(--acc)}
+.bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+select,input,button{background:var(--panel);color:var(--fg);border:1px solid var(--line);
+     border-radius:5px;padding:5px 8px;font:inherit}
+#q{width:320px}
+button.mod{min-width:62px;cursor:pointer}
+button.mod.on{background:var(--acc);border-color:var(--acc);color:#06121f;font-weight:600}
+details{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 10px;margin-top:10px}
+summary{cursor:pointer;color:var(--dim)}
+#custom{max-height:260px;overflow:auto;columns:3;column-gap:20px;margin-top:8px}
+#custom label{display:block;break-inside:avoid;font-size:14px;color:var(--fg)}
+#custom h4{margin:8px 0 2px;font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+/* keyboard */
+#board{margin-top:12px}
+.row{display:flex;gap:var(--g);margin-bottom:var(--g)}
+.key{position:relative;height:var(--u);flex:0 0 auto;
+     width:calc(var(--u)*var(--w,1) + (var(--w,1) - 1)*var(--g));
+     background:var(--panel);border:1px solid var(--line);border-radius:5px;
+     padding:2px 3px;overflow:hidden;cursor:default}
+.key.gap{background:none;border:none}
+.key.dead{opacity:.35}
+.key .kn{position:absolute;top:3px;left:5px;font-size:calc(var(--u)*.2);color:var(--dim);letter-spacing:.02em}
+.key .bn{position:absolute;left:4px;right:4px;bottom:3px;font-size:calc(var(--u)*.2);line-height:1.15;
+     max-height:3.4em;overflow:hidden;color:var(--fg)}
+.key .badge{position:absolute;top:2px;right:4px;font-size:calc(var(--u)*.2);color:var(--acc)}
+.key.has{border-color:#43506a;background:#232934}
+.key.mod-on{background:var(--acc);border-color:var(--acc)}
+.key.mod-on .kn,.key.mod-on .bn{color:#06121f}
+.key.held{outline:2px solid var(--glow);outline-offset:-2px}
+.key.hit{box-shadow:0 0 0 2px var(--glow) inset}
+.key.dim{opacity:.25}
+.key.flash{animation:fl .6s ease-out}
+@keyframes fl{from{box-shadow:0 0 0 3px var(--glow) inset}to{box-shadow:none}}
+/* mouse */
+#mouse{display:flex;gap:calc(var(--u)*.3);align-items:flex-start;margin-top:calc(var(--u)*.3)}
+svg .mk{fill:#252a33;stroke:#2d323b;stroke-width:1.5;cursor:default}
+svg .mk.has{fill:#33405a}
+svg .mk.hit{stroke:var(--glow);stroke-width:3}
+svg .mk.dim{opacity:.25}
+svg .mk.held{stroke:var(--glow);stroke-width:3}
+#mouse svg{width:calc(var(--u)*2.1);height:calc(var(--u)*2.8);flex:0 0 auto}
+svg text{fill:var(--dim);font-size:11px;text-anchor:middle;pointer-events:none}
+#mlabels{font-size:calc(var(--u)*.2);color:var(--dim);flex:1;columns:3;column-gap:calc(var(--u)*.4)}
+#mlabels b{color:var(--fg);font-weight:600}
+#mlabels div{margin-bottom:3px;break-inside:avoid}
+/* lists */
+#results,#detail{margin-top:10px;font-size:14px}
+.hitrow{display:flex;gap:10px;padding:3px 6px;border-radius:4px;cursor:pointer;align-items:baseline}
+.hitrow:hover{background:var(--panel)}
+.hitrow .ch{min-width:170px;color:var(--glow);font-family:ui-monospace,Menlo,monospace;font-size:13px}
+.hitrow .id,.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--dim)}
+.hitrow .km{margin-left:auto;color:var(--dim);font-size:13px}
+#tip{position:fixed;z-index:10;display:none;max-width:640px;background:#12141a;
+     border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:14px;
+     box-shadow:0 8px 24px #0009;pointer-events:none}
+#tip h5{margin:0 0 5px;font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+#tip .b{margin:2px 0}
+#tip .b.off{color:var(--dim)}
+#tip .b.shadow{text-decoration:line-through;color:var(--dim)}
+#tip .other{margin-top:7px;padding-top:6px;border-top:1px solid var(--line);opacity:.65}
+footer{margin-top:18px;color:var(--dim);font-size:13px;border-top:1px solid var(--line);padding-top:8px}
+#err{color:#ff7b72;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace}
+</style>
+
+<div class="bar">
+  <h1>dcc keymap</h1>
+  <select id="ctx"></select>
+  <button class="mod" data-mod="shift">Shift</button>
+  <button class="mod" data-mod="ctrl">Ctrl</button>
+  <button class="mod" data-mod="alt">Alt</button>
+  <button class="mod" data-mod="oskey" id="osbtn">Cmd</button>
+  <input id="q" placeholder="search op, menu, keymap, chord…">
+  <select id="plat"><option value="mac">Mac</option><option value="win">Win</option></select>
+</div>
+
+<div id="err"></div>
+
+<div id="board">
+  <div id="keys"></div>
+  <div id="mouse">
+    <svg viewBox="0 0 150 200">
+      <rect x="20" y="20" width="104" height="160" rx="48" fill="#1d2026" stroke="#2d323b"/>
+      <rect class="mk" data-type="LEFTMOUSE"    x="21"  y="21" width="49" height="68" rx="12"/>
+      <rect class="mk" data-type="RIGHTMOUSE"   x="74"  y="21" width="49" height="68" rx="12"/>
+      <rect class="mk" data-type="MIDDLEMOUSE"  x="62"  y="28" width="20" height="46" rx="10"/>
+      <rect class="mk" data-type="WHEELUPMOUSE" x="58"  y="1"  width="28" height="16" rx="4"/>
+      <rect class="mk" data-type="WHEELDOWNMOUSE" x="58" y="93" width="28" height="16" rx="4"/>
+      <rect class="mk" data-type="BUTTON4MOUSE" x="2"   y="58" width="15" height="24" rx="4"/>
+      <rect class="mk" data-type="BUTTON5MOUSE" x="2"   y="86" width="15" height="24" rx="4"/>
+      <text x="45" y="60">L</text><text x="99" y="60">R</text><text x="72" y="56">M</text>
+      <text x="72" y="13">&#9650;</text><text x="72" y="105">&#9660;</text>
+      <text x="9" y="74" style="font-size:9px">4</text><text x="9" y="102" style="font-size:9px">5</text>
+    </svg>
+    <div id="mlabels"></div>
+  </div>
+</div>
+
+<div id="results"></div>
+<div id="detail"></div>
+<details id="otherwrap"><summary>Other events (trackpad, NDOF, timers, action zones…)</summary><div id="other"></div></details>
+<details id="customwrap"><summary>Custom context &mdash; pick any keymaps in the file</summary><div id="custom"></div></details>
+<div id="tip"></div>
+
+<footer>
+  <span id="stat">loading…</span> &middot;
+  the browser eats a few Cmd/Win combos before we see them, click the modifier buttons instead
+</footer>
+
+<script src="keymap.js"></script>

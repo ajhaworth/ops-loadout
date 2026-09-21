@@ -33,16 +33,31 @@ test_macos_installer_scripts() {
     local labs="$REPO_ROOT/platforms/macos/installers/sidefxlabs.sh"
     local compositor="$REPO_ROOT/platforms/macos/installers/compositor.sh"
     local moonlight="$REPO_ROOT/platforms/macos/installers/moonlight-nightly.sh"
+    local blender="$REPO_ROOT/platforms/macos/installers/blender.sh"
 
     [[ -x "$houdini" ]] || fail "houdini.sh is not executable"
     [[ -x "$labs" ]] || fail "sidefxlabs.sh is not executable"
     [[ -x "$compositor" ]] || fail "compositor.sh is not executable"
     [[ -x "$moonlight" ]] || fail "moonlight-nightly.sh is not executable"
+    [[ -x "$blender" ]] || fail "blender.sh is not executable"
 
     bash -n "$houdini" || fail "houdini.sh has a syntax error"
     bash -n "$labs" || fail "sidefxlabs.sh has a syntax error"
     bash -n "$compositor" || fail "compositor.sh has a syntax error"
     bash -n "$moonlight" || fail "moonlight-nightly.sh has a syntax error"
+    bash -n "$blender" || fail "blender.sh has a syntax error"
+
+    # A Blender we did not install (cask, manual download) must read as absent:
+    # status requires our own portable symlink. Skipped when this machine has it.
+    if [[ "$(readlink /Applications/Blender.app/Contents/Resources/portable 2>/dev/null)" \
+          != "$REPO_ROOT/config/dcc/blender/portable" ]]; then
+        if run_capture "$blender" status; then
+            fail "blender.sh status should fail without our portable symlink"
+        fi
+    fi
+
+    [[ -f "$REPO_ROOT/config/dcc/blender/portable/scripts/presets/keyconfig/dcc.py" ]] \
+        || fail "config/dcc/blender keymap preset is missing"
 
     # Without Houdini, SideFX Labs cannot be installed or reported as present.
     if ! run_capture "$houdini" status; then

@@ -1,0 +1,8 @@
+#!/bin/sh
+# Dump the full active keymap to a tracked text preset; setup.py activates it, so the file is the source of truth.
+# Runs with a window (not -b): headless never activates the Industry Compatible preset, so the diff would be wrong.
+out="$(cd "$(dirname "$0")/.." && pwd)/portable/scripts/presets/keyconfig/dcc.py"
+exec "$(dirname "$0")/blender" --python-expr "import bpy, os
+def go():
+    bpy.ops.preferences.keyconfig_export(filepath='$out', all=True); print('wrote $out', flush=True); os._exit(0)
+bpy.app.timers.register(go, first_interval=1.0)"
