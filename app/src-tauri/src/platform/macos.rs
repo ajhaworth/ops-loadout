@@ -170,6 +170,40 @@ pub fn refresh_icon(app: &mut App, cache_dir: &Path, _repo: &Path, _resources: &
     }
 }
 
+/// Tokens brew reports as upgradable. `--greedy-auto-updates` covers casks that
+/// update themselves but leaves `version :latest` ones alone, which have no
+/// version to compare. Network-touching, so a failure just means "none known".
+fn brew_outdated() -> (Vec<String>, Vec<String>) {
+    let none = (Vec::new(), Vec::new());
+    let Ok(out) = Command::new("brew")
+        .args(["outdated", "--json=v2", "--greedy-auto-updates"])
+        .envs(brew_env())
+        .output()
+    else {
+        return none;
+    };
+    if !out.status.success() {
+        return none;
+    }
+    let Ok(value) = serde_json::from_slice::<Value>(&out.stdout) else {
+        return none;
+    };
+
+    let names = |key: &str| -> Vec<String> {
+        value
+            .get(key)
+            .and_then(Value::as_array)
+            .map(|entries| {
+                entries
+                    .iter()
+                    .filter_map(|e| e.get("name")?.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    (names("casks"), names("formulae"))
+}
+
 pub fn hydrate(apps: &mut [App], cache_dir: &Path, _repo: &Path, _resources: &Path) {
     let tokens = |kind: &str| -> Vec<String> {
         apps.iter()
@@ -196,6 +230,13 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, _repo: &Path, _resources: &Pa
 
     // `mas list` is "<id>  <name>  (<version>)".
     let installed_mas: Vec<String> = lines_of("mas", &["list"])
+        .iter()
+        .filter_map(|l| l.split_whitespace().next().map(str::to_string))
+        .collect();
+
+    let (outdated_casks, outdated_formulae) = brew_outdated();
+    // `mas outdated` is "<id>  <name>  (<old> -> <new>)".
+    let outdated_mas: Vec<String> = lines_of("mas", &["outdated"])
         .iter()
         .filter_map(|l| l.split_whitespace().next().map(str::to_string))
         .collect();
@@ -229,6 +270,7 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, _repo: &Path, _resources: &Pa
                 } else {
                     app.installed = installed_casks.contains(&app.token);
                 }
+                app.outdated = app.installed && outdated_casks.contains(&app.token);
                 if app.installed {
                     if let Some(bundle) = app.target.as_deref().and_then(bundle_path) {
                         app.launchable = true;
@@ -250,9 +292,11 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, _repo: &Path, _resources: &Pa
                 } else {
                     app.installed = installed_formulae.contains(&app.token);
                 }
+                app.outdated = app.installed && outdated_formulae.contains(&app.token);
             }
             "mas" => {
                 app.installed = installed_mas.contains(&app.token);
+                app.outdated = app.installed && outdated_mas.contains(&app.token);
                 if app.installed {
                     if let Some(bundle) = mas_bundle_path(&app.name, &app.token) {
                         app.launchable = true;
