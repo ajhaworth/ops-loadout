@@ -386,3 +386,66 @@ summary .n { color: var(--dim); font-weight: 400; margin-left: 6px; }
 }
 
 .empty { color: var(--dim); padding: 24px 2px; }
+
+/* Settings: the #menu panel, at dialog size. */
+dialog {
+  width: 380px;
+  margin: auto;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--fg);
+  font: inherit;
+  background: var(--chip);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.3);
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.25); }
+dialog h2 { font-size: 14px; margin: 0 0 12px; }
+dialog h3 { font-size: 12px; margin: 0 0 6px; }
+dialog ol, dialog .note { color: var(--dim); font-size: 11px; line-height: 1.5; }
+dialog ol { margin: 0 0 8px; padding-left: 16px; }
+dialog .note { margin: 0 0 14px; }
+dialog ol button {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: #5b6bff;
+  text-decoration: underline;
+  cursor: pointer;
+}
+dialog label { display: block; margin-bottom: 10px; color: var(--dim); font-size: 11px; }
+dialog input {
+  display: block;
+  width: 100%;
+  height: 28px;
+  margin-top: 4px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--chip);
+  color: var(--fg);
+  font: inherit;
+  outline: none;
+}
+dialog input:focus { border-color: #5b6bff; }
+/* Reversed, so Save is first in the DOM (Enter submits it) yet sits rightmost. */
+dialog menu {
+  display: flex;
+  flex-direction: row-reverse;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+}
+dialog menu button {
+  height: 28px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--tile);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+dialog menu button[value="save"] { background: #3478f6; color: #fff; }

@@ -188,6 +188,33 @@ These installers are not silent by contract the way winget and Chocolatey are:
 the flags come from the entry, and a wrong flag means a GUI appears mid-run.
 Verify a new entry interactively before trusting it in an unattended run.
 
+### macOS Installer Scripts
+
+`config/packages/macos/installers/*.txt` (`token | display-name | homepage`)
+lists apps with no Homebrew cask. Each token is
+`platforms/macos/installers/<token>.sh`, taking one of
+`status|install|update|reinstall|uninstall`: `status` prints the `.app` (or
+package directory) path and exits 0 when installed, and must stay fast and
+offline because the launcher runs it at startup. Only the launcher consumes
+this kind (`catalog.rs` kind `installer`, `platform/macos.rs`); `setup.sh`
+does not. Root work goes through `sudo -A` so the launcher's askpass dialog
+can answer it.
+
+`houdini.sh` resolves the latest production build through the SideFX download
+API, which needs `config/sidefx.local` (`SIDEFX_CLIENT_ID`,
+`SIDEFX_CLIENT_SECRET`; gitignored via `*.local`). The launcher's Settings
+dialog writes that file (`get_settings`/`set_settings` in `main.rs`); the
+script only reads it and points at Settings when it is missing. The dmg holds
+`Houdini.pkg`, installed with `installer -pkg ... -target /`. The Apprentice
+license cannot be scripted: a post-install dialog explains the License
+Administrator -> "Activate Apprentice" step and offers to open Houdini; no
+account is required. That dialog is shown only when `SUDO_ASKPASS` is set,
+which the launcher alone does, so it doubles as "a GUI is present".
+`outdated` is never set for this kind; Update simply installs the latest.
+`sidefxlabs.sh` takes Labs from GitHub releases (tags match Houdini
+`X.Y.ZZZ`) into `~/Library/Preferences/houdini/<X.Y>/packages/`
+and records the tag in `.ops-tag` for its own already-current check.
+
 ### Dotfiles
 
 Dotfiles use symlinks managed via two platform-specific manifests:

@@ -13,9 +13,34 @@
       <span id="count"></span>
       <button id="update-all" title="Update all" hidden>&#8593;<span class="n"></span></button>
       <button id="refresh" title="Rescan">&#8635;</button>
+      <button id="settings" title="Settings">&#9881;</button>
     </header>
     <main id="sections"></main>
     <div id="menu" hidden></div>
+    <dialog id="settings-dialog">
+      <form method="dialog">
+        <h2>Settings</h2>
+        <h3>SideFX (Houdini downloads)</h3>
+        <ol>
+          <li>Open sidefx.com &rarr; Services &rarr; Developers API &rarr; &ldquo;Manage applications authentication&rdquo;.
+            <button type="button" id="sidefx-open">Open sidefx.com</button></li>
+          <li>Register a new application: any name, client type Confidential, grant type Authorization code, redirect URL https://www.sidefx.com</li>
+          <li>Copy the Client ID and Client Secret into the fields below.</li>
+        </ol>
+        <p class="note">Used only to download Houdini. Stored on this Mac in config/sidefx.local. The free Apprentice license is activated inside Houdini itself, no key needed.</p>
+        <label>Client ID
+          <input id="sidefx-id" type="text" autocomplete="off" spellcheck="false" />
+        </label>
+        <label>Client Secret
+          <input id="sidefx-secret" type="password" autocomplete="off" spellcheck="false" />
+        </label>
+        <!-- Save first so Enter submits it; the row is reversed in CSS. -->
+        <menu>
+          <button value="save">Save</button>
+          <button value="cancel" formnovalidate>Cancel</button>
+        </menu>
+      </form>
+    </dialog>
     <aside id="drawer" hidden><button id="copy" title="Copy log">Copy</button><pre id="log"></pre></aside>
     <script src="main.js"></script>
   </body>

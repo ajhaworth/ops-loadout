@@ -1,0 +1,5 @@
+# creative.txt - Apps with no Homebrew cask, installed by platforms/macos/installers/<token>.sh
+# token | display-name | homepage
+
+houdini    | Houdini     | https://www.sidefx.com/
+sidefxlabs | SideFX Labs | https://github.com/sideeffects/SideFXLabs
