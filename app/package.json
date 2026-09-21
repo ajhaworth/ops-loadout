@@ -1,0 +1,13 @@
+{
+  "name": "ops-launcher",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "install:mac": "tauri build --bundles app && rm -rf '/Applications/Ops Launcher.app' && ditto 'src-tauri/target/release/bundle/macos/Ops Launcher.app' '/Applications/Ops Launcher.app' && open -R '/Applications/Ops Launcher.app'"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.5"
+  }
+}
