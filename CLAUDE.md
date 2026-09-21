@@ -300,6 +300,18 @@ A `-DryRun` write that would change something lands in `Pending` rather than
 `Skipped`, so the launcher's tasks-status (see "Setup Tasks (launcher)") can
 tell "already correct" from "would change this" without a second checker.
 
+Not every setting is a registry write. `Invoke-TrackedStep -Id -Label -Check
+-Apply [-RequiresAdmin]` is the Windows counterpart of macOS `defaults_hook`:
+the caller supplies a check and an apply, and gets a row in those same buckets,
+so a `powercfg` call appears in the Setup tab like any registry value. `-Check`
+runs first, so an already-correct step reports `Skipped` even unelevated;
+`-RequiresAdmin` only decides what a step that *would* change something reports
+when the run is not elevated (`NeedsAdmin`, rather than the whole module
+reporting nothing). It honours the same `Set-RegistryOnlyId` filter as the
+registry helpers. `power.ps1` routes its four powercfg timeouts through it -
+without that they produced no rows at all, and a non-elevated run made the
+module vanish from the Setup tab instead of asking for elevation.
+
 `Label` states the *outcome*, not the registry value — `HideFileExt = 0` is
 labelled "Show file extensions". So the log prints the label alone; printing
 `Show file extensions = 0` reads as the exact opposite of what happened. Dry-run
@@ -320,7 +332,9 @@ filter set, so every other setting in it is inert. `Invoke-DefaultsModules`
 place that walks `platforms\windows\defaults\*.ps1`, gates each file by its
 `DEFAULTS_<NAME>` flag, and calls `Apply-<Name>`. `defaults.ps1` (the CLI) and
 `bridge.ps1` (the launcher) both call it rather than each keeping their own
-copy of that loop.
+copy of that loop. `-Narrate` prints the per-module header inline as the loop
+goes - the CLI passes it, the launcher does not. It has to be inline: narrating
+from a second loop afterwards puts every header below the output it belongs to.
 
 Filenames map to profile variables like package lists: `taskbar.ps1` →
 `DEFAULTS_TASKBAR`. `power.ps1` and the HKLM half of `privacy.ps1` need

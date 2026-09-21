@@ -145,19 +145,25 @@ function Remove-BloatApp {
     }
 }
 
+# DisplayName -> PackageName for every provisioned app, in one query. The
+# online enumeration takes seconds, so the caller does it once per pass rather
+# than once per name - there are ~70 names in the list.
+function Get-ProvisionedAppMap {
+    $map = @{}
+    foreach ($package in @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue)) {
+        if ($package.DisplayName) { $map[$package.DisplayName] = $package.PackageName }
+    }
+    return $map
+}
+
 function Remove-ProvisionedApp {
     param(
         [Parameter(Mandatory)]
         [string]$AppName,
+        [Parameter(Mandatory)]
+        [string]$PackageName,
         [switch]$DryRun
     )
-
-    $provisioned = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue |
-        Where-Object { $_.DisplayName -eq $AppName }
-
-    if (-not $provisioned) {
-        return
-    }
 
     if ($DryRun) {
         Write-DryRun "Would deprovision: $AppName"
@@ -165,7 +171,7 @@ function Remove-ProvisionedApp {
     }
 
     try {
-        Remove-AppxProvisionedPackage -Online -PackageName $provisioned.PackageName -ErrorAction Stop | Out-Null
+        Remove-AppxProvisionedPackage -Online -PackageName $PackageName -ErrorAction Stop | Out-Null
         Write-Success "Deprovisioned $AppName"
     } catch {
         Write-Warn "Could not deprovision ${AppName}: $_"
@@ -183,10 +189,13 @@ function Invoke-DebloatBloatGroup {
 
     $pending = 0
     $failedCount = 0
+    $provisioned = Get-ProvisionedAppMap
     foreach ($app in ($BloatwareApps + $XboxApps)) {
         if (Get-AppxPackage -Name $app -ErrorAction SilentlyContinue) { $pending++ }
         if (Remove-BloatApp -AppName $app -DryRun:$DryRun) {
-            Remove-ProvisionedApp -AppName $app -DryRun:$DryRun
+            if ($provisioned.ContainsKey($app)) {
+                Remove-ProvisionedApp -AppName $app -PackageName $provisioned[$app] -DryRun:$DryRun
+            }
         } else {
             $failedCount++
         }

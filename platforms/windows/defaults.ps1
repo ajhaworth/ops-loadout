@@ -84,26 +84,10 @@ function Invoke-Defaults {
 
     # Invoke-DefaultsModules (lib\windows\registry.psm1) does the discovery,
     # gating and invocation - the same loop bridge.ps1 uses for the launcher's
-    # Setup tab. This just narrates it.
-    $modules = @(Invoke-DefaultsModules -ProfileConfig $config -RepoRoot $repoRoot -DryRun:$DryRun)
-
-    foreach ($module in $modules) {
-        if (-not $module.Enabled) {
-            Write-Skip "$($module.Module) (disabled by $($module.VarName))"
-            continue
-        }
-
-        Write-Step $module.Module
-
-        if ($module.MissingFunc) {
-            Write-Warn "$($module.Module).ps1 does not define $($module.FuncName) - skipping"
-            continue
-        }
-
-        if ($module.Error) {
-            Write-Err "$($module.Module) failed: $($module.Error)"
-        }
-    }
+    # Setup tab. -Narrate makes it print the per-module headers as it goes;
+    # narrating from a second loop out here would put every header after the
+    # output it belongs to.
+    Invoke-DefaultsModules -ProfileConfig $config -RepoRoot $repoRoot -DryRun:$DryRun -Narrate | Out-Null
 
     $results = Get-RegistryResults
     $changed = $results.Changed.Count

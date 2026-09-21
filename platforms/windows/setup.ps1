@@ -189,10 +189,19 @@ function Invoke-LauncherCommand {
 
 # winget-installed tools register their PATH entries in the registry, but
 # those changes are invisible to the current session until it re-reads them.
+#
+# Appended rather than assigned: replacing $env:Path would drop entries this
+# session has of its own (a tool that prepended itself, a PATH set for the run)
+# that no registry scope knows about.
 function Update-SessionPath {
-    $machinePath = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
-    $userPath = [System.Environment]::GetEnvironmentVariable('Path', 'User')
-    $env:Path = "$machinePath;$userPath"
+    $entries = @($env:Path -split ';' | Where-Object { $_ })
+    foreach ($scope in @('Machine', 'User')) {
+        $scopePath = [System.Environment]::GetEnvironmentVariable('Path', $scope)
+        foreach ($entry in @("$scopePath" -split ';')) {
+            if ($entry -and $entries -notcontains $entry) { $entries += $entry }
+        }
+    }
+    $env:Path = $entries -join ';'
 }
 
 function Invoke-FullSetup {
