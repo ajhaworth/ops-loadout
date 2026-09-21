@@ -302,21 +302,16 @@ tasks_dotfiles() {
             fi
         fi
 
-        local abs_source="$source"
-        if [[ "$abs_source" != /* ]]; then
-            abs_source="$REPO_ROOT/$abs_source"
-        fi
-        abs_source="$(normalize_path "$abs_source")"
-        local abs_dest="${destination/#\~/$HOME}"
+        resolve_manifest_paths "$REPO_ROOT" "$source" "$destination"
 
         local id="dotfiles:$destination"
         local state detail
-        if [[ ! -e "$abs_source" ]]; then
+        if [[ ! -e "$MANIFEST_ABS_SOURCE" ]]; then
             state="failed"
             detail="source missing: $source"
         else
             local ms
-            ms="$(manifest_state "$abs_source" "$abs_dest")"
+            ms="$(manifest_state "$MANIFEST_ABS_SOURCE" "$MANIFEST_ABS_DEST")"
             case "$ms" in
                 linked)
                     state="applied"
@@ -324,7 +319,7 @@ tasks_dotfiles() {
                     ;;
                 wrong)
                     state="pending"
-                    detail="points to $(shorten_path "$(resolve_symlink_target "$abs_dest")")"
+                    detail="points to $(shorten_path "$(resolve_symlink_target "$MANIFEST_ABS_DEST")")"
                     ;;
                 conflict)
                     state="pending"
@@ -359,7 +354,7 @@ tasks_dotfiles() {
             continue
         fi
 
-        create_symlink "$abs_source" "$destination"
+        create_symlink "$MANIFEST_ABS_SOURCE" "$destination"
     done < "$manifest"
 }
 

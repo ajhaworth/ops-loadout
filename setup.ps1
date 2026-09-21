@@ -33,6 +33,8 @@ param(
     [string[]]$Remaining
 )
 
+$ErrorActionPreference = "Stop"
+
 function Show-Usage {
     Write-Host @"
 Usage: .\setup.ps1 [command] [subcommand] [options]

@@ -262,12 +262,18 @@ function Backup-ExistingPath {
         return
     }
 
-    if (-not (Test-Path -LiteralPath $backupDir)) {
-        New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
-    }
+    try {
+        if (-not (Test-Path -LiteralPath $backupDir)) {
+            New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+        }
 
-    Write-Status "Backing up: $name -> $backupPath"
-    Move-Item -LiteralPath $TargetPath -Destination $backupPath -Force
+        Write-Status "Backing up: $name -> $backupPath"
+        Move-Item -LiteralPath $TargetPath -Destination $backupPath -Force
+    } catch {
+        Write-Err "Failed to back up ${name}: $_"
+        $script:Results.Failed += $name
+        return
+    }
 }
 
 # How many directory levels above $Path do not exist yet.

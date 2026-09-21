@@ -14,7 +14,6 @@
 
 param(
     [switch]$DryRun,
-    [switch]$Force,
     [ValidateSet('', 'bloat', 'xbox', 'gamedvr', 'gamebar', 'wol', 'suggested')]
     [string]$Only = ''
 )
@@ -403,7 +402,7 @@ function Get-WakeOnLanAdapter {
     return Get-NetAdapter | Where-Object { $_.InterfaceDescription -match 'AQtion' }
 }
 
-function Fix-WakeOnLan {
+function Set-WakeOnLan {
     param([switch]$DryRun)
 
     $adapter = Get-WakeOnLanAdapter
@@ -453,7 +452,7 @@ function Invoke-DebloatWolGroup {
         }
     }
 
-    Fix-WakeOnLan -DryRun:$DryRun
+    Set-WakeOnLan -DryRun:$DryRun
 
     return @{ Pending = $pending; NeedsAdmin = $false; Failed = 0 }
 }
@@ -467,7 +466,6 @@ function Invoke-DebloatWolGroup {
 function Invoke-DebloatMain {
     param(
         [switch]$DryRun,
-        [switch]$Force,
         [string]$Only = ''
     )
 
@@ -554,5 +552,5 @@ function Invoke-DebloatMain {
 }
 
 if ($MyInvocation.InvocationName -ne '.') {
-    Invoke-DebloatMain -DryRun:$DryRun -Force:$Force -Only $Only
+    Invoke-DebloatMain -DryRun:$DryRun -Only $Only
 }
