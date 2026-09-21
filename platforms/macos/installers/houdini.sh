@@ -44,26 +44,51 @@ do_status() {
 
 # --- SideFX API ------------------------------------------------------------
 
+# Under the launcher (the only thing that sets SUDO_ASKPASS) credentials are
+# asked for with native dialogs and saved; in a terminal, print the steps.
+prompt_credentials() {
+    local out
+    out="$(osascript <<'EOF'
+set msg to "Houdini is downloaded through the SideFX web API, which needs a one-time API key from your SideFX account (the same free account used for Apprentice)." & return & return & "1. Click Open sidefx.com and log in." & return & "2. Click Register a new application." & return & "3. Name: anything. Client type: Confidential. Authorization grant type: Authorization code. Redirect URL: https://www.sidefx.com" & return & "4. Save, then copy the Client ID and Client Secret." & return & "5. Come back here and paste them into the next two prompts." & return & return & "They are stored only on this Mac (config/sidefx.local)."
+set r to display dialog msg with title "Ops Launcher" buttons {"Cancel", "Open sidefx.com", "Continue"} default button "Continue"
+if button returned of r is "Open sidefx.com" then open location "https://www.sidefx.com/oauth2/applications/"
+set cid to text returned of (display dialog "SideFX Client ID" with title "Ops Launcher" default answer "")
+set sec to text returned of (display dialog "SideFX Client Secret" with title "Ops Launcher" default answer "" with hidden answer)
+return cid & linefeed & sec
+EOF
+)" || { echo "Cancelled."; return 1; }
+    SIDEFX_CLIENT_ID="$(printf '%s' "${out%%$'\n'*}" | tr -d '[:space:]')"
+    SIDEFX_CLIENT_SECRET="$(printf '%s' "${out#*$'\n'}" | tr -d '[:space:]')"
+    [[ -n "$SIDEFX_CLIENT_ID" && -n "$SIDEFX_CLIENT_SECRET" ]] || { echo "Empty credentials." >&2; return 1; }
+    (umask 077; printf 'SIDEFX_CLIENT_ID="%s"\nSIDEFX_CLIENT_SECRET="%s"\n' \
+        "$SIDEFX_CLIENT_ID" "$SIDEFX_CLIENT_SECRET" > "$CREDS")
+    echo "Saved credentials to $CREDS"
+}
+
 load_credentials() {
     if [[ -f "$CREDS" ]]; then
         # shellcheck disable=SC1090
         source "$CREDS"
     fi
+    [[ -n "${SIDEFX_CLIENT_ID:-}" && -n "${SIDEFX_CLIENT_SECRET:-}" ]] && return 0
 
-    if [[ -z "${SIDEFX_CLIENT_ID:-}" || -z "${SIDEFX_CLIENT_SECRET:-}" ]]; then
-        cat <<MSG
+    if [[ -n "${SUDO_ASKPASS:-}" ]]; then
+        prompt_credentials
+        return
+    fi
+    cat <<MSG
 SideFX API credentials are missing ($CREDS).
 
-  1. Go to https://www.sidefx.com/services/ -> Developers API ->
-     "Manage applications authentication" -> "Register a new application".
+  1. Go to https://www.sidefx.com/oauth2/applications/ (Services ->
+     Developers API -> "Manage applications authentication") and
+     "Register a new application".
      Client type: confidential. Grant: authorization code.
      Redirect URL: https://www.sidefx.com
   2. Write config/sidefx.local with:
          SIDEFX_CLIENT_ID="..."
          SIDEFX_CLIENT_SECRET="..."
 MSG
-        return 1
-    fi
+    return 1
 }
 
 api_call() {
@@ -98,7 +123,12 @@ do_install() {
     load_credentials
 
     echo "==> Resolving latest production build"
-    get_token
+    if ! get_token; then
+        # Wrong credentials saved: let the launcher user re-enter them.
+        [[ -n "${SUDO_ASKPASS:-}" ]] || return 1
+        prompt_credentials
+        get_token
+    fi
     latest="$(api_call '["download.get_daily_builds_list", ["houdini"], {"platform":"'"$PLATFORM"'","only_production":true}]' \
         | jq -r '[.[] | select(.status == "good")]
                  | max_by((.version | split(".") | map(tonumber)) + [(.build | tonumber)])
@@ -162,7 +192,22 @@ do_install() {
     hdiutil detach "$MOUNT" -quiet >/dev/null 2>&1 || true
     MOUNT=""
 
-    echo "Houdini $version.$build installed. Licensing: open \"Houdini Apprentice\", then in License Administrator choose \"Activate Apprentice\" (SideFX login optional; renews every 30 days)."
+    echo "Houdini $version.$build installed."
+    echo "Licensing: open \"Houdini Apprentice\", then in License Administrator choose \"Activate Apprentice\" (SideFX login optional; renews every 30 days)."
+    [[ -n "${SUDO_ASKPASS:-}" ]] && license_dialog "$(installed_app "$HOUDINI_DIR/Houdini$version.$build")"
+    return 0
+}
+
+# Apprentice licensing cannot be scripted, so explain it and offer to open Houdini.
+license_dialog() {
+    local app="$1"
+    osascript - "$app" <<'EOF' >/dev/null 2>&1 || true
+on run argv
+set msg to "Houdini is installed. It still needs the free Apprentice license, which only Houdini itself can activate:" & return & return & "1. Open Houdini Apprentice (button below)." & return & "2. If it asks for a license, click Use License Administrator; otherwise open Utilities > License Administrator." & return & "3. In the top-right menu, or under General, click Activate Apprentice. Logging in to SideFX is optional." & return & "4. Repeat step 3 every 30 days when Houdini asks again." & return & return & "SideFX Labs can be installed from its own tile once this is done."
+set r to display dialog msg with title "Ops Launcher" buttons {"Later", "Open Houdini Apprentice"} default button "Open Houdini Apprentice"
+if button returned of r is "Open Houdini Apprentice" then do shell script "open -a " & quoted form of (item 1 of argv)
+end run
+EOF
 }
 
 # ponytail: older Houdini versions are left in place on update; delete them by hand.
