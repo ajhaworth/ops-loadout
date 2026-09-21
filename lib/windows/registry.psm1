@@ -51,6 +51,10 @@ function Set-RegistryOnlyId {
     $script:RegistryOnlyId = $Id
 }
 
+function Get-RegistryOnlyId {
+    return $script:RegistryOnlyId
+}
+
 # True when an error is the registry provider refusing access.
 #
 # Policy branches such as HKCU:\SOFTWARE\Policies are writable only with an
@@ -227,6 +231,70 @@ function Remove-RegistryKey {
     }
 }
 
+# A tracked step that is not a registry write: the caller supplies a -Check
+# that reports whether the desired state already holds and an -Apply that
+# establishes it. Windows counterpart of lib/tasks.sh `defaults_hook` - it
+# records into the same buckets and honours the same OnlyId filter, so
+# non-registry settings show up as ordinary rows in the launcher's Setup tab
+# instead of vanishing from it.
+#
+# -Check runs first, so an already-correct step reports Skipped even without an
+# administrator token; -RequiresAdmin only decides what a step that *would*
+# change something reports when the run is not elevated.
+function Invoke-TrackedStep {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Id,
+        [Parameter(Mandatory)]
+        [string]$Label,
+        [Parameter(Mandatory)]
+        [scriptblock]$Check,
+        [Parameter(Mandatory)]
+        [scriptblock]$Apply,
+        [switch]$RequiresAdmin,
+        [switch]$DryRun
+    )
+
+    if ($script:RegistryOnlyId -and $Id -ne $script:RegistryOnlyId) {
+        return $true
+    }
+
+    try {
+        if (& $Check) {
+            Write-Skip "$Label already set"
+            $script:Results.Skipped += @{ Id = $Id; Label = $Label; Detail = 'already set' }
+            return $true
+        }
+
+        if ($RequiresAdmin -and -not (Test-Administrator)) {
+            Write-Skip "$Label needs Administrator"
+            $script:Results.NeedsAdmin += @{ Id = $Id; Label = $Label; Detail = 'needs Administrator' }
+            return $true
+        }
+
+        if ($DryRun) {
+            Write-DryRun "Would apply: $Label"
+            $script:Results.Pending += @{ Id = $Id; Label = $Label; Detail = 'would apply' }
+            return $true
+        }
+
+        & $Apply | Out-Null
+        Write-Success $Label
+        $script:Results.Changed += @{ Id = $Id; Label = $Label; Detail = 'applied' }
+        return $true
+    } catch {
+        if (Test-AccessDeniedError -ErrorRecord $_) {
+            Write-Skip "$Label needs Administrator"
+            $script:Results.NeedsAdmin += @{ Id = $Id; Label = $Label; Detail = 'needs Administrator' }
+            return $true
+        }
+
+        Write-Warn "Failed to apply ${Label}: $_"
+        $script:Results.Failed += @{ Id = $Id; Label = $Label; Detail = "$_" }
+        return $false
+    }
+}
+
 # Apply a list of @{ Path=; Name=; Value=; Type=; Label= } hashtables.
 function Set-RegistryValueSet {
     param(
@@ -271,7 +339,13 @@ function Invoke-DefaultsModules {
         [string]$RepoRoot,
         [switch]$DryRun,
         # When set, only this module (by file base name) is considered.
-        [string]$OnlyModule = ''
+        [string]$OnlyModule = '',
+        # Print the per-module header/skip/failure narration inline. The CLI
+        # wants it; the launcher does not (bridge.ps1 reads the records and
+        # renders its own rows). It has to happen here rather than in a second
+        # loop afterwards, or every module's own output lands before the
+        # headers it belongs under.
+        [switch]$Narrate
     )
 
     $defaultsDir = Join-Path $RepoRoot "platforms\windows\defaults"
@@ -301,9 +375,12 @@ function Invoke-DefaultsModules {
         }
 
         if (-not $enabled) {
+            if ($Narrate) { Write-Skip "$category (disabled by $varName)" }
             $records += $record
             continue
         }
+
+        if ($Narrate) { Write-Step $category }
 
         . $file.FullName
 
@@ -312,6 +389,7 @@ function Invoke-DefaultsModules {
         $func = Get-Command -Name $funcName -CommandType Function -ErrorAction SilentlyContinue
         if ($null -eq $func) {
             $record.MissingFunc = $true
+            if ($Narrate) { Write-Warn "$category.ps1 does not define $funcName - skipping" }
             $records += $record
             continue
         }
@@ -326,9 +404,12 @@ function Invoke-DefaultsModules {
         }
 
         try {
-            & $funcName -ProfileConfig $ProfileConfig -DryRun:$DryRun
+            # Out-Null: a module's stray pipeline output is not this function's
+            # return value.
+            & $funcName -ProfileConfig $ProfileConfig -DryRun:$DryRun | Out-Null
         } catch {
             $record.Error = $_
+            if ($Narrate) { Write-Err "$category failed: $_" }
         }
         $record.Ran = $true
 
@@ -352,10 +433,12 @@ Export-ModuleMember -Function @(
     'Get-RegistryResults',
     'Get-RegistryFailureCount',
     'Set-RegistryOnlyId',
+    'Get-RegistryOnlyId',
     'Get-RegistryValue',
     'Test-AccessDeniedError',
     'Set-RegistryValue',
     'Remove-RegistryKey',
     'Set-RegistryValueSet',
+    'Invoke-TrackedStep',
     'Invoke-DefaultsModules'
 )

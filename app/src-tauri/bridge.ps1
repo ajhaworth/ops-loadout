@@ -45,12 +45,20 @@ function Import-TaskModules {
 }
 
 # No --profile means every flag defaults to enabled, same as everywhere else
-# in this repo (Test-ProfileFlag on an empty hashtable).
+# in this repo (Test-ProfileFlag on an empty hashtable). A profile name that
+# does not resolve falls back to the same empty config.
+#
+# Read-Profile narrates a missing profile through Write-Err, which is Write-Host
+# underneath and therefore lands on this process's stdout - ahead of the single
+# JSON array a status verb prints. Hence the same 6>$null guard the status
+# traversal itself runs behind; the note goes to stderr, which the launcher
+# already treats as log output.
 function Get-BridgeProfileConfig {
     param([string]$ProfileName)
     if ($ProfileName) {
-        $config = Read-Profile -ProfileName $ProfileName
+        $config = & { Read-Profile -ProfileName $ProfileName } 6>$null
         if ($null -ne $config) { return $config }
+        [Console]::Error.WriteLine("Profile '$ProfileName' not found - treating every category as enabled")
     }
     return @{}
 }
@@ -141,9 +149,16 @@ function Invoke-PrereqApply {
             if ($LASTEXITCODE -ne 0) { exit 1 }
         }
         'developer-mode' {
+            Reset-RegistryResults
             Set-RegistryValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' `
                 -Name 'AllowDevelopmentWithoutDevLicense' -Value 1 -Type DWord -Label 'Enable Developer Mode' | Out-Null
             if ((Get-RegistryFailureCount) -gt 0) { exit 1 }
+            # An access-denied write lands in NeedsAdmin, not Failed - the
+            # setting did not get applied either way, so this is not a success.
+            if ((Get-RegistryResults).NeedsAdmin.Count -gt 0) {
+                Write-Host 'Enabling Developer Mode needs Administrator'
+                exit 1
+            }
         }
         default {
             Write-Host "Unknown prereq id: $Id"
@@ -202,11 +217,27 @@ function Invoke-DotfilesApply {
 
     Reset-DotfilesResults
     $sourceFull = Join-Path $RepoRoot $entry.Source
-    New-Symlink -Source $sourceFull -Destination $entry.Dest -DryRun:$false -Force:$false | Out-Null
+    # -Force: without it New-Symlink *skips* a destination that points
+    # somewhere else, or whose parent tree is missing more than one level, and
+    # returns $true - so the launcher reported "applied" for a link it never
+    # made. An explicit per-row apply is the user asking for that row, and
+    # Backup-ExistingPath still preserves whatever was there.
+    New-Symlink -Source $sourceFull -Destination $entry.Dest -DryRun:$false -Force | Out-Null
 
     if ((Get-DotfilesFailureCount) -gt 0) {
         exit 1
     }
+
+    # New-Symlink swallows a skip into a $true return, so confirm the state it
+    # claimed rather than trusting the call.
+    $after = @(Get-DotfilesStatus -Entries @($entry) -RepoRoot $RepoRoot)
+    if ($after.Count -eq 0 -or $after[0].State -ne 'linked') {
+        $detail = 'not linked'
+        if ($after.Count -gt 0 -and $after[0].Detail) { $detail = $after[0].Detail }
+        Write-Host "Failed: $($entry.Dest) is still $detail"
+        exit 1
+    }
+
     Write-Host "Applied $Id"
 }
 
@@ -265,6 +296,12 @@ function Invoke-DefaultsApply {
         exit 1
     }
     $module = $parts[1]
+    # An empty module segment ("defaults::HKCU\...") would otherwise run every
+    # module with no filter at all.
+    if (-not $module) {
+        Write-Host "Unknown task id: $Id"
+        exit 1
+    }
     $target = ''
     if ($parts.Count -ge 3) { $target = $parts[2] }
 
@@ -301,6 +338,12 @@ function Invoke-DefaultsApply {
     # show up as $record.Error above.
     if ((Get-RegistryFailureCount) -gt 0) {
         Write-Host "Failed: $module reported a registry write failure"
+        exit 1
+    }
+    # Same for an access-denied write: it lands in NeedsAdmin rather than
+    # Failed, but the setting was not applied.
+    if ((Get-RegistryResults).NeedsAdmin.Count -gt 0) {
+        Write-Host "$module needs Administrator - restart the launcher elevated"
         exit 1
     }
 
@@ -379,6 +422,10 @@ function Invoke-DebloatApply {
     $status = Invoke-DebloatGroupById -GroupId $groupId -DryRun:$false
     if ($status.Failed -gt 0) {
         Write-Host "Failed: $($status.Failed) item(s) in $groupId did not apply"
+        exit 1
+    }
+    if ($status.NeedsAdmin) {
+        Write-Host "$groupId needs Administrator - restart the launcher elevated"
         exit 1
     }
 

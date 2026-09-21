@@ -465,6 +465,59 @@ if ($onWindows) {
     Write-Skipped "Pending-bucket check requires Windows (registry provider)"
 }
 
+# --- Invoke-TrackedStep - the non-registry counterpart. Pure scriptblocks, so
+# it runs everywhere; power.ps1's powercfg timeouts depend on it producing rows
+# rather than silent output.
+
+Assert-True ($null -ne (Get-Command -Name 'Invoke-TrackedStep' -CommandType Function -ErrorAction SilentlyContinue)) `
+    "Invoke-TrackedStep is exported from registry.psm1"
+Assert-True (@((Get-Command -Name 'Invoke-DefaultsModules').Parameters.Keys) -contains 'Narrate') `
+    "Invoke-DefaultsModules accepts -Narrate"
+
+Reset-RegistryResults
+Invoke-TrackedStep -Id 'smoke\met' -Label 'already there' -Check { $true } -Apply { throw 'must not run' } | Out-Null
+Assert-Equal 1 (Get-RegistryResults).Skipped.Count "Invoke-TrackedStep records a satisfied check as Skipped"
+
+Reset-RegistryResults
+Invoke-TrackedStep -Id 'smoke\dry' -Label 'not yet' -Check { $false } -Apply { throw 'must not run' } -DryRun | Out-Null
+Assert-Equal 1 (Get-RegistryResults).Pending.Count "Invoke-TrackedStep -DryRun records an unmet check as Pending"
+
+Reset-RegistryResults
+$script:TrackedApplyRan = $false
+Invoke-TrackedStep -Id 'smoke\apply' -Label 'applied' -Check { $false } -Apply { $script:TrackedApplyRan = $true } | Out-Null
+Assert-True $script:TrackedApplyRan "Invoke-TrackedStep runs -Apply when the check is unmet"
+Assert-Equal 1 (Get-RegistryResults).Changed.Count "Invoke-TrackedStep records a successful apply as Changed"
+
+Reset-RegistryResults
+Invoke-TrackedStep -Id 'smoke\boom' -Label 'boom' -Check { $false } -Apply { throw 'boom' } | Out-Null
+Assert-Equal 1 (Get-RegistryResults).Failed.Count "Invoke-TrackedStep records a throwing apply as Failed"
+
+if (Test-Administrator) {
+    Write-Skipped "NeedsAdmin bucket check requires a non-elevated session"
+} else {
+    Reset-RegistryResults
+    Invoke-TrackedStep -Id 'smoke\admin' -Label 'needs admin' -RequiresAdmin `
+        -Check { $false } -Apply { throw 'must not run' } | Out-Null
+    Assert-Equal 1 (Get-RegistryResults).NeedsAdmin.Count "Invoke-TrackedStep -RequiresAdmin reports NeedsAdmin unelevated"
+}
+
+# The OnlyId filter has to cover tracked steps too, or applying one row from a
+# module would re-run every other step in it.
+Reset-RegistryResults
+Set-RegistryOnlyId -Id 'smoke\wanted'
+Invoke-TrackedStep -Id 'smoke\unwanted' -Label 'other' -Check { throw 'must not run' } -Apply { throw 'must not run' } | Out-Null
+Set-RegistryOnlyId -Id $null
+$filtered = Get-RegistryResults
+Assert-Equal 0 ($filtered.Skipped.Count + $filtered.Pending.Count + $filtered.Changed.Count + $filtered.Failed.Count) `
+    "Invoke-TrackedStep no-ops a step the OnlyId filter excludes"
+Assert-True ([string]::IsNullOrEmpty((Get-RegistryOnlyId))) 'Set-RegistryOnlyId -Id $null clears the filter'
+Reset-RegistryResults
+
+# power.ps1's timeouts are powercfg calls; routing them through
+# Invoke-TrackedStep is what puts them in the Setup tab at all.
+$powerSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "platforms\windows\defaults\power.ps1")
+Assert-True ($powerSource -match 'Invoke-TrackedStep') "power.ps1 routes its powercfg settings through Invoke-TrackedStep"
+
 # ---------------------------------------------------------------------------
 Write-Section "Setup tasks bridge"
 
