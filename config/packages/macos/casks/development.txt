@@ -5,5 +5,4 @@ fork                # Git client
 ghostty             # Terminal emulator
 claude              # Claude desktop app
 chatgpt             # ChatGPT desktop app
-codex               # Codex desktop app
 cmux
