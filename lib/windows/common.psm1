@@ -78,20 +78,6 @@ function Write-SubStep {
     Write-Host $Message
 }
 
-function Write-Header {
-    param(
-        [Parameter(Mandatory)]
-        [string]$Title
-    )
-    $width = 60
-    $line = "=" * $width
-    Write-Host ""
-    Write-Host $line -ForegroundColor Blue
-    Write-Host $Title.PadLeft(($width + $Title.Length) / 2).PadRight($width) -ForegroundColor Blue
-    Write-Host $line -ForegroundColor Blue
-    Write-Host ""
-}
-
 function Write-Banner {
     Write-Host ""
     Write-Host "   ============================================" -ForegroundColor Magenta
@@ -263,15 +249,6 @@ function Test-Administrator {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-# Require administrator privileges
-function Assert-Administrator {
-    if (-not (Test-Administrator)) {
-        Write-Err "This script requires administrator privileges."
-        Write-Status "Please run PowerShell as Administrator and try again."
-        exit 1
-    }
-}
-
 Export-ModuleMember -Function @(
     'Write-Status',
     'Write-Success',
@@ -281,7 +258,6 @@ Export-ModuleMember -Function @(
     'Write-DryRun',
     'Write-Step',
     'Write-SubStep',
-    'Write-Header',
     'Write-Banner',
     'Get-RepoRoot',
     'Test-IsWindowsPlatform',
@@ -291,6 +267,5 @@ Export-ModuleMember -Function @(
     'Read-PackageList',
     'Get-CategoryVar',
     'Get-ApplyFunctionName',
-    'Test-Administrator',
-    'Assert-Administrator'
+    'Test-Administrator'
 )
