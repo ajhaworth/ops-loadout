@@ -39,13 +39,19 @@ deleting anything already in it, so local state survives.
 A git checkout at `~/Developer/ops/ops-desktop` takes precedence over the
 copied one, so development still edits the repo live.
 
-On macOS, the app is unsigned: the first launch is blocked by Gatekeeper.
-Open it once from System Settings > Privacy & Security > **Open Anyway**, or
-clear the quarantine flag on a downloaded copy:
+**Check for Updates...** in the tray menu pulls the next release: it asks the
+GitHub release for the newer build, and on your go-ahead downloads, installs
+and relaunches the app in place.
+
+The app is not notarized by Apple, so macOS reports a downloaded copy as
+"damaged and can't be opened". Drag it to Applications, then run this once:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Ops Launcher.app"
 ```
+
+Updates installed from the tray menu's **Check for Updates** don't need it
+again; only a fresh download does.
 
 Once installed, use the app instead of the CLI:
 - **Apps tab** — browse and install/update packages (Homebrew, GitHub

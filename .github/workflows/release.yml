@@ -32,13 +32,23 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signs the updater artifacts; the app itself stays unsigned by Apple.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: app
-          args: --bundles dmg
+          # `app` too: the macOS updater artifact (.app.tar.gz) is only emitted
+          # alongside the app bundle, never by the dmg target on its own.
+          args: --bundles dmg,app
+          # latest.json is what the tray's Check for Updates reads.
+          includeUpdaterJson: true
           # Only cut a release on a tag; a manual run just uploads the artifact.
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: Ops Launcher ${{ github.ref_name }}
-          releaseBody: Unsigned macOS build. Standalone - allow it under Privacy & Security > Open Anyway on first launch.
+          releaseBody: |
+            Standalone macOS build, not notarized. If macOS says the app is damaged, drag it to Applications and run once:
+
+                xattr -dr com.apple.quarantine "/Applications/Ops Launcher.app"
       - uses: actions/upload-artifact@v4
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
