@@ -269,7 +269,7 @@ async function load(command) {
 function logLine(line) {
   drawerEl.hidden = false;
   logEl.textContent = (logEl.textContent + line + "\n").split("\n").slice(-200).join("\n");
-  drawerEl.scrollTop = drawerEl.scrollHeight;
+  logEl.scrollTop = logEl.scrollHeight;
 }
 
 async function call(command, app) {
