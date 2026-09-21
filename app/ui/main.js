@@ -8,6 +8,7 @@ const countEl = document.getElementById("count");
 const drawerEl = document.getElementById("drawer");
 const menuEl = document.getElementById("menu");
 const updateAllEl = document.getElementById("update-all");
+const tabsEl = document.getElementById("tabs");
 const logEl = document.getElementById("log");
 
 let apps = [];
@@ -20,6 +21,18 @@ const failed = new Map();
 // invoke that merely starts the job.
 const pending = new Map();
 let updatingAll = false;
+
+// Workspace tabs: each narrows the grid to the apps it is about. Categories
+// are list-file names; the ids are App Store apps that belong with the others.
+const DEV_IDS = new Set(["mas:497799835", "mas:899247664"]); // Xcode, TestFlight
+const WORKSPACES = {
+  All: () => true,
+  Learning: (a) => a.category === "Learning",
+  Creative: (a) => a.category === "Creative" || a.kind === "comfynode",
+  Development: (a) =>
+    ["Development", "Software Dev", "Devops"].includes(a.category) || DEV_IDS.has(a.id),
+};
+let tab = "All";
 
 // GUI first, then the App Store, then the CLI grab-bag.
 const GROUPS = [
@@ -187,9 +200,27 @@ function sectionEl(title, list, open) {
   return details;
 }
 
+function renderTabs() {
+  tabsEl.replaceChildren(...Object.keys(WORKSPACES).map((name) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = name;
+    b.classList.toggle("on", name === tab);
+    b.onclick = () => {
+      tab = name;
+      try { localStorage.setItem("tab", name); } catch { /* not persisted */ }
+      render();
+    };
+    return b;
+  }));
+}
+
 function render() {
+  renderTabs();
   const q = searchEl.value.trim().toLowerCase();
-  const shown = apps.filter((a) => !q || (a.name + " " + a.id + " " + a.category).toLowerCase().includes(q));
+  const inTab = WORKSPACES[tab];
+  const shown = apps.filter((a) =>
+    inTab(a) && (!q || (a.name + " " + a.id + " " + a.category).toLowerCase().includes(q)));
   sectionsEl.replaceChildren();
 
   for (const group of GROUPS) {
@@ -216,17 +247,16 @@ function render() {
     sectionsEl.append(p);
   }
   const updates = apps.filter((a) => a.outdated).length;
-  countEl.textContent =
-    `${apps.filter((a) => a.installed).length} / ${apps.length} installed` +
-    (updates ? ` \u00b7 ${updates} update${updates > 1 ? "s" : ""}` : "");
+  countEl.textContent = `${apps.filter((a) => a.installed).length}/${apps.length}`;
 
   // Stays put while a run is in progress even as the count drains.
   updateAllEl.hidden = !updates && !updatingAll;
-  if (!updatingAll) updateAllEl.textContent = `Update all${updates ? ` (${updates})` : ""}`;
+  updateAllEl.lastChild.textContent = updates;
+  if (!updatingAll) updateAllEl.title = `Update all (${updates})`;
 }
 
 async function load(command) {
-  countEl.textContent = "scanning...";
+  countEl.textContent = "\u2026";
   try {
     apps = await invoke(command);
   } catch (e) {
@@ -239,7 +269,7 @@ async function load(command) {
 function logLine(line) {
   drawerEl.hidden = false;
   logEl.textContent = (logEl.textContent + line + "\n").split("\n").slice(-200).join("\n");
-  drawerEl.scrollTop = drawerEl.scrollHeight;
+  logEl.scrollTop = logEl.scrollHeight;
 }
 
 async function call(command, app) {
@@ -256,7 +286,7 @@ function doJob(app, action) {
   failed.delete(app.id);
   inflight.add(app.id);
   render();
-  logLine(`$ ${action}ing ${app.name}`);
+  logLine(`$ ${action.replace(/e$/, "")}ing ${app.name}`);
 
   return new Promise((resolve) => {
     pending.set(app.id, resolve);
@@ -282,7 +312,7 @@ async function updateAll() {
   // Strictly serial: brew holds a lock, and mas is happier one at a time. A
   // failure resolves like any other result, so the rest still run.
   for (const [i, app] of queue.entries()) {
-    updateAllEl.textContent = `Updating ${i + 1}/${queue.length}\u2026`;
+    updateAllEl.title = `Updating ${i + 1}/${queue.length}\u2026`;
     await doJob(app, "update");
   }
 
@@ -412,7 +442,13 @@ sectionsEl.addEventListener("scroll", hideMenu);
 // Nothing here wants the webview's own context menu.
 addEventListener("contextmenu", (e) => e.preventDefault());
 
+try { if (localStorage.getItem("tab") in WORKSPACES) tab = localStorage.getItem("tab"); } catch { /* default */ }
 searchEl.oninput = render;
 updateAllEl.onclick = updateAll;
 document.getElementById("refresh").onclick = () => load("refresh");
+document.getElementById("copy").onclick = async (e) => {
+  await navigator.clipboard.writeText(logEl.textContent);
+  e.target.textContent = "Copied";
+  setTimeout(() => (e.target.textContent = "Copy"), 1200);
+};
 load("list_apps");

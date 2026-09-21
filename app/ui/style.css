@@ -42,31 +42,57 @@ header {
   gap: 10px;
   /* The window has no chrome, so the row needs its own breathing room. */
   padding: 18px 16px 10px;
-  border-bottom: 1px solid var(--line);
   -webkit-app-region: drag;
 }
 
-header input, header button, header .pill {
+header input, header button, header nav {
   -webkit-app-region: no-drag;
+}
+
+/* Segmented control: one workspace at a time. */
+#tabs {
+  display: flex;
+  gap: 2px;
+  height: 28px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--chip);
+}
+#tabs button {
+  width: auto;
+  height: 24px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dim);
+  background: none;
+  border-radius: 6px;
+}
+#tabs button.on {
+  color: var(--fg);
+  background: var(--tile);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
 }
 
 #search {
   flex: 1;
+  min-width: 120px;
   border: 1px solid var(--line);
   background: var(--chip);
   color: inherit;
   border-radius: 8px;
-  padding: 6px 10px;
+  /* Every control in the row is 28px tall, border included. */
+  height: 28px;
+  padding: 0 10px;
   font: inherit;
   outline: none;
 }
 #search:focus { border-color: #5b6bff; }
 
-.pill {
-  background: var(--chip);
-  border-radius: 999px;
-  padding: 3px 10px;
+#count {
   color: var(--dim);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -82,22 +108,31 @@ header button {
 }
 header button:active { opacity: 0.6; }
 
-/* Same height and radius as the refresh button, but sized to its label. */
+/* Same as the refresh button, with the pending count pinned to its corner. */
 #update-all {
-  width: auto;
-  padding: 0 10px;
-  font-size: 12px;
-  font-weight: 500;
+  position: relative;
   color: #3478f6;
-  background: none;
-  white-space: nowrap;
 }
-#update-all:hover:not(:disabled) { background: var(--chip); }
+#update-all .n {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #3478f6;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+}
 #update-all:disabled {
   color: var(--dim);
   cursor: default;
   opacity: 1;
 }
+#update-all:disabled .n { background: var(--dim); }
 
 main {
   flex: 1;
@@ -316,13 +351,34 @@ summary .n { color: var(--dim); font-weight: 400; margin-left: 6px; }
 #menu .row:hover .row-host { color: rgba(255, 255, 255, 0.75); }
 
 #drawer {
+  position: relative;
   border-top: 1px solid var(--line);
   background: var(--chip);
-  max-height: 140px;
-  overflow-y: auto;
 }
+/* Floats over the drawer's bottom-right corner so it stays put while the
+   log scrolls underneath. */
+#copy {
+  position: absolute;
+  bottom: 8px;
+  right: 14px;
+  z-index: 1;
+  border: 0;
+  border-radius: 6px;
+  padding: 3px 9px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--dim);
+  background: var(--chip);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+#copy:hover { color: var(--fg); }
+
 #log {
   margin: 0;
+  max-height: 140px;
+  overflow-y: auto;
   padding: 8px 16px;
   font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--dim);
