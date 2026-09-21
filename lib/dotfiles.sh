@@ -269,27 +269,28 @@ cmd_dotfiles_ls() {
 
         # Check symlink status
         local status status_color
-        if [[ -L "$abs_dest" ]]; then
-            local target
-            target="$(resolve_symlink_target "$abs_dest")"
-            if [[ "$target" == "$abs_source" ]]; then
+        case "$(manifest_state "$abs_source" "$abs_dest")" in
+            linked)
                 status="linked"
                 status_color="${GREEN}"
                 ((count_ok++))
-            else
+                ;;
+            wrong)
                 status="wrong target"
                 status_color="${YELLOW}"
                 ((count_wrong++))
-            fi
-        elif [[ -e "$abs_dest" ]]; then
-            status="conflict"
-            status_color="${RED}"
-            ((count_conflict++))
-        else
-            status="missing"
-            status_color="${RED}"
-            ((count_missing++))
-        fi
+                ;;
+            conflict)
+                status="conflict"
+                status_color="${RED}"
+                ((count_conflict++))
+                ;;
+            *)
+                status="missing"
+                status_color="${RED}"
+                ((count_missing++))
+                ;;
+        esac
 
         printf "  %-40s  %-50s  ${status_color}%s${RESET}\n" "$display_source" "$display_dest" "$status"
     done < "$manifest"

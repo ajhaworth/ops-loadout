@@ -195,6 +195,29 @@ process_manifest() {
     done < "$manifest"
 }
 
+# Classify the on-disk state of one manifest entry (source missing is the
+# caller's concern, not this function's - it assumes abs_source exists).
+# Usage: manifest_state abs_source abs_dest
+# Prints one of: linked | wrong | conflict | missing
+manifest_state() {
+    local source="$1"
+    local destination="$2"
+
+    if [[ -L "$destination" ]]; then
+        local target
+        target="$(resolve_symlink_target "$destination")"
+        if [[ "$target" == "$source" ]]; then
+            echo "linked"
+        else
+            echo "wrong"
+        fi
+    elif [[ -e "$destination" ]]; then
+        echo "conflict"
+    else
+        echo "missing"
+    fi
+}
+
 # Check all symlinks from manifest
 # Usage: check_manifest manifest_file
 check_manifest() {
@@ -236,22 +259,23 @@ check_manifest() {
         short_dest="$(shorten_path "$destination")"
 
         # Check symlink status
-        if [[ -L "$destination" ]]; then
-            local target
-            target="$(resolve_symlink_target "$destination")"
-            if [[ "$target" == "$source" ]]; then
+        case "$(manifest_state "$source" "$destination")" in
+            linked)
                 echo -e "  ${GREEN}✓${RESET} ${short_dest}"
-            else
+                ;;
+            wrong)
                 echo -e "  ${YELLOW}~${RESET} ${short_dest} ${DIM}(wrong target)${RESET}"
                 all_ok=false
-            fi
-        elif [[ -e "$destination" ]]; then
-            echo -e "  ${RED}✗${RESET} ${short_dest} ${DIM}(not a symlink)${RESET}"
-            all_ok=false
-        else
-            echo -e "  ${RED}✗${RESET} ${short_dest} ${DIM}(missing)${RESET}"
-            all_ok=false
-        fi
+                ;;
+            conflict)
+                echo -e "  ${RED}✗${RESET} ${short_dest} ${DIM}(not a symlink)${RESET}"
+                all_ok=false
+                ;;
+            missing)
+                echo -e "  ${RED}✗${RESET} ${short_dest} ${DIM}(missing)${RESET}"
+                all_ok=false
+                ;;
+        esac
     done < "$manifest"
 
     $all_ok
