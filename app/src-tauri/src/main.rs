@@ -5,6 +5,7 @@ mod catalog;
 mod platform;
 
 use catalog::App;
+use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -17,23 +18,63 @@ struct Store {
     apps: Mutex<Vec<App>>,
 }
 
+/// One row from `lib/tasks.sh status` / `bridge.ps1 tasks-status` - see
+/// CLAUDE.md "Setup Tasks (launcher)" for the JSON contract.
+#[derive(Clone, Serialize, Deserialize)]
+struct Task {
+    id: String,
+    section: String,
+    group: String,
+    name: String,
+    state: String,
+    detail: String,
+}
+
+/// `config.json` in the app config dir. `#[serde(default)]` keeps a
+/// pre-existing `{"repo": ...}` file (from before `profile` existed) loading
+/// fine, and keeps a config with neither field loading fine too.
+#[derive(Default, Serialize, Deserialize)]
+struct Config {
+    #[serde(default)]
+    repo: Option<String>,
+    #[serde(default)]
+    profile: Option<String>,
+}
+
 fn config_file(app: &AppHandle) -> Option<PathBuf> {
     app.path().app_config_dir().ok().map(|d| d.join("config.json"))
 }
 
-fn saved_repo(app: &AppHandle) -> Option<PathBuf> {
-    let text = std::fs::read_to_string(config_file(app)?).ok()?;
-    let v: serde_json::Value = serde_json::from_str(&text).ok()?;
-    Some(PathBuf::from(v.get("repo")?.as_str()?))
+fn read_config(app: &AppHandle) -> Config {
+    config_file(app)
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
 }
 
-fn save_repo(app: &AppHandle, repo: &Path) {
+fn write_config(app: &AppHandle, config: &Config) {
     let Some(path) = config_file(app) else { return };
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    let body = serde_json::json!({ "repo": repo.to_string_lossy() });
-    let _ = std::fs::write(path, body.to_string());
+    if let Ok(body) = serde_json::to_string(config) {
+        let _ = std::fs::write(path, body);
+    }
+}
+
+fn saved_repo(app: &AppHandle) -> Option<PathBuf> {
+    read_config(app).repo.map(PathBuf::from)
+}
+
+fn save_repo(app: &AppHandle, repo: &Path) {
+    let mut config = read_config(app);
+    config.repo = Some(repo.to_string_lossy().to_string());
+    write_config(app, &config);
+}
+
+/// `None` when unset, same as an empty string from the settings form.
+fn saved_profile(app: &AppHandle) -> Option<String> {
+    read_config(app).profile.filter(|p| !p.is_empty())
 }
 
 /// OPS_DESKTOP_DIR -> saved path -> the source checkout -> ~/Developer/ops/ops-desktop
@@ -227,13 +268,51 @@ fn parse_env_file(text: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-/// The SideFX credentials `platforms/macos/installers/houdini.sh` reads.
+/// The current OS name as `config/profiles/*.conf`'s `PROFILE_OS` spells it.
+fn profile_os() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "linux"
+    }
+}
+
+/// Names of `config/profiles/*.conf` whose `PROFILE_OS` matches this platform
+/// (or is absent). Sorted for a stable dropdown order.
+fn list_profiles(repo: &Path) -> Vec<String> {
+    let os = profile_os();
+    let Ok(entries) = std::fs::read_dir(repo.join("config/profiles")) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = entries
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|e| e == "conf"))
+        .filter_map(|p| {
+            let stem = p.file_stem()?.to_string_lossy().to_string();
+            let text = std::fs::read_to_string(&p).ok()?;
+            let its_os = parse_env_file(&text)
+                .into_iter()
+                .find(|(k, _)| k == "PROFILE_OS")
+                .map(|(_, v)| v);
+            its_os.is_none_or(|v| v == os).then_some(stem)
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+/// The SideFX credentials `platforms/macos/installers/houdini.sh` reads, plus
+/// the saved profile and the profiles available for this platform.
 /// Missing file or missing key reads as empty, so the dialog just opens blank.
 #[tauri::command]
 async fn get_settings(
     handle: AppHandle,
     store: State<'_, Store>,
 ) -> Result<serde_json::Value, String> {
+    let repo = repo_of(&handle, &store).ok_or("no ops-desktop repo found")?;
     let path = settings_file(&handle, &store)?;
     let vars = parse_env_file(&std::fs::read_to_string(path).unwrap_or_default());
     let value = |key: &str| {
@@ -245,6 +324,8 @@ async fn get_settings(
     Ok(serde_json::json!({
         "sidefx_client_id": value("SIDEFX_CLIENT_ID"),
         "sidefx_client_secret": value("SIDEFX_CLIENT_SECRET"),
+        "profile": saved_profile(&handle).unwrap_or_default(),
+        "profiles": list_profiles(&repo),
     }))
 }
 
@@ -254,7 +335,12 @@ async fn set_settings(
     store: State<'_, Store>,
     sidefx_client_id: String,
     sidefx_client_secret: String,
+    profile: String,
 ) -> Result<(), String> {
+    let mut config = read_config(&handle);
+    config.profile = (!profile.trim().is_empty()).then(|| profile.trim().to_string());
+    write_config(&handle, &config);
+
     let path = settings_file(&handle, &store)?;
     let id = sidefx_client_id.trim();
     let secret = sidefx_client_secret.trim();
@@ -298,6 +384,51 @@ async fn set_settings(
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
     }
+    Ok(())
+}
+
+/// One `lib/tasks.sh status <section>` / `bridge.ps1 tasks-status` call. Short
+/// and one-shot, so it runs the same way `list_apps`/`refresh` do - straight
+/// inside the async command, off the UI thread by virtue of not being awaited
+/// on it.
+#[tauri::command]
+async fn tasks_status(handle: AppHandle, store: State<'_, Store>, section: String) -> Result<Vec<Task>, String> {
+    let repo = repo_of(&handle, &store).ok_or("no ops-desktop repo found")?;
+    let resources = resource_dir(&handle);
+    let profile = saved_profile(&handle);
+    let cmd = platform::task_command("status", &section, None, &repo, &resources, profile.as_deref())?;
+
+    let out = std::process::Command::new(&cmd.program)
+        .args(&cmd.args)
+        .envs(cmd.env.iter().cloned())
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    serde_json::from_slice::<Vec<Task>>(&out.stdout).map_err(|_| {
+        let text: String = String::from_utf8_lossy(&out.stdout).chars().take(300).collect();
+        format!("could not parse task status: {text}")
+    })
+}
+
+/// Applies one task, streaming like a package job but without the app-catalog
+/// bookkeeping (`run_job`'s icon refresh / dock badge) - a task has no `App`.
+#[tauri::command]
+async fn run_task(handle: AppHandle, store: State<'_, Store>, id: String, section: String) -> Result<(), String> {
+    let repo = repo_of(&handle, &store).ok_or("no ops-desktop repo found")?;
+    let resources = resource_dir(&handle);
+    let profile = saved_profile(&handle);
+    let cmd = platform::task_command("apply", &section, Some(&id), &repo, &resources, profile.as_deref())?;
+
+    std::thread::spawn(move || {
+        let ok = run_streaming(&handle, &id, "apply", cmd);
+        let _ = handle.emit(
+            "install-done",
+            serde_json::json!({ "id": id, "ok": ok, "action": "apply" }),
+        );
+    });
+
     Ok(())
 }
 
@@ -472,7 +603,9 @@ fn main() {
             open_homepage,
             open_url,
             get_settings,
-            set_settings
+            set_settings,
+            tasks_status,
+            run_task
         ])
         .run(tauri::generate_context!())
         .expect("error while running Ops Launcher");
@@ -536,6 +669,15 @@ mod smoke {
                 ("Q".to_string(), "dq".to_string()),
             ]
         );
+    }
+
+    /// Against this checkout's real `config/profiles/`: macOS sees only the
+    /// two macOS profiles, not windows/linux.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn list_profiles_filters_by_os() {
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        assert_eq!(crate::list_profiles(&repo), vec!["personal", "work"]);
     }
 
     fn app_of(kind: &str, token: &str) -> crate::catalog::App {

@@ -158,6 +158,35 @@ pub fn open_url(url: &str, resources: &Path) -> Result<(), String> {
         .ok_or_else(|| format!("could not open {url}"))
 }
 
+/// `bridge.ps1 tasks-status <repo> <section> [profile]` /
+/// `tasks-apply <repo> <section> <id> [profile]` - positional, so id is only
+/// inserted when present and profile always comes last.
+pub fn task_command(
+    verb: &str,
+    section: &str,
+    id: Option<&str>,
+    repo: &Path,
+    resources: &Path,
+    profile: Option<&str>,
+) -> Result<Cmd, String> {
+    let sub = match verb {
+        "status" => "tasks-status",
+        "apply" => "tasks-apply",
+        other => return Err(format!("unknown verb {other}")),
+    };
+    let mut args = base_args(resources);
+    args.push(sub.into());
+    args.push(repo.to_string_lossy().to_string());
+    args.push(section.to_string());
+    if let Some(id) = id {
+        args.push(id.to_string());
+    }
+    if let Some(profile) = profile {
+        args.push(profile.to_string());
+    }
+    Ok(Cmd { program: shell().to_string(), args, env: vec![] })
+}
+
 fn bridge_job(verb: &str, app: &App, repo: &Path, resources: &Path) -> Result<Cmd, String> {
     let kind = match app.kind.as_str() {
         "github" | "comfynode" => app.kind.clone(),
