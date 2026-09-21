@@ -659,9 +659,14 @@ switch ($Verb) {
     }
 
     'icon' {
-        Add-Type -AssemblyName System.Drawing
-        $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($Args2[0])
-        if ($null -eq $icon) { exit 1 }
-        $icon.ToBitmap().Save($Args2[1], [System.Drawing.Imaging.ImageFormat]::Png)
+        try {
+            Add-Type -AssemblyName System.Drawing
+            $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($Args2[0])
+            if ($null -eq $icon) { exit 1 }
+            $icon.ToBitmap().Save($Args2[1], [System.Drawing.Imaging.ImageFormat]::Png)
+        } catch {
+            Write-Host "Failed to extract icon: $_"
+            exit 1
+        }
     }
 }
