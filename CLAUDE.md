@@ -202,17 +202,17 @@ can answer it.
 
 `houdini.sh` resolves the latest production build through the SideFX download
 API, which needs `config/sidefx.local` (`SIDEFX_CLIENT_ID`,
-`SIDEFX_CLIENT_SECRET`; gitignored via `*.local`). When the file is missing
-or the token request fails, the script asks for the values with `osascript`
-dialogs and writes the file itself, but only when `SUDO_ASKPASS` is set: that
-variable is set by the launcher alone, so it doubles as "a GUI is present".
-In a terminal it prints the steps instead, and the smoke test unsets it. The
-dmg holds `Houdini.pkg`, installed with `installer -pkg ... -target /`. The
-Apprentice license cannot be scripted: a post-install dialog explains the
-License Administrator -> "Activate Apprentice" step and offers to open
-Houdini; no account is required. `outdated` is never set for this kind; Update simply
-installs the latest. `sidefxlabs.sh` takes Labs from GitHub releases (tags
-match Houdini `X.Y.ZZZ`) into `~/Library/Preferences/houdini/<X.Y>/packages/`
+`SIDEFX_CLIENT_SECRET`; gitignored via `*.local`). The launcher's Settings
+dialog writes that file (`get_settings`/`set_settings` in `main.rs`); the
+script only reads it and points at Settings when it is missing. The dmg holds
+`Houdini.pkg`, installed with `installer -pkg ... -target /`. The Apprentice
+license cannot be scripted: a post-install dialog explains the License
+Administrator -> "Activate Apprentice" step and offers to open Houdini; no
+account is required. That dialog is shown only when `SUDO_ASKPASS` is set,
+which the launcher alone does, so it doubles as "a GUI is present".
+`outdated` is never set for this kind; Update simply installs the latest.
+`sidefxlabs.sh` takes Labs from GitHub releases (tags match Houdini
+`X.Y.ZZZ`) into `~/Library/Preferences/houdini/<X.Y>/packages/`
 and records the tag in `.ops-tag` for its own already-current check.
 
 ### Dotfiles
