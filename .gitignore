@@ -21,3 +21,8 @@
 *~
 .idea/
 .vscode/
+
+# App launcher build output
+app/node_modules/
+app/src-tauri/target/
+app/src-tauri/gen/
