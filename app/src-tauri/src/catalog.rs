@@ -19,6 +19,8 @@ pub struct App {
     /// An installed app with a newer version available.
     pub outdated: bool,
     pub homepage: Option<String>,
+    /// SPDX identifier from `brew info`, when known.
+    pub license: Option<String>,
     /// data URL
     pub icon: Option<String>,
     pub launchable: bool,
@@ -41,6 +43,7 @@ impl App {
             installed: false,
             outdated: false,
             homepage: None,
+            license: None,
             icon: None,
             launchable: false,
             token: token.to_string(),

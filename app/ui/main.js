@@ -153,6 +153,12 @@ function tileEl(app) {
   label.textContent = app.name;
 
   tile.append(icon, label);
+  if (app.license) {
+    const license = document.createElement("span");
+    license.className = "license";
+    license.textContent = app.license;
+    tile.append(license);
+  }
   // A <button> already activates on Enter and Space.
   tile.onclick = () => {
     if (inflight.has(app.id)) return;
@@ -556,8 +562,16 @@ async function load(command) {
   render();
 }
 
+const logToggleEl = document.getElementById("log-toggle");
+function setDrawer(open) {
+  drawerEl.hidden = !open;
+  logToggleEl.title = open ? "Hide log" : "Show log";
+  logToggleEl.classList.toggle("on", open);
+}
+logToggleEl.onclick = () => setDrawer(drawerEl.hidden);
+
 function logLine(line) {
-  drawerEl.hidden = false;
+  setDrawer(true);
   logEl.textContent = (logEl.textContent + line + "\n").split("\n").slice(-200).join("\n");
   logEl.scrollTop = logEl.scrollHeight;
 }

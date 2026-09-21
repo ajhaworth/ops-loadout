@@ -303,6 +303,16 @@ summary .n { color: var(--dim); font-weight: 400; margin-left: 6px; }
   word-break: break-word;
 }
 
+.license {
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--pill-bg);
+  color: var(--dim);
+  font-size: 9px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 #menu {
   position: fixed;
   z-index: 10;
@@ -361,10 +371,11 @@ summary .n { color: var(--dim); font-weight: 400; margin-left: 6px; }
   border-top: 1px solid var(--line);
   background: var(--chip);
 }
-/* Floats over the drawer's bottom-right corner so it stays put while the
-   log scrolls underneath. */
-#copy {
-  position: absolute;
+/* Float over the window's bottom-right corner so they stay put while the
+   log scrolls underneath. The toggle is always there; Copy sits to its left
+   and only exists while the drawer is open. */
+.float {
+  position: fixed;
   bottom: 8px;
   right: 14px;
   z-index: 1;
@@ -379,7 +390,9 @@ summary .n { color: var(--dim); font-weight: 400; margin-left: 6px; }
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
   cursor: pointer;
 }
-#copy:hover { color: var(--fg); }
+.float:hover { color: var(--fg); }
+#copy { right: 48px; }
+#log-toggle.on { color: #3478f6; }
 
 #log {
   margin: 0;
