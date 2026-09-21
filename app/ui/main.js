@@ -807,42 +807,58 @@ try {
 } catch { /* default */ }
 searchEl.oninput = render;
 updateAllEl.onclick = updateAll;
-document.getElementById("refresh").onclick = () => {
-  load("refresh");
+async function doRefresh() {
+  await load("refresh");
   if (tasks.size) refreshSetup();
-};
-document.getElementById("settings").onclick = async () => {
+}
+document.getElementById("refresh").onclick = doRefresh;
+
+// The profile value in effect when the dialog was last opened, so onclose can
+// tell whether the user actually changed it.
+let profileAtOpen = "";
+
+// Shared by the toolbar button and the first-launch prompt. Accepts an
+// already-fetched settings object to avoid a redundant invoke on startup.
+async function openSettingsDialog(settings) {
+  settings ??= await invoke("get_settings");
+  document.getElementById("sidefx-id").value = settings.sidefx_client_id;
+  document.getElementById("sidefx-secret").value = settings.sidefx_client_secret;
+  const profileEl = document.getElementById("profile");
+  profileEl.replaceChildren(new Option("None (everything enabled)", ""));
+  settings.profiles.forEach((p) => profileEl.append(new Option(p, p)));
+  profileEl.value = settings.profile;
+  profileAtOpen = profileEl.value;
+  // The plugin owns this one; it is not part of get_settings.
   try {
-    const settings = await invoke("get_settings");
-    document.getElementById("sidefx-id").value = settings.sidefx_client_id;
-    document.getElementById("sidefx-secret").value = settings.sidefx_client_secret;
-    const profileEl = document.getElementById("profile");
-    profileEl.replaceChildren(new Option("None (everything enabled)", ""));
-    settings.profiles.forEach((p) => profileEl.append(new Option(p, p)));
-    profileEl.value = settings.profile;
-    // The plugin owns this one; it is not part of get_settings.
-    try {
-      document.getElementById("autostart").checked = await invoke("plugin:autostart|is_enabled");
-    } catch (e) {
-      logLine(String(e));
-    }
-    // Escape leaves the previous value in place, which would re-save on close.
-    settingsEl.returnValue = "";
-    settingsEl.showModal();
+    document.getElementById("autostart").checked = await invoke("plugin:autostart|is_enabled");
   } catch (e) {
     logLine(String(e));
   }
-};
+  // Escape leaves the previous value in place, which would re-save on close.
+  settingsEl.returnValue = "";
+  settingsEl.showModal();
+}
+
+document.getElementById("settings").onclick = () =>
+  openSettingsDialog().catch((e) => logLine(String(e)));
 document.getElementById("sidefx-open").onclick = () =>
   invoke("open_url", { url: "https://www.sidefx.com/oauth2/applications/" })
     .catch((e) => logLine(String(e)));
-settingsEl.onclose = async () => {
-  if (settingsEl.returnValue !== "save") return;
+// init() awaits this so the first catalog load cannot race the save/refresh.
+let settingsClosing = Promise.resolve(false);
+settingsEl.onclose = () => { settingsClosing = handleSettingsClose(); };
+// Resolves true when it already refreshed the catalog.
+async function handleSettingsClose() {
+  // A deliberate close (Save or Cancel) counts as having made a choice, so a
+  // personal Mac that picks "None" is not prompted again on the next launch.
+  try { localStorage.setItem("profileChosen", "1"); } catch { /* not persisted */ }
+  if (settingsEl.returnValue !== "save") return false;
   try {
+    const profile = document.getElementById("profile").value;
     await invoke("set_settings", {
       sidefxClientId: document.getElementById("sidefx-id").value,
       sidefxClientSecret: document.getElementById("sidefx-secret").value,
-      profile: document.getElementById("profile").value,
+      profile,
     });
     // Separate from set_settings, so a failure here still saves the rest.
     try {
@@ -852,14 +868,35 @@ settingsEl.onclose = async () => {
       logLine(String(e));
     }
     logLine("Settings saved");
+    // A profile change re-filters the catalog; otherwise just re-check tasks.
+    if (profile !== profileAtOpen) { await doRefresh(); return true; }
     if (tasks.size) refreshSetup();
   } catch (e) {
     logLine(String(e));
   }
-};
+  return false;
+}
 document.getElementById("copy").onclick = async (e) => {
   await navigator.clipboard.writeText(logEl.textContent);
   e.target.textContent = "Copied";
   setTimeout(() => (e.target.textContent = "Copy"), 1200);
 };
-load("list_apps");
+
+// First launch: no saved profile and the picker has never been dismissed
+// before, so ask before showing the (unfiltered) catalog.
+async function init() {
+  try {
+    const settings = await invoke("get_settings");
+    let chosen = false;
+    try { chosen = localStorage.getItem("profileChosen") === "1"; } catch { /* default */ }
+    if (!settings.profile && !chosen) {
+      await openSettingsDialog(settings);
+      await new Promise((resolve) => settingsEl.addEventListener("close", resolve, { once: true }));
+      if (await settingsClosing) return; // Save with a profile already refreshed
+    }
+  } catch (e) {
+    logLine(String(e));
+  }
+  load("list_apps");
+}
+init();

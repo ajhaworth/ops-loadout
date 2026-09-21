@@ -34,18 +34,24 @@ test_macos_installer_scripts() {
     local compositor="$REPO_ROOT/platforms/macos/installers/compositor.sh"
     local moonlight="$REPO_ROOT/platforms/macos/installers/moonlight-nightly.sh"
     local blender="$REPO_ROOT/platforms/macos/installers/blender.sh"
+    local fork="$REPO_ROOT/platforms/macos/installers/fork.sh"
+    local ghostty="$REPO_ROOT/platforms/macos/installers/ghostty.sh"
 
     [[ -x "$houdini" ]] || fail "houdini.sh is not executable"
     [[ -x "$labs" ]] || fail "sidefxlabs.sh is not executable"
     [[ -x "$compositor" ]] || fail "compositor.sh is not executable"
     [[ -x "$moonlight" ]] || fail "moonlight-nightly.sh is not executable"
     [[ -x "$blender" ]] || fail "blender.sh is not executable"
+    [[ -x "$fork" ]] || fail "fork.sh is not executable"
+    [[ -x "$ghostty" ]] || fail "ghostty.sh is not executable"
 
     bash -n "$houdini" || fail "houdini.sh has a syntax error"
     bash -n "$labs" || fail "sidefxlabs.sh has a syntax error"
     bash -n "$compositor" || fail "compositor.sh has a syntax error"
     bash -n "$moonlight" || fail "moonlight-nightly.sh has a syntax error"
     bash -n "$blender" || fail "blender.sh has a syntax error"
+    bash -n "$fork" || fail "fork.sh has a syntax error"
+    bash -n "$ghostty" || fail "ghostty.sh has a syntax error"
 
     # A Blender we did not install (cask, manual download) must read as absent:
     # status requires our own portable symlink. Skipped when this machine has it.
@@ -102,7 +108,7 @@ test_supported_dry_runs() {
             run_capture "$REPO_ROOT/setup.sh" --dry-run --profile personal || fail "personal dry-run failed"
             assert_contains "$RUN_OUTPUT" "Workstation setup finished successfully"
 
-            run_capture "$REPO_ROOT/setup.sh" --dry-run --profile work || fail "work dry-run failed"
+            run_capture "$REPO_ROOT/setup.sh" --dry-run --profile workstation || fail "workstation dry-run failed"
             assert_contains "$RUN_OUTPUT" "Workstation setup finished successfully"
             ;;
         Linux)
@@ -306,15 +312,15 @@ for row in data:
 ' "$section" || fail "lib/tasks.sh status $section produced invalid rows"
     done
 
-    local work_rows
-    work_rows="$("$REPO_ROOT/lib/tasks.sh" status defaults --profile work 2>/dev/null)" \
-        || fail "lib/tasks.sh status defaults --profile work failed"
+    local workstation_rows
+    workstation_rows="$("$REPO_ROOT/lib/tasks.sh" status defaults --profile workstation 2>/dev/null)" \
+        || fail "lib/tasks.sh status defaults --profile workstation failed"
 
-    printf '%s' "$work_rows" | python3 -c '
+    printf '%s' "$workstation_rows" | python3 -c '
 import json, sys
 data = json.loads(sys.stdin.read())
 assert isinstance(data, list) and len(data) > 0, "expected a non-empty list"
-' || fail "lib/tasks.sh status defaults --profile work produced invalid JSON"
+' || fail "lib/tasks.sh status defaults --profile workstation produced invalid JSON"
 }
 
 test_json_str_escaping() {

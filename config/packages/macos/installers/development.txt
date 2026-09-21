@@ -1,0 +1,5 @@
+# development.txt - Apps with no Homebrew cask, installed by platforms/macos/installers/<token>.sh
+# token | display-name | homepage
+
+fork    | Fork    | https://git-fork.com
+ghostty | Ghostty | https://ghostty.org

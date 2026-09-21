@@ -27,9 +27,25 @@ Each installs its own toolchain deps (Homebrew/Node/Rust on macOS; winget,
 Node, Rust and the VC++ Build Tools on Windows) before building the app, so a
 bare checkout is enough.
 
-On macOS, the app is unsigned: the first launch is blocked by Gatekeeper, so
-right-click (or Control-click) `Ops Launcher.app` in `/Applications` and
-choose **Open** once to trust it.
+A prebuilt macOS app is attached to each
+[GitHub release](https://github.com/ajhaworth/ops-workstation/releases)
+(`.github/workflows/release.yml`, run on every `v*` tag). It is standalone -
+no checkout needed. The release carries `config/`, `lib/` and `platforms/`
+inside the app and copies them out on first launch to a working copy at
+`~/Library/Application Support/dev.alx.ops-launcher/repo`, which is where its
+scripts then read and write. Each app update refreshes that copy without
+deleting anything already in it, so local state survives.
+
+A git checkout at `~/Developer/ops/ops-desktop` takes precedence over the
+copied one, so development still edits the repo live.
+
+On macOS, the app is unsigned: the first launch is blocked by Gatekeeper.
+Open it once from System Settings > Privacy & Security > **Open Anyway**, or
+clear the quarantine flag on a downloaded copy:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Ops Launcher.app"
+```
 
 Once installed, use the app instead of the CLI:
 - **Apps tab** — browse and install/update packages (Homebrew, GitHub
@@ -67,9 +83,9 @@ Profiles control which package categories get installed. Edit `config/profiles/*
 
 Full installation for personal macOS devices including all package categories, Mac App Store apps, and system preferences.
 
-### Work (`--profile work`)
+### Workstation (`--profile workstation`)
 
-Minimal installation for work macOS devices - core development tools only, skips media/graphics apps and Mac App Store.
+Work Mac, driven from the Ops Launcher: Blender, Houdini, Fork and Ghostty (installer scripts) plus the core and shell CLI formulae, no casks, no MAS apps, no system preferences. Terminal dotfiles (bash, starship, Ghostty) apply; zshrc and gitconfig are left alone.
 
 ### Linux (`--profile linux`)
 
