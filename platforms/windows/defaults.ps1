@@ -82,37 +82,34 @@ function Invoke-Defaults {
 
     Reset-RegistryResults
 
-    foreach ($file in $files) {
-        $category = $file.BaseName
-        $varName = Get-CategoryVar -Prefix 'DEFAULTS' -Category $category
+    # Invoke-DefaultsModules (lib\windows\registry.psm1) does the discovery,
+    # gating and invocation - the same loop bridge.ps1 uses for the launcher's
+    # Setup tab. This just narrates it.
+    $modules = @(Invoke-DefaultsModules -ProfileConfig $config -RepoRoot $repoRoot -DryRun:$DryRun)
 
-        if (-not (Test-ProfileFlag -Profile $config -Flag $varName)) {
-            Write-Skip "$category (disabled by $varName)"
+    foreach ($module in $modules) {
+        if (-not $module.Enabled) {
+            Write-Skip "$($module.Module) (disabled by $($module.VarName))"
             continue
         }
 
-        Write-Step $category
+        Write-Step $module.Module
 
-        . $file.FullName
-
-        $funcName = Get-ApplyFunctionName -BaseName $category
-        $func = Get-Command -Name $funcName -CommandType Function -ErrorAction SilentlyContinue
-        if ($null -eq $func) {
-            Write-Warn "$($file.Name) does not define $funcName - skipping"
+        if ($module.MissingFunc) {
+            Write-Warn "$($module.Module).ps1 does not define $($module.FuncName) - skipping"
             continue
         }
 
-        try {
-            # Every module takes -ProfileConfig so it can read profile
-            # variables (e.g. COMFYUI_MODEL_PATH) without re-reading the file.
-            & $funcName -ProfileConfig $config -DryRun:$DryRun
-        } catch {
-            Write-Err "$category failed: $_"
+        if ($module.Error) {
+            Write-Err "$($module.Module) failed: $($module.Error)"
         }
     }
 
     $results = Get-RegistryResults
     $changed = $results.Changed.Count
+    # Admin-gated settings are unchanged same as any other skip, so they count
+    # toward the same "Skipped" line the CLI has always printed.
+    $skipped = $results.Skipped.Count + $results.NeedsAdmin.Count
 
     Write-Host ""
     Write-Host "--------------------------------------" -ForegroundColor DarkGray
@@ -121,7 +118,7 @@ function Invoke-Defaults {
     Write-Host "  Changed: " -NoNewline
     Write-Host $changed -ForegroundColor Green
     Write-Host "  Skipped: " -NoNewline
-    Write-Host $results.Skipped.Count -ForegroundColor DarkGray
+    Write-Host $skipped -ForegroundColor DarkGray
     if ($results.Failed.Count -gt 0) {
         Write-Host "  Failed:  " -NoNewline
         Write-Host $results.Failed.Count -ForegroundColor Red

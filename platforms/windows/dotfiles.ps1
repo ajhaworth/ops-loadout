@@ -50,15 +50,7 @@ if ($List) {
 Write-Step "Installing Dotfiles"
 
 # Check for symlink capability
-$canSymlink = $false
-try {
-    $testPath = Join-Path $env:TEMP "symlink_test_$(Get-Random)"
-    New-Item -ItemType SymbolicLink -Path $testPath -Target $env:TEMP -ErrorAction Stop | Out-Null
-    Remove-Item -LiteralPath $testPath -Force
-    $canSymlink = $true
-} catch {
-    $canSymlink = $false
-}
+$canSymlink = Test-SymlinkCapability
 
 if (-not $canSymlink -and -not $DryRun) {
     Write-Err "Cannot create symlinks. Enable Developer Mode or run as Administrator."

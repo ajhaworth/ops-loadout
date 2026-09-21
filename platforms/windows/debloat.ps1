@@ -3,10 +3,20 @@
 # Removes pre-installed Windows apps, disables Xbox services, Game DVR,
 # Game Bar protocol handlers, and suggested apps. Safe to re-run (idempotent).
 # Gated behind PROFILE_DEBLOAT flag for safety.
+#
+# Every check-then-act group below (bloat AppX list, Xbox services, Game DVR,
+# Game Bar protocols, Wake-on-LAN, suggested apps) is also its own
+# Invoke-Debloat<X>Group function returning @{ Pending; NeedsAdmin; Failed }.
+# bridge.ps1 dot-sources this file (which only defines functions - see the
+# InvocationName guard at the bottom) and calls those directly, one per
+# Setup-tab row, instead of re-running the whole script. -Only runs a single
+# group from the CLI the same way.
 
 param(
     [switch]$DryRun,
-    [switch]$Force
+    [switch]$Force,
+    [ValidateSet('', 'bloat', 'xbox', 'gamedvr', 'gamebar', 'wol', 'suggested')]
+    [string]$Only = ''
 )
 
 $ErrorActionPreference = "Stop"
@@ -88,9 +98,20 @@ $XboxApps = @(
     "Microsoft.XboxSpeechToTextOverlay"
 )
 
-# Win32 apps to uninstall via winget (not AppX packages)
+# Win32 apps to uninstall via winget (not AppX packages). Not one of the six
+# Setup-tab groups below - it stays a plain stage in the full run.
 $WingetAppsToRemove = @(
     "Microsoft.OneDrive"
+)
+
+$XboxServiceNames = @("XblAuthManager", "XblGameSave", "XboxGipSvc", "XboxNetApiSvc")
+
+$WakeOnLanSettings = @(
+    @{ Name = "Wake on Magic Packet";      Desired = "Enabled" }
+    @{ Name = "Wake on Pattern Match";     Desired = "Disabled" }
+    @{ Name = "Wake from power off state"; Desired = "Enabled" }
+    @{ Name = "Wake on Link";              Desired = "Disabled" }
+    @{ Name = "Wake on Ping";              Desired = "Disabled" }
 )
 
 # --- Functions ---
@@ -98,7 +119,8 @@ $WingetAppsToRemove = @(
 function Remove-BloatApp {
     param(
         [Parameter(Mandatory)]
-        [string]$AppName
+        [string]$AppName,
+        [switch]$DryRun
     )
 
     $app = Get-AppxPackage -Name $AppName -ErrorAction SilentlyContinue
@@ -126,7 +148,8 @@ function Remove-BloatApp {
 function Remove-ProvisionedApp {
     param(
         [Parameter(Mandatory)]
-        [string]$AppName
+        [string]$AppName,
+        [switch]$DryRun
     )
 
     $provisioned = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue |
@@ -149,10 +172,34 @@ function Remove-ProvisionedApp {
     }
 }
 
+# ponytail: pending/failed counts here are best-effort - Set-Service and
+# Remove-AppxProvisionedPackage need Administrator but this does not
+# specifically detect an access-denied failure the way registry.psm1 does, so
+# NeedsAdmin always reports $false for these three groups. Upgrade path: teach
+# them Test-AccessDeniedError if the Setup tab needs to be precise here.
+
+function Invoke-DebloatBloatGroup {
+    param([switch]$DryRun)
+
+    $pending = 0
+    $failedCount = 0
+    foreach ($app in ($BloatwareApps + $XboxApps)) {
+        if (Get-AppxPackage -Name $app -ErrorAction SilentlyContinue) { $pending++ }
+        if (Remove-BloatApp -AppName $app -DryRun:$DryRun) {
+            Remove-ProvisionedApp -AppName $app -DryRun:$DryRun
+        } else {
+            $failedCount++
+        }
+    }
+
+    return @{ Pending = $pending; NeedsAdmin = $false; Failed = $failedCount }
+}
+
 function Remove-WingetApp {
     param(
         [Parameter(Mandatory)]
-        [string]$PackageId
+        [string]$PackageId,
+        [switch]$DryRun
     )
 
     $result = winget list --id $PackageId --exact --accept-source-agreements 2>$null
@@ -175,10 +222,11 @@ function Remove-WingetApp {
 }
 
 function Disable-XboxServices {
+    param([switch]$DryRun)
+
     Write-SubStep "Xbox services"
 
-    $xboxServices = @("XblAuthManager", "XblGameSave", "XboxGipSvc", "XboxNetApiSvc")
-    foreach ($svc in $xboxServices) {
+    foreach ($svc in $XboxServiceNames) {
         $service = Get-Service -Name $svc -ErrorAction SilentlyContinue
         if (-not $service -or $service.StartType -eq 'Disabled') {
             Write-Skip "Service $svc already disabled or not found"
@@ -217,7 +265,25 @@ function Disable-XboxServices {
     }
 }
 
+function Invoke-DebloatXboxGroup {
+    param([switch]$DryRun)
+
+    $pending = 0
+    foreach ($svc in $XboxServiceNames) {
+        $service = Get-Service -Name $svc -ErrorAction SilentlyContinue
+        if ($service -and $service.StartType -ne 'Disabled') { $pending++ }
+    }
+    $task = Get-ScheduledTask -TaskPath '\Microsoft\XblGameSave\' -TaskName 'XblGameSaveTask' -ErrorAction SilentlyContinue
+    if ($task -and $task.State -ne 'Disabled') { $pending++ }
+
+    Disable-XboxServices -DryRun:$DryRun
+
+    return @{ Pending = $pending; NeedsAdmin = $false; Failed = 0 }
+}
+
 function Disable-GameDvr {
+    param([switch]$DryRun)
+
     $gameDvrSettings = @(
         @{ Path = "HKCU:\System\GameConfigStore";                                  Name = "GameDVR_Enabled";           Value = 0 }
         @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR";             Name = "AllowGameDVR";              Value = 0 }
@@ -230,7 +296,28 @@ function Disable-GameDvr {
     Set-RegistryValueSet -Settings $gameDvrSettings -DryRun:$DryRun
 }
 
+# Registry-based groups already report through registry.psm1's buckets, so
+# their status is a before/after diff of Get-RegistryResults rather than a
+# second, separately-maintained counter.
+function Invoke-DebloatGameDvrGroup {
+    param([switch]$DryRun)
+
+    $before = Get-RegistryResults
+    $counts = @{ Pending = $before.Pending.Count; Failed = $before.Failed.Count; NeedsAdmin = $before.NeedsAdmin.Count }
+
+    Disable-GameDvr -DryRun:$DryRun
+
+    $after = Get-RegistryResults
+    return @{
+        Pending    = $after.Pending.Count - $counts.Pending
+        Failed     = $after.Failed.Count - $counts.Failed
+        NeedsAdmin = ($after.NeedsAdmin.Count - $counts.NeedsAdmin) -gt 0
+    }
+}
+
 function Remove-GameBarProtocols {
+    param([switch]$DryRun)
+
     $protocols = @("ms-gamebar", "ms-gamebarservices", "ms-gamingoverlay")
     foreach ($protocol in $protocols) {
         Remove-RegistryKey -Path "Registry::HKEY_CLASSES_ROOT\$protocol" `
@@ -238,7 +325,25 @@ function Remove-GameBarProtocols {
     }
 }
 
+function Invoke-DebloatGameBarGroup {
+    param([switch]$DryRun)
+
+    $before = Get-RegistryResults
+    $counts = @{ Pending = $before.Pending.Count; Failed = $before.Failed.Count; NeedsAdmin = $before.NeedsAdmin.Count }
+
+    Remove-GameBarProtocols -DryRun:$DryRun
+
+    $after = Get-RegistryResults
+    return @{
+        Pending    = $after.Pending.Count - $counts.Pending
+        Failed     = $after.Failed.Count - $counts.Failed
+        NeedsAdmin = ($after.NeedsAdmin.Count - $counts.NeedsAdmin) -gt 0
+    }
+}
+
 function Disable-SuggestedApps {
+    param([switch]$DryRun)
+
     $regPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
 
     $names = @(
@@ -268,9 +373,31 @@ function Disable-SuggestedApps {
     Set-RegistryValueSet -Settings $settings -DryRun:$DryRun
 }
 
+function Invoke-DebloatSuggestedGroup {
+    param([switch]$DryRun)
+
+    $before = Get-RegistryResults
+    $counts = @{ Pending = $before.Pending.Count; Failed = $before.Failed.Count; NeedsAdmin = $before.NeedsAdmin.Count }
+
+    Disable-SuggestedApps -DryRun:$DryRun
+
+    $after = Get-RegistryResults
+    return @{
+        Pending    = $after.Pending.Count - $counts.Pending
+        Failed     = $after.Failed.Count - $counts.Failed
+        NeedsAdmin = ($after.NeedsAdmin.Count - $counts.NeedsAdmin) -gt 0
+    }
+}
+
+# Find Marvell AQtion 10GbE adapter by description (avoids hardcoding "Ethernet 3")
+function Get-WakeOnLanAdapter {
+    return Get-NetAdapter | Where-Object { $_.InterfaceDescription -match 'AQtion' }
+}
+
 function Fix-WakeOnLan {
-    # Find Marvell AQtion 10GbE adapter by description (avoids hardcoding "Ethernet 3")
-    $adapter = Get-NetAdapter | Where-Object { $_.InterfaceDescription -match 'AQtion' }
+    param([switch]$DryRun)
+
+    $adapter = Get-WakeOnLanAdapter
 
     if (-not $adapter) {
         Write-Skip "Marvell AQtion adapter not found"
@@ -279,16 +406,7 @@ function Fix-WakeOnLan {
 
     $adapterName = $adapter.Name
 
-    # Desired wake settings: only magic packet enabled (for Moonlight WoL)
-    $wakeSettings = @(
-        @{ Name = "Wake on Magic Packet";      Desired = "Enabled" }
-        @{ Name = "Wake on Pattern Match";     Desired = "Disabled" }
-        @{ Name = "Wake from power off state"; Desired = "Enabled" }
-        @{ Name = "Wake on Link";              Desired = "Disabled" }
-        @{ Name = "Wake on Ping";              Desired = "Disabled" }
-    )
-
-    foreach ($setting in $wakeSettings) {
+    foreach ($setting in $WakeOnLanSettings) {
         $prop = Get-NetAdapterAdvancedProperty -Name $adapterName -DisplayName $setting.Name -ErrorAction SilentlyContinue
         if (-not $prop) {
             Write-Skip "$($setting.Name) not available on $adapterName"
@@ -314,79 +432,118 @@ function Fix-WakeOnLan {
     }
 }
 
-# --- Main ---
+function Invoke-DebloatWolGroup {
+    param([switch]$DryRun)
 
-if (-not (Test-IsWindowsPlatform)) {
-    Write-Err "This script only runs on Windows."
-    exit 1
-}
-
-if (-not (Test-Administrator)) {
-    Write-Warn "Some operations require administrator privileges."
-}
-
-Reset-RegistryResults
-$failed = 0
-
-# Stage 1: Remove AppX bloatware
-Write-Step "Removing AppX Bloatware"
-
-$allApps = $BloatwareApps + $XboxApps
-foreach ($app in $allApps) {
-    if (Remove-BloatApp -AppName $app) {
-        Remove-ProvisionedApp -AppName $app
-    } else {
-        $failed++
+    $pending = 0
+    $adapter = Get-WakeOnLanAdapter
+    if ($adapter) {
+        foreach ($setting in $WakeOnLanSettings) {
+            $prop = Get-NetAdapterAdvancedProperty -Name $adapter.Name -DisplayName $setting.Name -ErrorAction SilentlyContinue
+            if ($prop -and $prop.DisplayValue -ne $setting.Desired) { $pending++ }
+        }
     }
+
+    Fix-WakeOnLan -DryRun:$DryRun
+
+    return @{ Pending = $pending; NeedsAdmin = $false; Failed = 0 }
 }
 
-# Stage 2: Remove Win32 apps via winget
-Write-Step "Removing Win32 Applications"
+# --- Main ---
+#
+# Wrapped in a function, called only when this file is run directly (not
+# dot-sourced), so bridge.ps1 can `. debloat.ps1` to pick up the functions
+# above without triggering a full bloatware removal run as a side effect.
 
-foreach ($pkg in $WingetAppsToRemove) {
-    Remove-WingetApp -PackageId $pkg
+function Invoke-DebloatMain {
+    param(
+        [switch]$DryRun,
+        [switch]$Force,
+        [string]$Only = ''
+    )
+
+    if (-not (Test-IsWindowsPlatform)) {
+        Write-Err "This script only runs on Windows."
+        exit 1
+    }
+
+    if (-not (Test-Administrator)) {
+        Write-Warn "Some operations require administrator privileges."
+    }
+
+    Reset-RegistryResults
+    $failed = 0
+    $allApps = $BloatwareApps + $XboxApps
+
+    if ($Only) {
+        $status = switch ($Only) {
+            'bloat'     { Invoke-DebloatBloatGroup -DryRun:$DryRun }
+            'xbox'      { Invoke-DebloatXboxGroup -DryRun:$DryRun }
+            'gamedvr'   { Invoke-DebloatGameDvrGroup -DryRun:$DryRun }
+            'gamebar'   { Invoke-DebloatGameBarGroup -DryRun:$DryRun }
+            'wol'       { Invoke-DebloatWolGroup -DryRun:$DryRun }
+            'suggested' { Invoke-DebloatSuggestedGroup -DryRun:$DryRun }
+        }
+        if ($status.Failed -gt 0) { exit 1 }
+        exit 0
+    }
+
+    # Stage 1: Remove AppX bloatware
+    Write-Step "Removing AppX Bloatware"
+    $bloatStatus = Invoke-DebloatBloatGroup -DryRun:$DryRun
+    $failed += $bloatStatus.Failed
+
+    # Stage 2: Remove Win32 apps via winget
+    Write-Step "Removing Win32 Applications"
+    foreach ($pkg in $WingetAppsToRemove) {
+        Remove-WingetApp -PackageId $pkg -DryRun:$DryRun
+    }
+
+    # Stage 3: Disable Xbox services and tasks
+    Write-Step "Disabling Xbox Services"
+    Invoke-DebloatXboxGroup -DryRun:$DryRun | Out-Null
+
+    # Stage 4: Disable Game DVR and Game Bar (fixes ms-gamebar protocol errors)
+    Write-Step "Disabling Game DVR and Game Bar"
+    Invoke-DebloatGameDvrGroup -DryRun:$DryRun | Out-Null
+
+    # Stage 5: Remove Game Bar protocol handlers (prevents "find an app" popup)
+    Write-Step "Removing Game Bar Protocol Handlers"
+    Invoke-DebloatGameBarGroup -DryRun:$DryRun | Out-Null
+
+    # Stage 6: Fix Wake on LAN (prevents unwanted wakes from pattern match)
+    Write-Step "Configuring Wake on LAN"
+    Invoke-DebloatWolGroup -DryRun:$DryRun | Out-Null
+
+    # Stage 7: Disable suggested apps
+    Write-Step "Disabling Suggested Apps"
+    Invoke-DebloatSuggestedGroup -DryRun:$DryRun | Out-Null
+
+    # Summary
+    Write-Host ""
+    Write-Host "--------------------------------------" -ForegroundColor DarkGray
+    Write-Host "Debloat Summary" -ForegroundColor White
+    Write-Host "--------------------------------------" -ForegroundColor DarkGray
+    $registryResults = Get-RegistryResults
+    Write-Host "  AppX processed:    $($allApps.Count)"
+    Write-Host "  Registry changed:  $($registryResults.Changed.Count)"
+    Write-Host "  Registry unchanged: $($registryResults.Skipped.Count + $registryResults.NeedsAdmin.Count)"
+    if ($failed -gt 0) {
+        Write-Host "  AppX failed:       $failed" -ForegroundColor Yellow
+    }
+    if ($registryResults.Failed.Count -gt 0) {
+        Write-Host "  Registry failed:   $($registryResults.Failed.Count)" -ForegroundColor Yellow
+    }
+    Write-Host ""
+
+    # AppX removal failures are common and mostly benign (provisioned-only apps,
+    # apps owned by another user). Only registry failures fail the stage.
+    if ($registryResults.Failed.Count -gt 0) {
+        exit 1
+    }
+    exit 0
 }
 
-# Stage 3: Disable Xbox services and tasks
-Write-Step "Disabling Xbox Services"
-Disable-XboxServices
-
-# Stage 4: Disable Game DVR and Game Bar (fixes ms-gamebar protocol errors)
-Write-Step "Disabling Game DVR and Game Bar"
-Disable-GameDvr
-
-# Stage 5: Remove Game Bar protocol handlers (prevents "find an app" popup)
-Write-Step "Removing Game Bar Protocol Handlers"
-Remove-GameBarProtocols
-
-# Stage 6: Fix Wake on LAN (prevents unwanted wakes from pattern match)
-Write-Step "Configuring Wake on LAN"
-Fix-WakeOnLan
-
-# Stage 7: Disable suggested apps
-Write-Step "Disabling Suggested Apps"
-Disable-SuggestedApps
-
-# Summary
-Write-Host ""
-Write-Host "--------------------------------------" -ForegroundColor DarkGray
-Write-Host "Debloat Summary" -ForegroundColor White
-Write-Host "--------------------------------------" -ForegroundColor DarkGray
-$registryResults = Get-RegistryResults
-Write-Host "  AppX processed:    $($allApps.Count)"
-Write-Host "  Registry changed:  $($registryResults.Changed.Count)"
-Write-Host "  Registry unchanged: $($registryResults.Skipped.Count)"
-if ($failed -gt 0) {
-    Write-Host "  AppX failed:       $failed" -ForegroundColor Yellow
+if ($MyInvocation.InvocationName -ne '.') {
+    Invoke-DebloatMain -DryRun:$DryRun -Force:$Force -Only $Only
 }
-if ($registryResults.Failed.Count -gt 0) {
-    Write-Host "  Registry failed:   $($registryResults.Failed.Count)" -ForegroundColor Yellow
-}
-Write-Host ""
-
-# AppX removal failures are common and mostly benign (provisioned-only apps,
-# apps owned by another user). Only registry failures fail the stage.
-if ($registryResults.Failed.Count -gt 0) {
-    exit 1
-}
-exit 0
