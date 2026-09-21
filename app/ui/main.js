@@ -318,16 +318,20 @@ function countStates(items) {
   };
 }
 
+// "3 applied", "1 failed", ... for the nonzero states only.
+function summaryText(c) {
+  return [
+    c.applied && `${c.applied} applied`,
+    c.pending && `${c.pending} pending`,
+    c.failed && `${c.failed} failed`,
+  ].filter(Boolean);
+}
+
 // Small tinted pills for a state breakdown; only nonzero states render.
 function countPills(items) {
-  const c = countStates(items);
-  return [
-    c.applied && ["applied", `${c.applied} applied`],
-    c.pending && ["pending", `${c.pending} pending`],
-    c.failed && ["failed", `${c.failed} failed`],
-  ].filter(Boolean).map(([cls, text]) => {
+  return summaryText(countStates(items)).map((text) => {
     const span = document.createElement("span");
-    span.className = `pill pill-${cls}`;
+    span.className = `pill pill-${text.split(" ")[1]}`;
     span.textContent = text;
     return span;
   });
@@ -496,14 +500,9 @@ function setupEls(q) {
   bar.className = "setup-bar";
 
   const all = sections.flatMap((s) => tasks.get(s.id)?.items || []);
-  const c = countStates(all);
   const summary = document.createElement("span");
   summary.className = "setup-summary";
-  summary.textContent = [
-    c.applied && `${c.applied} applied`,
-    c.pending && `${c.pending} pending`,
-    c.failed && `${c.failed} failed`,
-  ].filter(Boolean).join(" \u00b7 ");
+  summary.textContent = summaryText(countStates(all)).join(" \u00b7 ");
   bar.append(summary);
 
   const runEverythingBtn = document.createElement("button");
@@ -672,7 +671,11 @@ function menuItems(app) {
     if (app.launchable) items.push({ label: "Open", run: () => call("launch", app) });
     // ponytail: hardcoded; add a page column to installers/*.txt when a second DCC needs one.
     if (app.id === "installer:blender")
-      items.push({ label: "Keymap", run: () => invoke("open_page", { path: "dcc/blender/keymap.html" }) });
+      items.push({
+        label: "Keymap",
+        run: () =>
+          invoke("open_page", { path: "dcc/blender/keymap.html" }).catch((e) => logLine(String(e))),
+      });
     if (!app.outdated) items.push(update);
     if (app.kind !== "mas") items.push({ label: "Reinstall", run: job("reinstall") });
     if (app.launchable) items.push({ label: REVEAL, run: () => call("reveal", app) });
