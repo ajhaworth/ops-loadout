@@ -60,10 +60,14 @@ fn read_config(app: &AppHandle) -> Config {
 fn write_config(app: &AppHandle, config: &Config) {
     let Some(path) = config_file(app) else { return };
     if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            eprintln!("config dir {}: {e}", dir.display());
+        }
     }
     if let Ok(body) = serde_json::to_string(config) {
-        let _ = std::fs::write(path, body);
+        if let Err(e) = std::fs::write(&path, body) {
+            eprintln!("config write {}: {e}", path.display());
+        }
     }
 }
 
