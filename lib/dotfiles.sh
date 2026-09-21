@@ -255,13 +255,7 @@ cmd_dotfiles_ls() {
             fi
         fi
 
-        # Make paths absolute
-        local abs_source="$source"
-        if [[ "$source" != /* ]]; then
-            abs_source="$SCRIPT_DIR/$source"
-        fi
-        abs_source="$(normalize_path "$abs_source")"
-        local abs_dest="${destination/#\~/$HOME}"
+        resolve_manifest_paths "$SCRIPT_DIR" "$source" "$destination"
 
         # Shorten paths for display
         local display_source="${source#config/dotfiles/}"
@@ -269,7 +263,7 @@ cmd_dotfiles_ls() {
 
         # Check symlink status
         local status status_color
-        case "$(manifest_state "$abs_source" "$abs_dest")" in
+        case "$(manifest_state "$MANIFEST_ABS_SOURCE" "$MANIFEST_ABS_DEST")" in
             linked)
                 status="linked"
                 status_color="${GREEN}"
@@ -314,75 +308,6 @@ cmd_dotfiles_ls() {
     if [[ $count_missing -gt 0 ]] || [[ $count_wrong -gt 0 ]] || [[ $count_conflict -gt 0 ]]; then
         log_info "Run './setup.sh dotfiles' to fix issues"
         echo ""
-    fi
-}
-
-# Configure shell to set terminal title (for tmux hostname display)
-cmd_shell_title() {
-    local bashrc="$HOME/.bashrc"
-    local zshrc="$HOME/.zshrc"
-    local marker="# Terminal title for tmux"
-    local bash_config='
-# Terminal title for tmux (shows hostname in status bar)
-PROMPT_COMMAND='\''printf "\\e]2;%s\\a" "$HOSTNAME"'\''${PROMPT_COMMAND:+;$PROMPT_COMMAND}'
-
-    local zsh_config='
-# Terminal title for tmux (shows hostname in status bar)
-precmd_set_title() { print -Pn "\\e]2;%m\\a" }
-autoload -Uz add-zsh-hook
-add-zsh-hook precmd precmd_set_title'
-
-    local added=false
-
-    # Configure bashrc
-    if [[ -f "$bashrc" ]]; then
-        if grep -q "$marker" "$bashrc" 2>/dev/null; then
-            log_info "bashrc already configured"
-        else
-            if is_dry_run; then
-                log_info "[DRY-RUN] Would add terminal title config to $bashrc"
-            else
-                echo "" >> "$bashrc"
-                echo "$marker" >> "$bashrc"
-                echo "$bash_config" >> "$bashrc"
-                log_success "Added terminal title config to $bashrc"
-                added=true
-            fi
-        fi
-    fi
-
-    # Configure zshrc
-    if [[ -f "$zshrc" ]]; then
-        if grep -q "$marker" "$zshrc" 2>/dev/null; then
-            log_info "zshrc already configured"
-        else
-            if is_dry_run; then
-                log_info "[DRY-RUN] Would add terminal title config to $zshrc"
-            else
-                echo "" >> "$zshrc"
-                echo "$marker" >> "$zshrc"
-                echo "$zsh_config" >> "$zshrc"
-                log_success "Added terminal title config to $zshrc"
-                added=true
-            fi
-        fi
-    fi
-
-    # Create bashrc if neither exists
-    if [[ ! -f "$bashrc" ]] && [[ ! -f "$zshrc" ]]; then
-        if is_dry_run; then
-            log_info "[DRY-RUN] Would create $bashrc with terminal title config"
-        else
-            echo "$marker" > "$bashrc"
-            echo "$bash_config" >> "$bashrc"
-            log_success "Created $bashrc with terminal title config"
-            added=true
-        fi
-    fi
-
-    if [[ "$added" == "true" ]]; then
-        echo ""
-        log_info "Restart your shell or run: source ~/.bashrc (or ~/.zshrc)"
     fi
 }
 

@@ -477,131 +477,6 @@ function Get-SpecsIn {
     return $specs
 }
 
-# Get-InstalledProgram returns only Name/Version, so re-read the Uninstall key
-# here for the launch target and the uninstall string.
-function Get-ProgramProps {
-    param([string]$DisplayName)
-
-    $roots = @(
-        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
-        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
-        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
-    )
-
-    foreach ($root in $roots) {
-        if (-not (Test-Path -LiteralPath $root)) { continue }
-        foreach ($key in @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue)) {
-            $props = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue
-            if (-not $props) { continue }
-            if ([string]$props.DisplayName -eq $DisplayName) { return $props }
-        }
-    }
-    return $null
-}
-
-function Get-ProgramExe {
-    param([string]$DisplayName)
-
-    $props = Get-ProgramProps -DisplayName $DisplayName
-    if ($null -eq $props) { return '' }
-
-    $icon = [string]$props.DisplayIcon
-    if ($icon) {
-        # "C:\path\app.exe,0"
-        $icon = ($icon -split ',')[0].Trim('"', ' ')
-        if ($icon -and (Test-Path -LiteralPath $icon)) { return $icon }
-    }
-
-    $loc = [string]$props.InstallLocation
-    if ($loc -and (Test-Path -LiteralPath $loc)) {
-        $exe = Get-ChildItem -LiteralPath $loc -Filter '*.exe' -ErrorAction SilentlyContinue |
-            Select-Object -First 1
-        if ($exe) { return $exe.FullName }
-    }
-
-    return ''
-}
-
-# Is a newer release available? This mirrors exactly how Install-GitHubRelease
-# decides to upgrade: tag against the recorded stamp when there is one, else the
-# app's own DisplayVersion with numeric cores only. A null comparison means
-# "cannot tell", which is not an update.
-function Test-GitHubOutdated {
-    param(
-        [Parameter(Mandatory)]
-        [hashtable]$Spec,
-        [string]$InstalledVersion
-    )
-
-    try {
-        $release = Get-GitHubLatestRelease -Repo $Spec.Repo
-    } catch {
-        # No network, rate limited, no releases: report nothing rather than guess.
-        return $false
-    }
-    if ($null -eq $release -or -not $release.tag_name) { return $false }
-
-    $latest = $release.tag_name -replace '^[vV]', ''
-    $stamp = Get-GitHubReleaseStamp -Repo $Spec.Repo
-
-    if ($stamp) {
-        $comparison = Compare-VersionString -Left $latest -Right ($stamp -replace '^[vV]', '')
-    } else {
-        $comparison = Compare-VersionString -Left $latest -Right $InstalledVersion -IgnorePreRelease
-    }
-
-    if ($null -eq $comparison) { return $false }
-    return ($comparison -gt 0)
-}
-
-# Run an UninstallString. These are free-form command lines, so exe and
-# arguments are split here and handed to Start-Process separately - nothing is
-# re-parsed as script.
-function Invoke-UninstallString {
-    param(
-        [string]$Command,
-        [string[]]$QuietArgs
-    )
-
-    $exe = ''
-    $rest = ''
-    if ($Command -match '^\s*"([^"]+)"\s*(.*)$') {
-        $exe = $Matches[1]; $rest = $Matches[2]
-    } elseif ($Command -match '^\s*(.*?\.exe)\s*(.*)$') {
-        $exe = $Matches[1]; $rest = $Matches[2]
-    } else {
-        $exe = $Command.Trim()
-    }
-
-    $argList = @()
-    if ($rest.Trim()) { $argList = @($rest -split '\s+' | Where-Object { $_ }) }
-
-    if ([IO.Path]::GetFileNameWithoutExtension($exe) -eq 'msiexec') {
-        # The recorded string installs (/I); the same product code uninstalls
-        # under /X, and /qn is the MSI quiet switch.
-        $argList = @($argList | ForEach-Object {
-            if ($_ -match '^[/-][Ii]$') { '/X' }
-            elseif ($_ -match '^[/-][Ii](.+)$') { '/X' + $Matches[1] }
-            else { $_ }
-        })
-        if ($argList -notcontains '/qn') { $argList += '/qn' }
-    } elseif ($QuietArgs) {
-        # ponytail: best effort - reuse the entry's own quiet flag when it looks
-        # like a switch. A bespoke uninstaller may still show a window.
-        foreach ($flag in $QuietArgs) {
-            if ($flag -match '^[/-]' -and $argList -notcontains $flag) { $argList += $flag }
-        }
-    }
-
-    Write-Host "Running: $exe $($argList -join ' ')"
-    if ($argList.Count -gt 0) {
-        $proc = Start-Process -FilePath $exe -ArgumentList $argList -Wait -PassThru
-    } else {
-        $proc = Start-Process -FilePath $exe -Wait -PassThru
-    }
-    return $proc.ExitCode
-}
-
 switch ($Verb) {
     'tasks-status' {
         $repoRoot = $Args2[0]
@@ -784,9 +659,14 @@ switch ($Verb) {
     }
 
     'icon' {
-        Add-Type -AssemblyName System.Drawing
-        $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($Args2[0])
-        if ($null -eq $icon) { exit 1 }
-        $icon.ToBitmap().Save($Args2[1], [System.Drawing.Imaging.ImageFormat]::Png)
+        try {
+            Add-Type -AssemblyName System.Drawing
+            $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($Args2[0])
+            if ($null -eq $icon) { exit 1 }
+            $icon.ToBitmap().Save($Args2[1], [System.Drawing.Imaging.ImageFormat]::Png)
+        } catch {
+            Write-Host "Failed to extract icon: $_"
+            exit 1
+        }
     }
 }

@@ -112,6 +112,13 @@ fn installer_status(repo: &Path, token: &str) -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
+/// A resolved `.app` bundle: openable, revealable and worth an icon.
+fn mark_launchable(app: &mut App, bundle: &Path, cache_dir: &Path) {
+    app.launchable = true;
+    app.target = Some(bundle.to_string_lossy().to_string());
+    app.icon = icon(bundle, &app.id, cache_dir);
+}
+
 /// Only a `.app` can be opened; anything else is still worth revealing.
 fn set_installer_target(app: &mut App, path: &Path, cache_dir: &Path) {
     app.target = Some(path.to_string_lossy().to_string());
@@ -196,9 +203,7 @@ pub fn refresh_icon(app: &mut App, cache_dir: &Path, repo: &Path, _resources: &P
         _ => None,
     };
     if let Some(bundle) = bundle {
-        app.launchable = true;
-        app.target = Some(bundle.to_string_lossy().to_string());
-        app.icon = icon(&bundle, &app.id, cache_dir);
+        mark_launchable(app, &bundle, cache_dir);
     }
 }
 
@@ -401,9 +406,7 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, _resources: &Pat
                 app.outdated = app.installed && outdated_casks.contains(&app.token);
                 if app.installed {
                     if let Some(bundle) = app.target.as_deref().and_then(bundle_path) {
-                        app.launchable = true;
-                        app.icon = icon(&bundle, &app.id, cache_dir);
-                        app.target = Some(bundle.to_string_lossy().to_string());
+                        mark_launchable(app, &bundle, cache_dir);
                     }
                 }
             }
@@ -428,9 +431,7 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, _resources: &Pat
                 app.outdated = app.installed && outdated_mas.contains(&app.token);
                 if app.installed {
                     if let Some(bundle) = mas_bundle_path(&app.name, &app.token) {
-                        app.launchable = true;
-                        app.icon = icon(&bundle, &app.id, cache_dir);
-                        app.target = Some(bundle.to_string_lossy().to_string());
+                        mark_launchable(app, &bundle, cache_dir);
                     }
                 }
             }

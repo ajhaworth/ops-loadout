@@ -116,7 +116,7 @@ do_uninstall() {
 
 case "${1:-status}" in
     status)                    do_status ;;
-    install|update|reinstall)  do_install "${1:-install}" ;;
+    install|update|reinstall)  do_install "$1" ;;
     uninstall)                 do_uninstall ;;
     *)
         echo "usage: $(basename "$0") <status|install|update|reinstall|uninstall>" >&2
