@@ -5,3 +5,4 @@ imagemagick
 poppler
 potrace
 colmap
+bjarneo/cliamp/cliamp  # Terminal music player
