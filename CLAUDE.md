@@ -327,9 +327,29 @@ the repo isn't found. So HTML/CSS/JS edits and `git pull` reach the installed
 app on the next window load; only Rust changes need `./setup.sh launcher`.
 
 Repo discovery (`find_repo`): `OPS_DESKTOP_DIR` → saved config → the checkout
-it was built from → `~/Developer/ops/ops-desktop` → folder picker. Settings
-(`repo`, `profile`) persist in the app config dir as `config.json`; the SideFX
-credentials go to `<repo>/config/sidefx.local` at mode 0600.
+it was built from → `~/Developer/ops/ops-desktop` → the copy seeded from the
+bundle → folder picker. Settings (`repo`, `profile`) persist in the app config
+dir as `config.json`; the SideFX credentials go to `<repo>/config/sidefx.local`
+at mode 0600.
+
+**A release ships the repo content, so a downloaded app needs no checkout.**
+`app/scripts/bundle-repo.js` (npm `bundle-repo`, run by the `pre*` hooks and by
+tauri-action's `beforeBuildCommand`) stages `config/`, `lib/` and `platforms/`
+into the gitignored `app/src-tauri/bundled/` via `git archive HEAD` — tracked
+files only, so gitignored Blender extensions and `*.local` can never ship — and
+`tauri.conf.json` bundles it as a resource.
+
+`seed_bundled_repo` copies that out to `<app data>/repo` on launch, because the
+scripts write back into the repo (`config/sidefx.local`, Blender's portable
+prefs) and editing the .app would break its ad-hoc seal. `.bundled-version`
+holds the app version: a mismatch re-copies, overwriting tracked files but
+**never deleting**, so local state survives an update. The seed runs before the
+candidate list is walked, since a saved path pointing at the seeded copy matches
+earlier. A real checkout still wins, so development is unaffected -
+`OPS_DESKTOP_DIR=bundled` forces the seeded copy instead, unsaved, for testing a
+release build on a machine that has one. The seeded
+copy has no `app/` — `serve_ui` finds no file there and falls back to the
+embedded UI, which is the built-in behaviour.
 
 `capabilities/default.json` grants no shell/fs plugin permissions: all process
 execution is native `std::process::Command`, so the capabilities file does not

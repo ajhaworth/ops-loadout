@@ -26,3 +26,6 @@
 app/node_modules/
 app/src-tauri/target/
 app/src-tauri/gen/
+
+# Staged copy of config/lib/platforms, rebuilt by app/scripts/bundle-repo.js
+app/src-tauri/bundled/
