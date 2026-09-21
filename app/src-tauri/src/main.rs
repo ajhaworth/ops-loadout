@@ -10,12 +10,17 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, Manager, State};
+use std::time::Instant;
+use tauri::menu::MenuBuilder;
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
 #[derive(Default)]
 struct Store {
     repo: Mutex<Option<PathBuf>>,
     apps: Mutex<Vec<App>>,
+    /// When the quick panel last hid itself on blur - see `toggle_quick`.
+    quick_hidden_at: Mutex<Option<Instant>>,
 }
 
 /// One row from `lib/tasks.sh status` / `bridge.ps1 tasks-status` - see
@@ -553,6 +558,93 @@ fn install_askpass(dir: &Path) {
     }
 }
 
+/// Bring the full launcher window up, dismissing the quick panel.
+fn show_main(app: &AppHandle) {
+    if let Some(quick) = app.get_webview_window("quick") {
+        let _ = quick.hide();
+    }
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.show();
+        let _ = main.unminimize();
+        let _ = main.set_focus();
+    }
+}
+
+/// Top-left corner for a panel of `(w, h)` centred under (or over) a tray icon
+/// at `(x, y, w, h)`, all in physical pixels. A menubar at the top of the
+/// screen (macOS) drops the panel below the icon; a taskbar at the bottom
+/// (Windows) puts it above. `monitor` is that screen's `(x, y, w, h)`, which
+/// keeps a panel hanging off the right edge on screen - tray icons live there
+/// on both platforms. `None` when the monitor is unknown: place it unclamped
+/// rather than guess at bounds.
+fn panel_origin(
+    icon: (i32, i32, i32, i32),
+    panel: (i32, i32),
+    monitor: Option<(i32, i32, i32, i32)>,
+) -> (i32, i32) {
+    let (ix, iy, iw, ih) = icon;
+    let (pw, ph) = panel;
+    let mut x = ix + iw / 2 - pw / 2;
+    let mut y = if iy < 100 { iy + ih } else { iy - ph };
+    if let Some((mx, my, mw, mh)) = monitor {
+        x = x.min(mx + mw - pw);
+        y = y.min(my + mh - ph);
+    }
+    (x.max(0), y.max(0))
+}
+
+/// Show or hide the quick panel, anchored to the tray icon's screen rect.
+fn toggle_quick(app: &AppHandle, rect: tauri::Rect) {
+    let Some(window) = app.get_webview_window("quick") else { return };
+    if window.is_visible().unwrap_or(false) {
+        let _ = window.hide();
+        return;
+    }
+    // ponytail: blur-hide races the tray click; a click within 250ms of the
+    // hide is the same click, so treat it as "toggle off".
+    if let Some(at) = *app.state::<Store>().quick_hidden_at.lock().unwrap() {
+        if at.elapsed() < std::time::Duration::from_millis(250) {
+            return;
+        }
+    }
+
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let icon_pos = rect.position.to_physical::<i32>(scale);
+    let icon_size = rect.size.to_physical::<i32>(scale);
+    // A hidden window may not report a current monitor yet, hence the fallback.
+    let monitor = window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| window.primary_monitor().ok().flatten())
+        .map(|m| {
+            let (pos, size) = (m.position(), m.size());
+            (pos.x, pos.y, size.width as i32, size.height as i32)
+        });
+    if let Ok(win) = window.outer_size() {
+        let (x, y) = panel_origin(
+            (icon_pos.x, icon_pos.y, icon_size.width, icon_size.height),
+            (win.width as i32, win.height as i32),
+            monitor,
+        );
+        let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+    }
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+#[tauri::command]
+fn open_full(app: AppHandle) {
+    show_main(&app);
+}
+
+#[tauri::command]
+fn hide_quick(app: AppHandle) {
+    if let Some(quick) = app.get_webview_window("quick") {
+        let _ = quick.hide();
+    }
+}
+
 fn main() {
     // Launched from Finder, the app inherits launchd's minimal PATH, which lacks
     // Homebrew's bin dir, so brew and mas would look absent. Fix it once here
@@ -565,21 +657,33 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .manage(Store::default())
         .setup(|app| {
-            let window = app.get_webview_window("main").unwrap();
-
+            // The tray is the app's home; no Dock tile, no menubar of our own.
             #[cfg(target_os = "macos")]
-            window_vibrancy::apply_vibrancy(
-                &window,
-                window_vibrancy::NSVisualEffectMaterial::HudWindow,
-                None,
-                Some(10.0), // matches the 10px CSS radius; the effect view otherwise fills the square window
-            )
-            .ok();
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-            #[cfg(target_os = "windows")]
-            window_vibrancy::apply_mica(&window, None).ok();
+            for label in ["main", "quick"] {
+                let Some(window) = app.get_webview_window(label) else { continue };
+
+                #[cfg(target_os = "macos")]
+                window_vibrancy::apply_vibrancy(
+                    &window,
+                    window_vibrancy::NSVisualEffectMaterial::HudWindow,
+                    None,
+                    Some(10.0), // matches the 10px CSS radius; the effect view otherwise fills the square window
+                )
+                .ok();
+
+                #[cfg(target_os = "windows")]
+                window_vibrancy::apply_mica(&window, None).ok();
+
+                let _ = &window;
+            }
 
             // Some casks (istat-menus) and mas run sudo, which has no terminal
             // here to prompt from. SUDO_ASKPASS points it at a native password
@@ -587,8 +691,48 @@ fn main() {
             #[cfg(target_os = "macos")]
             install_askpass(&cache_dir(app.handle()));
 
-            let _ = &window;
+            let menu = MenuBuilder::new(app)
+                .text("open", "Open Ops Launcher")
+                .separator()
+                .quit_with_text("Quit")
+                .build()?;
+            TrayIconBuilder::with_id("tray")
+                .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("Ops Launcher")
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| {
+                    if event.id().as_ref() == "open" {
+                        show_main(app);
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        rect,
+                        ..
+                    } = event
+                    {
+                        toggle_quick(tray.app_handle(), rect);
+                    }
+                })
+                .build(app)?;
+
             Ok(())
+        })
+        .on_window_event(|window, event| match event {
+            // Closing a window would tear down the app's only UI; the tray
+            // keeps it alive, so close means hide.
+            WindowEvent::CloseRequested { api, .. } => {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+            WindowEvent::Focused(false) if window.label() == "quick" => {
+                let _ = window.hide();
+                *window.state::<Store>().quick_hidden_at.lock().unwrap() = Some(Instant::now());
+            }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             list_apps,
@@ -605,7 +749,9 @@ fn main() {
             get_settings,
             set_settings,
             tasks_status,
-            run_task
+            run_task,
+            open_full,
+            hide_quick
         ])
         .run(tauri::generate_context!())
         .expect("error while running Ops Launcher");
@@ -654,6 +800,20 @@ mod smoke {
         assert!(!apps.is_empty());
         // Informational only: a fully up-to-date machine legitimately has none.
         println!("  outdated: {}", apps.iter().filter(|a| a.outdated).count());
+    }
+
+    /// Menubar icon anchors below, taskbar icon above, and neither runs off an
+    /// edge of the screen.
+    #[test]
+    fn panel_anchors_to_the_right_side_of_the_tray_icon() {
+        let panel = (340, 400);
+        let mon = Some((0, 0, 2560, 1440));
+        let at = |icon| crate::panel_origin(icon, panel, mon);
+        assert_eq!(at((500, 0, 24, 24)), (342, 24));
+        assert_eq!(at((1800, 1400, 24, 24)), (1642, 1000));
+        assert_eq!(at((10, 0, 24, 24)), (0, 24));
+        // Icon in the far corner: the panel stops at the right edge.
+        assert_eq!(at((2540, 0, 24, 24)), (2220, 24));
     }
 
     #[test]

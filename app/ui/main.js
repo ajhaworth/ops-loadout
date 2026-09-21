@@ -776,6 +776,12 @@ document.getElementById("settings").onclick = async () => {
     profileEl.replaceChildren(new Option("None (everything enabled)", ""));
     settings.profiles.forEach((p) => profileEl.append(new Option(p, p)));
     profileEl.value = settings.profile;
+    // The plugin owns this one; it is not part of get_settings.
+    try {
+      document.getElementById("autostart").checked = await invoke("plugin:autostart|is_enabled");
+    } catch (e) {
+      logLine(String(e));
+    }
     // Escape leaves the previous value in place, which would re-save on close.
     settingsEl.returnValue = "";
     settingsEl.showModal();
@@ -794,6 +800,13 @@ settingsEl.onclose = async () => {
       sidefxClientSecret: document.getElementById("sidefx-secret").value,
       profile: document.getElementById("profile").value,
     });
+    // Separate from set_settings, so a failure here still saves the rest.
+    try {
+      const on = document.getElementById("autostart").checked;
+      await invoke(on ? "plugin:autostart|enable" : "plugin:autostart|disable");
+    } catch (e) {
+      logLine(String(e));
+    }
     logLine("Settings saved");
     if (tab === "Setup") refreshSetup();
   } catch (e) {
