@@ -215,6 +215,40 @@ which the launcher alone does, so it doubles as "a GUI is present".
 `X.Y.ZZZ`) into `~/Library/Preferences/houdini/<X.Y>/packages/`
 and records the tag in `.ops-tag` for its own already-current check.
 
+### Setup Tasks (launcher)
+
+The launcher's **Setup** tab drives the non-package stages: prerequisites,
+dotfiles, system defaults and (Windows) debloat. Every section is fed by one
+status verb per platform and applied by one apply verb:
+
+```
+lib/tasks.sh status <section> [--profile name]          # macOS
+lib/tasks.sh apply  <section> <id> [--profile name]
+bridge.ps1 tasks-status <repo> <section> [profile]      # Windows
+bridge.ps1 tasks-apply  <repo> <section> <id> [profile]
+```
+
+Sections: `prereq`, `dotfiles`, `defaults`, `debloat` (Windows only).
+
+A status verb prints exactly one JSON array on stdout and nothing else:
+
+```json
+[{"id":"defaults:finder:com.apple.finder/AppleShowAllFiles","section":"defaults",
+  "group":"Finder","name":"Show hidden files","state":"pending","detail":"currently 0, want 1"}]
+```
+
+- `state` is one of `applied`, `pending`, `failed`, `needs_admin`, `unknown`.
+- Items disabled by the profile are not emitted; profile filtering stays in
+  the scripts, the app never re-implements it. No `--profile` means every
+  flag defaults to enabled, as everywhere else in this repo.
+- `id` is namespaced by section (`dotfiles:~/.zshrc`, `defaults:dock:com.apple.dock/tilesize`)
+  so it cannot collide with package ids in the app.
+- Apply verbs stream plain text and exit non-zero on failure, exactly like
+  package installs, so the app reuses the same streaming and log drawer.
+- **Status is the apply traversal with writes turned off.** There is one code
+  path per item; the helper (`defaults_set` on macOS, `Set-RegistryValue` on
+  Windows) branches on mode. Never add a separate checker that can drift.
+
 ### Dotfiles
 
 Dotfiles use symlinks managed via two platform-specific manifests:
