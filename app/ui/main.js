@@ -32,8 +32,27 @@ const WORKSPACES = {
   Creative: (a) => a.category === "Creative" || a.kind === "comfynode",
   Development: (a) =>
     ["Development", "Software Dev", "Devops"].includes(a.category) || DEV_IDS.has(a.id),
+  Setup: () => false, // handled by renderSetup(), not the app grid
 };
 let tab = "All";
+
+const IS_WINDOWS = navigator.userAgent.includes("Windows");
+
+// Setup tab: sections of non-package tasks (prereqs, dotfiles, defaults, debloat).
+const SETUP = [
+  { id: "prereq", name: "Prerequisites", desc: "Tools the rest of this page needs: Xcode CLT, Homebrew, mas, git on macOS; winget, git, PowerShell, Developer Mode on Windows.", open: true },
+  { id: "dotfiles", name: "Dotfiles", desc: "Symlinks from this repo's config/dotfiles into your home directory. Existing files are backed up to ~/.dotfiles_backup.", open: true },
+  { id: "defaults", name: "System defaults", desc: "Finder, Dock, keyboard, screenshot and app preferences. Each row shows the current value against the wanted one.", open: true },
+  { id: "debloat", name: "Windows debloat", desc: "Removes preinstalled apps, disables Xbox services and Game DVR. Opt-in via PROFILE_DEBLOAT.", open: false, win: true },
+];
+// section id -> { loading } | { error } | { items }
+const tasks = new Map();
+const sectionRunning = new Map(); // section id -> "Running i/n\u2026" label
+let everythingLabel = null; // null when idle, else a "Running i/n\u2026" label
+
+function setupSections() {
+  return SETUP.filter((s) => !s.win || IS_WINDOWS);
+}
 
 // GUI first, then the App Store, then the CLI grab-bag.
 const GROUPS = [
@@ -219,6 +238,7 @@ function renderTabs() {
 
 function render() {
   renderTabs();
+  if (tab === "Setup") return renderSetup();
   const q = searchEl.value.trim().toLowerCase();
   const inTab = WORKSPACES[tab];
   const shown = apps.filter((a) =>
@@ -255,6 +275,227 @@ function render() {
   updateAllEl.hidden = !updates && !updatingAll;
   updateAllEl.lastChild.textContent = updates;
   if (!updatingAll) updateAllEl.title = `Update all (${updates})`;
+}
+
+function countStates(items) {
+  const state = (t) => (failed.has(t.id) ? "failed" : t.state);
+  return {
+    applied: items.filter((t) => state(t) === "applied").length,
+    pending: items.filter((t) => state(t) === "pending").length,
+    failed: items.filter((t) => state(t) === "failed").length,
+  };
+}
+
+function countBadge(items) {
+  const c = countStates(items);
+  const span = document.createElement("span");
+  span.className = "count";
+  span.textContent = [
+    c.applied && `${c.applied} applied`,
+    c.pending && `${c.pending} pending`,
+    c.failed && `${c.failed} failed`,
+  ].filter(Boolean).join(" \u00b7 ");
+  return span;
+}
+
+function taskRowEl(t) {
+  const row = document.createElement("div");
+  row.className = "task";
+  const state = failed.has(t.id) ? "failed" : t.state;
+  if (inflight.has(t.id)) row.classList.add("busy");
+  if (state === "applied") row.classList.add("done");
+
+  const dot = document.createElement("span");
+  dot.className = "dot";
+  dot.dataset.state = state;
+  row.append(dot);
+
+  const name = document.createElement("span");
+  name.className = "name";
+  name.textContent = t.name;
+  row.append(name);
+
+  const why = failed.get(t.id);
+  const detail = document.createElement("span");
+  detail.className = "detail";
+  detail.textContent = why || t.detail;
+  detail.title = why || t.detail;
+  row.append(detail);
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = "Apply";
+  const needsAdmin = t.state === "needs_admin";
+  btn.disabled = inflight.has(t.id) || needsAdmin;
+  if (needsAdmin) btn.title = "Run the launcher as Administrator to apply this";
+  btn.onclick = () => doTask(t);
+  row.append(btn);
+
+  return row;
+}
+
+function groupEl(name, items, forceOpen) {
+  const details = document.createElement("details");
+  details.className = "nested";
+  const key = "setup-group:" + name;
+  details.open = forceOpen || isOpen(key, true);
+  details.ontoggle = () => { if (!forceOpen) setOpen(key, details.open); };
+
+  const summary = document.createElement("summary");
+  summary.append(name, countBadge(items));
+  details.append(summary);
+  items.forEach((t) => details.append(taskRowEl(t)));
+  return details;
+}
+
+function setupSectionEl(sec, q) {
+  const bucket = tasks.get(sec.id);
+  const details = document.createElement("details");
+  const key = "setup:" + sec.id;
+  details.open = !!q || isOpen(key, sec.open);
+  details.ontoggle = () => { if (!q) setOpen(key, details.open); };
+
+  const summary = document.createElement("summary");
+  summary.append(sec.name);
+  if (bucket?.items) {
+    summary.append(countBadge(bucket.items));
+    const runBtn = document.createElement("button");
+    runBtn.type = "button";
+    const label = sectionRunning.get(sec.id);
+    runBtn.textContent = label || "Run all";
+    runBtn.disabled = !!label;
+    runBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); runAll(sec.id); };
+    summary.append(runBtn);
+  }
+  details.append(summary);
+
+  const desc = document.createElement("p");
+  desc.className = "setup-desc";
+  desc.textContent = sec.desc;
+  details.append(desc);
+
+  if (!bucket || bucket.loading) {
+    const p = document.createElement("p");
+    p.className = "setup-desc";
+    p.textContent = "Checking\u2026";
+    details.append(p);
+  } else if (bucket.error) {
+    const p = document.createElement("p");
+    p.className = "setup-error";
+    p.textContent = bucket.error;
+    details.append(p);
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.textContent = "Retry";
+    retry.onclick = () => loadSection(sec.id);
+    details.append(retry);
+  } else {
+    const items = q
+      ? bucket.items.filter((t) => (t.name + " " + t.group + " " + t.detail).toLowerCase().includes(q))
+      : bucket.items;
+    const groups = [...new Set(items.map((t) => t.group))];
+    if (groups.length > 1) {
+      groups.forEach((g) => details.append(groupEl(g, items.filter((t) => t.group === g), !!q)));
+    } else {
+      items.forEach((t) => details.append(taskRowEl(t)));
+    }
+  }
+
+  return details;
+}
+
+function renderSetup() {
+  const sections = setupSections();
+  if (tasks.size === 0) sections.forEach((s) => loadSection(s.id));
+
+  const q = searchEl.value.trim().toLowerCase();
+  sectionsEl.replaceChildren();
+
+  const bar = document.createElement("div");
+  bar.className = "setup-bar";
+  const runEverythingBtn = document.createElement("button");
+  runEverythingBtn.type = "button";
+  runEverythingBtn.textContent = everythingLabel || "Run everything";
+  runEverythingBtn.disabled = !!everythingLabel;
+  runEverythingBtn.onclick = () => runEverything();
+  bar.append(runEverythingBtn);
+
+  const all = sections.flatMap((s) => tasks.get(s.id)?.items || []);
+  const c = countStates(all);
+  const summary = document.createElement("span");
+  summary.className = "setup-summary";
+  summary.textContent = `${c.applied} applied \u00b7 ${c.pending} pending \u00b7 ${c.failed} failed`;
+  bar.append(summary);
+  sectionsEl.append(bar);
+
+  sections.forEach((sec) => sectionsEl.append(setupSectionEl(sec, q)));
+}
+
+async function loadSection(id) {
+  tasks.set(id, { loading: true });
+  render();
+  try {
+    const items = await invoke("tasks_status", { section: id });
+    tasks.set(id, { items });
+  } catch (e) {
+    tasks.set(id, { error: String(e) });
+  }
+  render();
+}
+
+function refreshSetup() {
+  setupSections().forEach((s) => loadSection(s.id));
+}
+
+/// Same shape as doJob, but for a Setup task rather than a package.
+function doTask(task) {
+  if (inflight.has(task.id)) return Promise.resolve(false);
+  failed.delete(task.id);
+  inflight.add(task.id);
+  render();
+  logLine(`$ applying ${task.name}`);
+
+  return new Promise((resolve) => {
+    pending.set(task.id, resolve);
+    invoke("run_task", { id: task.id, section: task.section }).catch((e) => {
+      pending.delete(task.id);
+      inflight.delete(task.id);
+      failed.set(task.id, String(e));
+      logLine(String(e));
+      render();
+      resolve(false);
+    });
+  });
+}
+
+function runnable(t) {
+  return t.state !== "needs_admin" && (t.state === "pending" || t.state === "failed" || failed.has(t.id));
+}
+
+async function runAll(sectionId) {
+  if (sectionRunning.has(sectionId)) return;
+  const queue = (tasks.get(sectionId)?.items || []).filter(runnable);
+  if (!queue.length) return;
+  for (const [i, t] of queue.entries()) {
+    sectionRunning.set(sectionId, `Running ${i + 1}/${queue.length}\u2026`);
+    render();
+    await doTask(t);
+  }
+  sectionRunning.delete(sectionId);
+  render();
+}
+
+async function runEverything() {
+  if (everythingLabel) return;
+  const queue = setupSections().flatMap((s) => tasks.get(s.id)?.items || []).filter(runnable);
+  if (!queue.length) return;
+  for (const [i, t] of queue.entries()) {
+    everythingLabel = `Running ${i + 1}/${queue.length}\u2026`;
+    render();
+    await doTask(t);
+  }
+  everythingLabel = null;
+  render();
 }
 
 async function load(command) {
@@ -426,6 +667,20 @@ listen("install-done", async ({ payload }) => {
   const settle = pending.get(payload.id);
   pending.delete(payload.id);
 
+  // Task ids are namespaced by section (prereq:homebrew, dotfiles:~/.zshrc);
+  // run_task always emits action "apply", which no package job ever does.
+  if (payload.action === "apply") {
+    if (payload.ok) {
+      failed.delete(payload.id);
+    } else {
+      const last = lastLog.get(payload.id) || "apply failed";
+      if (!/cancell?ed/i.test(last)) failed.set(payload.id, last);
+    }
+    await loadSection(payload.id.split(":")[0]);
+    settle?.(payload.ok);
+    return;
+  }
+
   if (payload.ok) {
     failed.delete(payload.id);
     await load("list_apps");
@@ -450,12 +705,16 @@ addEventListener("contextmenu", (e) => {
 try { if (localStorage.getItem("tab") in WORKSPACES) tab = localStorage.getItem("tab"); } catch { /* default */ }
 searchEl.oninput = render;
 updateAllEl.onclick = updateAll;
-document.getElementById("refresh").onclick = () => load("refresh");
+document.getElementById("refresh").onclick = () => (tab === "Setup" ? refreshSetup() : load("refresh"));
 document.getElementById("settings").onclick = async () => {
   try {
     const settings = await invoke("get_settings");
     document.getElementById("sidefx-id").value = settings.sidefx_client_id;
     document.getElementById("sidefx-secret").value = settings.sidefx_client_secret;
+    const profileEl = document.getElementById("profile");
+    profileEl.replaceChildren(new Option("None (everything enabled)", ""));
+    settings.profiles.forEach((p) => profileEl.append(new Option(p, p)));
+    profileEl.value = settings.profile;
     // Escape leaves the previous value in place, which would re-save on close.
     settingsEl.returnValue = "";
     settingsEl.showModal();
@@ -472,8 +731,10 @@ settingsEl.onclose = async () => {
     await invoke("set_settings", {
       sidefxClientId: document.getElementById("sidefx-id").value,
       sidefxClientSecret: document.getElementById("sidefx-secret").value,
+      profile: document.getElementById("profile").value,
     });
     logLine("Settings saved");
+    if (tab === "Setup") refreshSetup();
   } catch (e) {
     logLine(String(e));
   }
