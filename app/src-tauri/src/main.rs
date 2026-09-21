@@ -685,13 +685,14 @@ fn toggle_quick(app: &AppHandle, rect: tauri::Rect) {
 }
 
 #[tauri::command]
-fn open_full(app: AppHandle) {
+async fn open_full(app: AppHandle) -> Result<(), String> {
     show_main(&app);
+    Ok(())
 }
 
 /// Opens a page served by `serve_ui` in its own window, one per path.
 #[tauri::command]
-fn open_page(app: AppHandle, path: String) -> Result<(), String> {
+async fn open_page(app: AppHandle, path: String) -> Result<(), String> {
     let url = if cfg!(windows) {
         format!("http://ops.localhost/{path}")
     } else {
@@ -715,10 +716,11 @@ fn open_page(app: AppHandle, path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn hide_quick(app: AppHandle) {
+async fn hide_quick(app: AppHandle) -> Result<(), String> {
     if let Some(quick) = app.get_webview_window("quick") {
         let _ = quick.hide();
     }
+    Ok(())
 }
 
 fn main() {
