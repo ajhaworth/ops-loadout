@@ -1,60 +1,22 @@
 #!/usr/bin/env bash
 # macos/defaults/apps.sh - App-specific preferences
+#
+# Safari is sandboxed since macOS Mojave (10.14) - these preferences cannot
+# be set via `defaults write`. Configure it manually or via MDM profiles.
 
 apply_apps() {
-    log_substep "Configuring app-specific settings..."
-
-    if is_dry_run; then
-        log_dry "Setting app preferences"
-        return 0
-    fi
-
-    # Safari
-    configure_safari
-
-    # TextEdit
-    configure_textedit
+    # TextEdit: plain text mode, UTF-8
+    defaults_set com.apple.TextEdit RichText int 0 "Use plain text mode for new documents"
+    defaults_set com.apple.TextEdit PlainTextEncoding int 4 "Open files as UTF-8"
+    defaults_set com.apple.TextEdit PlainTextEncodingForWrite int 4 "Save files as UTF-8"
 
     # Activity Monitor
-    configure_activity_monitor
+    defaults_set com.apple.ActivityMonitor OpenMainWindow bool true "Show the main window when launching"
+    defaults_set com.apple.ActivityMonitor ShowCategory int 0 "Show all processes"
+    defaults_set com.apple.ActivityMonitor SortColumn string CPUUsage "Sort by CPU usage"
+    defaults_set com.apple.ActivityMonitor SortDirection int 0 "Sort by CPU usage"
 
     # Disk Utility
-    configure_disk_utility
-
-    log_substep "App settings configured"
+    defaults_set com.apple.DiskUtility DUDebugMenuEnabled bool true "Enable the debug menu"
+    defaults_set com.apple.DiskUtility advanced-image-options bool true "Enable advanced image options"
 }
-
-configure_safari() {
-    # Safari is sandboxed since macOS Mojave (10.14)
-    # These preferences cannot be set via defaults write
-    # Users should configure Safari manually or via MDM profiles
-    :  # no-op
-}
-
-configure_textedit() {
-    # Use plain text mode for new documents
-    defaults write com.apple.TextEdit RichText -int 0
-
-    # Open and save files as UTF-8
-    defaults write com.apple.TextEdit PlainTextEncoding -int 4
-    defaults write com.apple.TextEdit PlainTextEncodingForWrite -int 4
-}
-
-configure_activity_monitor() {
-    # Show the main window when launching
-    defaults write com.apple.ActivityMonitor OpenMainWindow -bool true
-
-    # Show all processes
-    defaults write com.apple.ActivityMonitor ShowCategory -int 0
-
-    # Sort by CPU usage
-    defaults write com.apple.ActivityMonitor SortColumn -string "CPUUsage"
-    defaults write com.apple.ActivityMonitor SortDirection -int 0
-}
-
-configure_disk_utility() {
-    # Enable the debug menu
-    defaults write com.apple.DiskUtility DUDebugMenuEnabled -bool true
-    defaults write com.apple.DiskUtility advanced-image-options -bool true
-}
-
