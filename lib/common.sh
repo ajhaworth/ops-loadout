@@ -127,17 +127,3 @@ get_repo_root() {
     cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd
 }
 
-# Source a library file
-source_lib() {
-    local lib_name="$1"
-    local repo_root
-    repo_root="$(get_repo_root)"
-
-    if [[ -f "$repo_root/lib/$lib_name" ]]; then
-        # shellcheck source=/dev/null
-        source "$repo_root/lib/$lib_name"
-    else
-        log_error "Library not found: $lib_name"
-        exit 1
-    fi
-}
