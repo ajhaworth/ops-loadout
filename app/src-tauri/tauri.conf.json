@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "identifier": "dev.alx.ops-launcher",
   "build": {
-    "frontendDist": "../ui"
+    "frontendDist": "../ui",
+    "beforeBuildCommand": "npm run bundle-repo"
   },
   "app": {
     "macOSPrivateApi": true,

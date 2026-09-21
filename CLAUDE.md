@@ -333,8 +333,8 @@ dir as `config.json`; the SideFX credentials go to `<repo>/config/sidefx.local`
 at mode 0600.
 
 **A release ships the repo content, so a downloaded app needs no checkout.**
-`app/scripts/bundle-repo.js` (npm `bundle-repo`, run by the `pre*` hooks and by
-tauri-action's `beforeBuildCommand`) stages `config/`, `lib/` and `platforms/`
+`app/scripts/bundle-repo.js` (npm `bundle-repo`, run by `beforeBuildCommand` in
+`tauri.conf.json` on every `tauri build`, local or CI) stages `config/`, `lib/` and `platforms/`
 into the gitignored `app/src-tauri/bundled/` via `git archive HEAD` — tracked
 files only, so gitignored Blender extensions and `*.local` can never ship — and
 `tauri.conf.json` bundles it as a resource.
