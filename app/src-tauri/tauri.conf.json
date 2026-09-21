@@ -51,8 +51,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": [
-      "bridge.ps1"
-    ]
+    "resources": {
+      "bridge.ps1": "bridge.ps1",
+      "bundled/": "bundled/"
+    }
   }
 }

@@ -29,9 +29,15 @@ bare checkout is enough.
 
 A prebuilt macOS app is attached to each
 [GitHub release](https://github.com/ajhaworth/ops-workstation/releases)
-(`.github/workflows/release.yml`, run on every `v*` tag). Clone the repo to
-`~/Developer/ops/ops-desktop` first: the app serves its UI and installer
-scripts from that checkout and asks for the folder if it is missing.
+(`.github/workflows/release.yml`, run on every `v*` tag). It is standalone -
+no checkout needed. The release carries `config/`, `lib/` and `platforms/`
+inside the app and copies them out on first launch to a working copy at
+`~/Library/Application Support/dev.alx.ops-launcher/repo`, which is where its
+scripts then read and write. Each app update refreshes that copy without
+deleting anything already in it, so local state survives.
+
+A git checkout at `~/Developer/ops/ops-desktop` takes precedence over the
+copied one, so development still edits the repo live.
 
 On macOS, the app is unsigned: the first launch is blocked by Gatekeeper.
 Open it once from System Settings > Privacy & Security > **Open Anyway**, or

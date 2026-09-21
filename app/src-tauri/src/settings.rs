@@ -70,7 +70,7 @@ pub(crate) fn saved_profile(app: &AppHandle) -> Option<String> {
 }
 
 /// OPS_DESKTOP_DIR -> saved path -> the source checkout -> ~/Developer/ops/ops-desktop
-/// -> ask once and remember.
+/// -> the copy seeded from the bundle -> ask once and remember.
 pub(crate) fn find_repo(app: &AppHandle) -> Option<PathBuf> {
     if let Some(path) = find_repo_on_disk(app) {
         return Some(path);
@@ -95,12 +95,24 @@ pub(crate) fn find_repo(app: &AppHandle) -> Option<PathBuf> {
 pub(crate) fn find_repo_on_disk(app: &AppHandle) -> Option<PathBuf> {
     let compiled = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let home = app.path().home_dir().ok();
+    // Seeded before the candidates are walked, not just when the last one is
+    // reached: once the seeded copy is picked, `save_repo` puts it in
+    // `config.json`, where it matches earlier - and an app update still has to
+    // refresh it. `seed_bundled_repo` is a no-op when the stamp already matches.
+    let seeded = seed_bundled_repo(app);
+    // `OPS_DESKTOP_DIR=bundled` forces the seeded copy, for testing a release
+    // build on a machine that also has a checkout. Deliberately not saved: the
+    // next ordinary launch goes back to the checkout.
+    if std::env::var("OPS_DESKTOP_DIR").is_ok_and(|v| v == "bundled") {
+        return seeded;
+    }
 
     let candidates = [
         std::env::var("OPS_DESKTOP_DIR").ok().map(PathBuf::from),
         saved_repo(app),
         Some(compiled),
         home.map(|h| h.join("Developer/ops/ops-desktop")),
+        seeded,
     ];
 
     for path in candidates.into_iter().flatten() {
@@ -111,6 +123,64 @@ pub(crate) fn find_repo_on_disk(app: &AppHandle) -> Option<PathBuf> {
         }
     }
     None
+}
+
+/// A downloaded release carries `config/`, `lib/` and `platforms/` as a Tauri
+/// resource (`app/scripts/bundle-repo.js`). The scripts write back into the
+/// repo - `config/sidefx.local`, Blender's portable prefs, `.ops-tag` files -
+/// and editing an app bundle breaks its ad-hoc seal, so the runtime copy lives
+/// in the app data dir instead. Returns that copy, or `None` with no bundle.
+fn seed_bundled_repo(app: &AppHandle) -> Option<PathBuf> {
+    // Once per process: the candidate list is walked on every `serve_ui` request.
+    static SEEDED: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+    SEEDED
+        .get_or_init(|| {
+            let source = app.path().resource_dir().ok()?.join("bundled");
+            if !source.is_dir() {
+                return None;
+            }
+            let target = app.path().app_data_dir().ok()?.join("repo");
+            let version = app.package_info().version.to_string();
+            if let Err(e) = seed_dir(&source, &target, &version) {
+                eprintln!("seed {}: {e}", target.display());
+            }
+            catalog::is_repo(&target).then_some(target)
+        })
+        .clone()
+}
+
+/// Copy `source` over `target` unless `target/.bundled-version` already reads
+/// `version`. Overwrites files, never deletes: everything the user's own runs
+/// left behind survives an app update.
+fn seed_dir(source: &Path, target: &Path, version: &str) -> std::io::Result<()> {
+    let stamp = target.join(".bundled-version");
+    if std::fs::read_to_string(&stamp).is_ok_and(|s| s.trim() == version) {
+        return Ok(());
+    }
+    copy_over(source, target)?;
+    std::fs::write(stamp, version)
+}
+
+fn copy_over(source: &Path, target: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(target)?;
+    for entry in std::fs::read_dir(source)? {
+        let entry = entry?;
+        let to = target.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_over(&entry.path(), &to)?;
+        } else {
+            std::fs::copy(entry.path(), &to)?;
+            // Tauri's resource copying keeps the mode bits today (verified in a
+            // built .app), but nothing promises it does, and the launcher execs
+            // `lib/tasks.sh` and `platforms/**/*.sh` directly.
+            #[cfg(unix)]
+            if to.extension().is_some_and(|e| e == "sh") {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&to, std::fs::Permissions::from_mode(0o755))?;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn settings_file(handle: &AppHandle, store: &Store) -> Result<PathBuf, String> {
@@ -252,4 +322,45 @@ pub(crate) async fn set_settings(
         let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::seed_dir;
+
+    fn write(path: &std::path::Path, body: &str) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, body).unwrap();
+    }
+
+    #[test]
+    fn seeds_once_then_refreshes_on_a_new_version_without_deleting() {
+        let tmp = std::env::temp_dir().join(format!("ops-seed-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let (source, target) = (tmp.join("bundled"), tmp.join("repo"));
+        write(&source.join("config/packages/macos/formulae/core.txt"), "git\n");
+        write(&source.join("lib/tasks.sh"), "v1\n");
+
+        seed_dir(&source, &target, "0.1.0").unwrap();
+        assert_eq!(std::fs::read_to_string(target.join("lib/tasks.sh")).unwrap(), "v1\n");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(target.join("lib/tasks.sh")).unwrap().permissions().mode();
+            assert_eq!(mode & 0o111, 0o111, "*.sh must be executable");
+        }
+
+        // Same version: nothing is copied, so a local edit survives.
+        write(&target.join("lib/tasks.sh"), "edited\n");
+        write(&target.join("config/sidefx.local"), "secret\n");
+        seed_dir(&source, &target, "0.1.0").unwrap();
+        assert_eq!(std::fs::read_to_string(target.join("lib/tasks.sh")).unwrap(), "edited\n");
+
+        // New version: tracked files are overwritten, extras are left alone.
+        write(&source.join("lib/tasks.sh"), "v2\n");
+        seed_dir(&source, &target, "0.2.0").unwrap();
+        assert_eq!(std::fs::read_to_string(target.join("lib/tasks.sh")).unwrap(), "v2\n");
+        assert_eq!(std::fs::read_to_string(target.join("config/sidefx.local")).unwrap(), "secret\n");
+        std::fs::remove_dir_all(&tmp).unwrap();
+    }
 }
