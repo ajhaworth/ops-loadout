@@ -352,9 +352,16 @@ pub fn job_command(action: &str, app: &App, _repo: &Path, _resources: &Path) -> 
                 "uninstall" => return mas_uninstall(app),
                 other => return Err(format!("cannot {other} an App Store app")),
             };
+            // mas 7 spawns `sudo -n` itself to run the installer, which cannot
+            // prompt. Running mas under our own sudo (askpass dialog) makes that
+            // inner call free. sudo resets PATH, so mas needs its full path.
+            let mas = ["/opt/homebrew/bin/mas", "/usr/local/bin/mas"]
+                .into_iter()
+                .find(|p| Path::new(p).exists())
+                .ok_or("mas is not installed")?;
             Ok(Cmd {
-                program: "mas".into(),
-                args: vec![verb.to_string(), app.token.clone()],
+                program: "sudo".into(),
+                args: vec!["-A".into(), mas.into(), verb.to_string(), app.token.clone()],
                 env: vec![],
             })
         }

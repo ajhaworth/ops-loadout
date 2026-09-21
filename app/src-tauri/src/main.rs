@@ -451,10 +451,12 @@ mod smoke {
         .into_iter()
         .find(|a| a.kind == "mas")
         .unwrap();
-        assert_eq!(
-            argv("update", &mas),
-            ("mas".to_string(), vec!["upgrade".to_string(), mas.token.clone()])
-        );
+        // mas runs under sudo -A so its own inner sudo needs no password.
+        let (program, args) = argv("update", &mas);
+        assert_eq!(program, "sudo");
+        assert_eq!(args[0], "-A");
+        assert!(args[1].ends_with("/mas"), "{args:?}");
+        assert_eq!(&args[2..], ["upgrade".to_string(), mas.token.clone()]);
         // Root cannot delete App Store apps either, so Finder trashes them.
         let (program, args) = argv("uninstall", &mas);
         assert_eq!(program, "osascript");
