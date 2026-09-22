@@ -65,6 +65,7 @@ def step():
             sh.show_backface_culling = True  # flipped normals and one-sided planes show as holes, as in engine
             sh.color_type, sh.wireframe_color_type = 'RANDOM', 'RANDOM'  # tell adjacent kit pieces apart at a glance
             sh.show_xray_wireframe = False  # wireframe mode hides occluded edges, so dense kits stay readable
+            sh.show_xray = True  # solid mode: clicks and box select reach back-facing and hidden verts
             if win.workspace.name == 'Layout':
                 sp.show_region_ui = True   # N panel open: exact transforms for placement
                 r3d = sp.region_3d         # framed on the mannequin
