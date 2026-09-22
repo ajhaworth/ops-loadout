@@ -62,7 +62,7 @@ apply_config() {
     prefs="$HOME/Library/Preferences/houdini/$xy"
     pkgdir="$prefs/packages"
     mkdir -p "$pkgdir"
-    printf '{"hpath": "%s"}\n' "$REPO/config/dcc/houdini" > "$pkgdir/loadout.json"
+    printf '{"path": "%s"}\n' "$REPO/config/dcc/houdini" > "$pkgdir/loadout.json"
     echo "==> Wrote $pkgdir/loadout.json (HOUDINI_PATH -> $REPO/config/dcc/houdini)"
 
     pref_file="$prefs/houdini.pref"
@@ -140,7 +140,7 @@ do_install() {
         echo "    installed: $current"
         if [[ "$action" != "reinstall" && "$current" == "$version.$build" ]]; then
             echo "Houdini $current is already the latest production build."
-            apply_config
+            apply_config || echo "Houdini config not applied; see above" >&2
             return 0
         fi
     fi
@@ -189,7 +189,7 @@ do_install() {
 
     echo "Houdini $version.$build installed."
     echo "Licensing: open \"Houdini Apprentice\", then in License Administrator choose \"Activate Apprentice\" (SideFX login optional; renews every 30 days)."
-    apply_config
+    apply_config || echo "Houdini config not applied; see above" >&2
     [[ -n "${SUDO_ASKPASS:-}" ]] && license_dialog "$(installed_app "$HOUDINI_DIR/Houdini$version.$build")"
     return 0
 }
