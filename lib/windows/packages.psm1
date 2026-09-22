@@ -3,8 +3,6 @@
 # Compatible with Windows PowerShell 5.1 and PowerShell 7+.
 
 Import-Module (Join-Path $PSScriptRoot "common.psm1") -Global -Force
-# ComfyUI custom nodes install into the app's own tree
-Import-Module (Join-Path $PSScriptRoot "comfyui.psm1") -Global -Force
 
 # Track installation results
 $script:Results = @{
@@ -588,180 +586,6 @@ function Invoke-UninstallString {
     }
 }
 
-# --- ComfyUI custom nodes ---------------------------------------------------
-#
-# Custom nodes are git repos cloned into ComfyUI's custom_nodes\ directory, with
-# their Python requirements installed into the backend's own .venv. Entries in
-# config/packages/windows/comfynodes/*.txt are:
-#
-#   owner/repo | directory-name
-#
-# The directory name defaults to the repo name, which is what ComfyUI Manager
-# would have used. Installed nodes are skipped; -Force fast-forwards them.
-
-function ConvertFrom-ComfyNodeSpec {
-    param(
-        [Parameter(Mandatory)]
-        [string]$Spec
-    )
-
-    $parts = $Spec -split '\|'
-    $repo = $parts[0].Trim()
-
-    if ($repo -notmatch '^[\w.-]+/[\w.-]+$') {
-        throw "Invalid ComfyUI node spec '$Spec' - expected 'owner/repo | directory-name'"
-    }
-
-    $directory = ($repo -split '/')[1]
-    if ($parts.Count -ge 2 -and $parts[1].Trim()) {
-        $directory = $parts[1].Trim()
-    }
-
-    return @{
-        Repo      = $repo
-        Directory = $directory
-        Url       = "https://github.com/$repo.git"
-    }
-}
-
-function Test-ComfyNodeInstalled {
-    param(
-        [Parameter(Mandatory)]
-        [string]$PackageSpec,
-        [Parameter(Mandatory)]
-        [string]$CustomNodesDir
-    )
-
-    try {
-        $spec = ConvertFrom-ComfyNodeSpec -Spec $PackageSpec
-    } catch {
-        return $false
-    }
-
-    $target = Join-ComfyPath -Base $CustomNodesDir -Child $spec.Directory
-    return (Test-ComfyPathReachable -Path $target)
-}
-
-# Install (or fast-forward) one custom node into a single backend.
-function Install-ComfyNode {
-    param(
-        [Parameter(Mandatory)]
-        [string]$PackageSpec,
-        [Parameter(Mandatory)]
-        [string]$BaseDir,
-        [switch]$DryRun,
-        [switch]$Force
-    )
-
-    try {
-        $spec = ConvertFrom-ComfyNodeSpec -Spec $PackageSpec
-    } catch {
-        Write-Err $_.Exception.Message
-        $script:Results.Failed += $PackageSpec
-        return $false
-    }
-
-    $label = $spec.Repo
-
-    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        Write-Err "git is required to install $label"
-        $script:Results.Failed += $label
-        return $false
-    }
-
-    $customNodes = Join-ComfyPath -Base $BaseDir -Child 'custom_nodes'
-    $target = Join-ComfyPath -Base $customNodes -Child $spec.Directory
-    $exists = Test-ComfyPathReachable -Path $target
-
-    if ($exists -and -not $Force) {
-        Write-Skip "$label (already installed)"
-        $script:Results.Skipped += $label
-        return $true
-    }
-
-    if ($DryRun) {
-        if ($exists) {
-            Write-DryRun "Would update: $label"
-        } else {
-            Write-DryRun "Would install: $label -> custom_nodes\$($spec.Directory)"
-        }
-        return $true
-    }
-
-    try {
-        if ($exists) {
-            Write-Status "Updating $label..."
-            # --ff-only so local edits surface as a failure instead of a merge
-            $output = & git -C $target pull --ff-only 2>&1
-        } else {
-            Write-Status "Installing $label..."
-            if (-not (Test-ComfyPathReachable -Path $customNodes)) {
-                New-Item -ItemType Directory -Path $customNodes -Force | Out-Null
-            }
-            $output = & git clone --depth 1 $spec.Url $target 2>&1
-        }
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Err "git failed for $label - exit $(Format-ExitCode -Code $LASTEXITCODE)"
-            $detail = ($output | Select-Object -Last 3 | Out-String).Trim()
-            if ($detail) {
-                Write-Host "    $detail" -ForegroundColor DarkGray
-            }
-            $script:Results.Failed += $label
-            return $false
-        }
-
-        if (-not (Install-ComfyNodeRequirements -Label $label -NodeDir $target -BaseDir $BaseDir)) {
-            $script:Results.Failed += $label
-            return $false
-        }
-
-        Write-Success "$label installed"
-        $script:Results.Installed += $label
-        return $true
-    } catch {
-        Write-Err "Error installing ${label}: $_"
-        $script:Results.Failed += $label
-        return $false
-    }
-}
-
-function Install-ComfyNodeRequirements {
-    param(
-        [Parameter(Mandatory)]
-        [string]$Label,
-        [Parameter(Mandatory)]
-        [string]$NodeDir,
-        [Parameter(Mandatory)]
-        [string]$BaseDir
-    )
-
-    $requirements = Join-ComfyPath -Base $NodeDir -Child 'requirements.txt'
-    if (-not (Test-ComfyPathReachable -Path $requirements)) {
-        return $true
-    }
-
-    $python = Get-ComfyVenvPython -BaseDir $BaseDir
-    if (-not $python) {
-        Write-Warn "$Label has requirements but ComfyUI's .venv was not found - install them from the app"
-        return $true
-    }
-
-    Write-SubStep "installing requirements"
-    $output = & $python -m pip install --disable-pip-version-check -r $requirements 2>&1
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Err "pip failed for $Label - exit $(Format-ExitCode -Code $LASTEXITCODE)"
-        $detail = ($output | Select-Object -Last 5 | Out-String).Trim()
-        if ($detail) {
-            Write-Host "    $detail" -ForegroundColor DarkGray
-        }
-        return $false
-    }
-
-    return $true
-}
-
 # Install multiple GitHub-release packages from a list. Winget/choco packages
 # are installed by Ansible in ops-server, not here.
 function Install-PackageBatch {
@@ -868,10 +692,6 @@ Export-ModuleMember -Function @(
     'Get-ProgramExe',
     'Test-GitHubOutdated',
     'Invoke-UninstallString',
-    'ConvertFrom-ComfyNodeSpec',
-    'Test-ComfyNodeInstalled',
-    'Install-ComfyNode',
-    'Install-ComfyNodeRequirements',
     'Install-PackageBatch',
     'Show-PackageStatus',
     'Write-ResultsSummary'
