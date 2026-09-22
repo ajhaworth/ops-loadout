@@ -1,4 +1,4 @@
-//! The launcher's windows: the `ops://` scheme that serves the UI off disk,
+//! Loadout's windows: the `loadout://` scheme that serves the UI off disk,
 //! the full window, and the quick panel anchored to the tray icon.
 
 use crate::settings::{find_repo_on_disk, Store};
@@ -6,7 +6,7 @@ use std::path::Path;
 use tauri::{AppHandle, Manager};
 
 /// Serves `<repo>/app/ui/*` straight off disk so a `git pull` (or an edit)
-/// updates the installed launcher's UI without a rebuild. Falls back to the
+/// updates the installed app's UI without a rebuild. Falls back to the
 /// assets baked in at build time when the repo isn't found.
 pub(crate) fn serve_ui(
     ctx: tauri::UriSchemeContext<'_, tauri::Wry>,
@@ -17,7 +17,7 @@ pub(crate) fn serve_ui(
     let app = ctx.app_handle();
 
     // `dcc/...` serves `<repo>/config/dcc/...` - the DCC helper pages (the
-    // Blender keymap viewer) live with their configs, not in the launcher UI.
+    // Blender keymap viewer) live with their configs, not in the Loadout UI.
     // No embedded copy of those, so a missing repo just 404s below.
     let rel = match path.strip_prefix("dcc/") {
         Some(rest) => Path::new("config/dcc").join(rest),
@@ -56,7 +56,7 @@ pub(crate) fn serve_ui(
         .unwrap()
 }
 
-/// Bring the full launcher window up, dismissing the quick panel.
+/// Bring the full Loadout window up, dismissing the quick panel.
 pub(crate) fn show_main(app: &AppHandle) {
     if let Some(quick) = app.get_webview_window("quick") {
         let _ = quick.hide();
@@ -144,9 +144,9 @@ pub(crate) async fn open_full(handle: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub(crate) async fn open_page(handle: AppHandle, path: String) -> Result<(), String> {
     let url = if cfg!(windows) {
-        format!("http://ops.localhost/{path}")
+        format!("http://loadout.localhost/{path}")
     } else {
-        format!("ops://localhost/{path}")
+        format!("loadout://localhost/{path}")
     };
     let label: String =
         path.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
@@ -158,7 +158,7 @@ pub(crate) async fn open_page(handle: AppHandle, path: String) -> Result<(), Str
     }
     let url = url.parse().map_err(|e| format!("bad page url: {e}"))?;
     tauri::WebviewWindowBuilder::new(&handle, label, tauri::WebviewUrl::External(url))
-        .title("Launchbay")
+        .title("Loadout")
         .inner_size(1100.0, 780.0)
         .build()
         .map_err(|e| e.to_string())?;

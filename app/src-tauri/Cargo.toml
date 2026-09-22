@@ -1,9 +1,9 @@
 [package]
-name = "launchbay"
-version = "0.3.4"
+name = "loadout"
+version = "0.4.0"
 edition = "2021"
 rust-version = "1.77"
-description = "Launcher for the apps ops-desktop manages"
+description = "Tracks, installs and configures the apps a workstation runs"
 publish = false
 
 [build-dependencies]

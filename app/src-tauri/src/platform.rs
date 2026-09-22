@@ -17,7 +17,7 @@ mod windows;
 #[cfg(target_os = "windows")]
 pub use windows::{hydrate, job_command, launch, open_url, refresh_icon, reveal, task_command};
 
-// Linux is not a target of this launcher (no apt support in the plan), but the
+// Linux is not a target of Loadout (no apt support in the plan), but the
 // crate should still build there.
 // ponytail: stub backend; add an apt/flatpak backend when Linux is asked for.
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]

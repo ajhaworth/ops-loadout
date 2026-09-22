@@ -456,7 +456,7 @@ Assert-Equal 0 (Get-RegistryFailureCount) "Reset-RegistryResults clears failures
 
 if ($onWindows) {
     Reset-RegistryResults
-    $probePath = "HKCU:\Software\ops-workstation-smoketest"
+    $probePath = "HKCU:\Software\ops-loadout-smoketest"
     if (Test-Path -LiteralPath $probePath) { Remove-Item -LiteralPath $probePath -Recurse -Force }
     Set-RegistryValue -Path $probePath -Name 'ProbeValue' -Value 1 -Type DWord -Label 'smoke test probe' -DryRun | Out-Null
     $pendingResults = Get-RegistryResults

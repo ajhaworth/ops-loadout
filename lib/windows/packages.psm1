@@ -260,7 +260,7 @@ function Test-GitHubPackage {
 # An app's own DisplayVersion is not a reliable stand-in: Vibepollo's v1.18.4
 # release registers itself as 1.18.4-beta.3, which reads as "older than the
 # release" forever and reinstalls on every run.
-$script:GitHubStampKey = 'HKCU:\Software\ops-workstation\GitHubReleases'
+$script:GitHubStampKey = 'HKCU:\Software\ops-loadout\GitHubReleases'
 
 function Get-GitHubReleaseStamp {
     param(
@@ -307,7 +307,7 @@ function Get-GitHubLatestRelease {
 
     $headers = @{
         'Accept'     = 'application/vnd.github+json'
-        'User-Agent' = 'ops-workstation-setup'
+        'User-Agent' = 'ops-loadout-setup'
     }
     if ($env:GITHUB_TOKEN) {
         $headers['Authorization'] = "Bearer $env:GITHUB_TOKEN"
