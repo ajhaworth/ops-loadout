@@ -3,10 +3,12 @@
 # Copies Ghostty.app out of the latest GitHub release dmg into /Applications.
 
 set -euo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/_dmg.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 
 APP="/Applications/Ghostty.app"
-LATEST="https://api.github.com/repos/ghostty-org/ghostty/releases/latest"
+# Ghostty has no "latest" GitHub release; macOS builds come from its Sparkle
+# appcast, whose items are oldest-first, so pick the highest version.
+APPCAST="https://release.files.ghostty.org/appcast.xml"
 
 do_status() {
     [[ -d "$APP" ]] || return 1
@@ -23,12 +25,11 @@ cleanup() {
 
 do_install() {
     local action="$1" tag url current
-    local -a curl_headers=()
-    [[ -n "${GITHUB_TOKEN:-}" ]] && curl_headers=(-H "Authorization: Bearer $GITHUB_TOKEN")
 
     echo "==> Resolving latest Ghostty release"
-    read -r tag url < <(curl -fsS "${curl_headers[@]}" "$LATEST" | jq -r '"\(.tag_name) \(.assets[] | select(.name == "Ghostty.dmg") | .browser_download_url)"')
-    [[ -n "${url:-}" ]] || { echo "No Ghostty.dmg asset in the latest release" >&2; return 1; }
+    url="$(curl -fsSL "$APPCAST" | grep -o 'url="[^"]*/Ghostty\.dmg"' | cut -d'"' -f2 | sort -V | tail -1 || true)"
+    [[ -n "$url" ]] || { echo "No Ghostty.dmg in the appcast" >&2; return 1; }
+    tag="$(sed -n 's|.*/\([0-9][0-9.]*\)/Ghostty\.dmg$|\1|p' <<<"$url")"
     echo "    latest: $tag"
 
     if [[ -d "$APP" ]]; then
@@ -44,7 +45,7 @@ do_install() {
     trap cleanup EXIT
 
     echo "==> Downloading $url"
-    curl -fsSL -o "$TMP/Ghostty.dmg" "$url"
+    dl "$url" "$TMP/Ghostty.dmg"
 
     echo "==> Mounting"
     MOUNT="$(dmg_attach "$TMP/Ghostty.dmg")"
