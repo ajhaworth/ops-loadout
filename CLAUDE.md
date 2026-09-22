@@ -249,6 +249,12 @@ build into `/Applications/Blender.app` and symlinks
 hand-downloaded Blender reads as *not installed* and `install` refuses to
 replace it rather than `rm -rf`-ing someone else's app.
 
+- **Update reapplies setup.** Download only if the resolved version is newer;
+  a failed version check keeps a usable installed build and still runs setup.
+  Reinstall explicitly forces the download. Every successful app-selection path
+  relinks portable scripts, installs missing extensions, re-enables configured
+  extensions, and runs windowed `setup.py` to regenerate the managed preferences,
+  keymap, and startup layout. Extension failures do not skip the remaining setup.
 - **The real config is binary.** `portable/config/startup.blend` and
   `userpref.blend` are the source of truth for scene/UI/prefs and are committed
   as binaries. They are *generated* by `setup.py`: edit `setup.py` and re-run
@@ -266,7 +272,8 @@ replace it rather than `rm -rf`-ing someone else's app.
   (Forgejo serves the same releases API under `/api/v1`); the installer puts them
   in the ignored `portable/extensions/`. GitHub/Forgejo entries prefer the latest
   release `.zip` asset and fall back to the repo zipball, which is re-zipped
-  because zipballs unpack to `owner-repo-sha/` — not a valid module name.
+  because zipballs unpack to `owner-repo-sha/` — not a valid module name. An optional
+  third field gives the manifest id, allowing installed plugins to be reused offline.
 - **Download mirror.** `ftp.nluug.nl` rather than `download.blender.org`, which
   sits behind a Cloudflare JS challenge (`mirrors.dotsrc.org` started 403ing
   listings in Sep 2026).
@@ -341,14 +348,15 @@ at mode 0600.
 **A release ships the repo content, so a downloaded app needs no checkout.**
 `app/scripts/bundle-repo.js` (npm `bundle-repo`, run by `beforeBuildCommand` in
 `tauri.conf.json` on every `tauri build`, local or CI) stages `config/`, `lib/` and `platforms/`
-into the gitignored `app/src-tauri/bundled/` via `git archive HEAD` — tracked
+into the gitignored `app/src-tauri/bundled/` via `git archive HEAD` plus tracked working-file edits — tracked
 files only, so gitignored Blender extensions and `*.local` can never ship — and
 `tauri.conf.json` bundles it as a resource.
 
 `seed_bundled_repo` copies that out to `<app data>/repo` on launch, because the
 scripts write back into the repo (`config/sidefx.local`, Blender's portable
 prefs) and editing the .app would break its ad-hoc seal. `.bundled-version`
-holds the app version: a mismatch re-copies, overwriting tracked files but
+holds the app version and content revision: a mismatch re-copies, preserving existing
+Blender `.blend` preferences/startup files and overwriting other tracked files but
 **never deleting**, so local state survives an update. The seed runs before the
 candidate list is walked, since a saved path pointing at the seeded copy matches
 earlier. A real checkout still wins, so development is unaffected -

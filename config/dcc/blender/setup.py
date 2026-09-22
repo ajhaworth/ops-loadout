@@ -1,10 +1,12 @@
 # Environment-artist startup. Run once: `bin/blender --python setup.py` (opens a window briefly), then commit portable/config.
-import bpy, os
+import bpy, os, traceback
+setup_errors = []
 bpy.ops.wm.read_homefile(use_factory_startup=True)  # start from the factory scene, not the previous startup.blend, so this script is the whole truth (prefs untouched)
 
 # preferences
 # keymap: dcc.py is a full preset (Industry Compatible + our edits). Change keys in Preferences > Keymap, then `bin/keymap-export` and commit.
-bpy.ops.preferences.keyconfig_activate(filepath=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'portable', 'scripts', 'presets', 'keyconfig', 'dcc.py'))
+if not bpy.utils.keyconfig_set(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'portable', 'scripts', 'presets', 'keyconfig', 'dcc.py')):
+    raise RuntimeError('Could not activate custom dcc keymap')
 p = bpy.context.preferences
 p.view.show_splash = False
 p.view.show_navigate_ui = False   # drop the zoom/pan/camera/persp buttons; the axis gizmo stays
@@ -13,7 +15,15 @@ p.edit.undo_steps = 128
 p.system.use_online_access = True  # MCP add-on refuses to open its socket offline
 p.inputs.use_rotate_around_active = True   # orbit around the selected prop, not the view centre, when placing/inspecting assets
 p.inputs.use_mouse_depth_navigate = True   # orbit/pan pivot on the surface under the cursor: navigate big scenes without selecting first
-bpy.ops.preferences.addon_enable(module='node_wrangler')  # still a bundled legacy add-on, not on extensions.blender.org
+# Re-enable installed extensions too, including plugins disabled in preferences.
+for module in ['node_wrangler', *os.environ.get('OPS_BLENDER_ADDONS', '').split()]:
+    try:
+        if 'FINISHED' not in bpy.ops.preferences.addon_enable(module=module):
+            raise RuntimeError('enable operator did not finish')
+        print(f'Enabled {module}', flush=True)
+    except Exception as exc:
+        setup_errors.append(module)
+        print(f'Failed to enable {module}: {exc}', flush=True)
 
 # scene: metric shown in cm (Unreal), completely empty (no objects, no collections)
 sc = bpy.context.scene
@@ -53,5 +63,18 @@ def step():
         return 0.1
     bpy.ops.wm.save_userpref()
     bpy.ops.wm.save_homefile()
-    os._exit(0)  # skip the "unsaved changes" quit prompt
-bpy.app.timers.register(step, first_interval=0.5)
+    print('Custom configuration saved', flush=True)
+    os._exit(1 if setup_errors else 0)  # skip the "unsaved changes" quit prompt
+
+def guarded_step():
+    try:
+        return step()
+    except Exception:
+        traceback.print_exc()
+        # Timer exceptions otherwise leave the installer waiting on an open window.
+        import sys
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(1)
+
+bpy.app.timers.register(guarded_step, first_interval=0.5)

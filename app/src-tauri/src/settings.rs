@@ -150,9 +150,15 @@ fn seed_bundled_repo(app: &AppHandle) -> Option<PathBuf> {
 }
 
 /// Copy `source` over `target` unless `target/.bundled-version` already reads
-/// `version`. Overwrites files, never deletes: everything the user's own runs
-/// left behind survives an app update.
+/// the version and bundle revision. Refresh scripts without deleting runtime
+/// files or overwriting saved Blender preferences and startup scenes.
 fn seed_dir(source: &Path, target: &Path, version: &str) -> std::io::Result<()> {
+    let revision = std::fs::read_to_string(source.join(".bundle-revision")).unwrap_or_default();
+    let version = if revision.trim().is_empty() {
+        version.to_string()
+    } else {
+        format!("{version}:{}", revision.trim())
+    };
     let stamp = target.join(".bundled-version");
     if std::fs::read_to_string(&stamp).is_ok_and(|s| s.trim() == version) {
         return Ok(());
@@ -169,6 +175,11 @@ fn copy_over(source: &Path, target: &Path) -> std::io::Result<()> {
         if entry.file_type()?.is_dir() {
             copy_over(&entry.path(), &to)?;
         } else {
+            // Blender saves personal preferences and startup scenes here. Seed
+            // defaults on first install, but preserve them across app updates.
+            if to.exists() && to.extension().is_some_and(|e| e == "blend") {
+                continue;
+            }
             std::fs::copy(entry.path(), &to)?;
             // Tauri's resource copying keeps the mode bits today (verified in a
             // built .app), but nothing promises it does, and the launcher execs
@@ -352,6 +363,25 @@ mod tests {
     fn write(path: &std::path::Path, body: &str) {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, body).unwrap();
+    }
+
+    #[test]
+    fn same_version_rebuild_refreshes_scripts_but_preserves_blender_preferences() {
+        let tmp = std::env::temp_dir().join(format!("ops-seed-revision-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let (source, target) = (tmp.join("bundled"), tmp.join("repo"));
+        let prefs = "config/dcc/blender/portable/config/userpref.blend";
+        write(&source.join(prefs), "defaults");
+        write(&source.join("lib/tasks.sh"), "old");
+        write(&source.join(".bundle-revision"), "first");
+        seed_dir(&source, &target, "0.3.4").unwrap();
+        write(&target.join(prefs), "personal preferences");
+        write(&source.join("lib/tasks.sh"), "fixed");
+        write(&source.join(".bundle-revision"), "second");
+        seed_dir(&source, &target, "0.3.4").unwrap();
+        assert_eq!(std::fs::read_to_string(target.join("lib/tasks.sh")).unwrap(), "fixed");
+        assert_eq!(std::fs::read_to_string(target.join(prefs)).unwrap(), "personal preferences");
+        std::fs::remove_dir_all(tmp).unwrap();
     }
 
     #[test]
