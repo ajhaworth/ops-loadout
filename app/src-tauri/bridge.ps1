@@ -643,6 +643,10 @@ switch ($Verb) {
     }
 
     'launch' {
+        if (-not $Args2[0]) {
+            Write-Host 'Missing exe path'
+            exit 1
+        }
         # -FilePath with a literal path: nothing here is re-parsed as script,
         # so spaces and metacharacters in the path are inert.
         Start-Process -FilePath $Args2[0]

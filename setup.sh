@@ -196,7 +196,14 @@ cmd_packages_install() {
 # Install commands (run actual installation)
 # ============================================================================
 
-cmd_homebrew_install() {
+# Shared body for the install/apply commands below: banner, dry-run notice,
+# source the platform script, run each function in order, then success message.
+# Profile is already loaded by main() before dispatch, so no per-stage reload.
+run_stage() {
+    local script="$1"
+    local success_msg="$2"
+    shift 2
+
     print_banner
 
     if is_dry_run; then
@@ -204,98 +211,37 @@ cmd_homebrew_install() {
         echo ""
     fi
 
-    # Load profile if specified
-    if [[ -n "$PROFILE" ]]; then
-        load_profile "$PROFILE"
-    fi
-
-    source "$SCRIPT_DIR/platforms/macos/homebrew.sh"
-    setup_homebrew
+    source "$script"
+    local fn
+    for fn in "$@"; do
+        "$fn"
+    done
 
     echo ""
-    log_success "Homebrew setup complete"
+    log_success "$success_msg"
+}
+
+cmd_homebrew_install() {
+    run_stage "$SCRIPT_DIR/platforms/macos/homebrew.sh" "Homebrew setup complete" setup_homebrew
 }
 
 cmd_formulae_install() {
-    print_banner
-
-    if is_dry_run; then
-        log_warn "DRY-RUN MODE - No changes will be made"
-        echo ""
-    fi
-
-    # Load profile if specified
-    if [[ -n "$PROFILE" ]]; then
-        load_profile "$PROFILE"
-    fi
-
-    source "$SCRIPT_DIR/platforms/macos/homebrew.sh"
-    install_homebrew
-    update_homebrew
-    install_formulae
-    cleanup_homebrew
-
-    echo ""
-    log_success "Formulae installation complete"
+    run_stage "$SCRIPT_DIR/platforms/macos/homebrew.sh" "Formulae installation complete" \
+        install_homebrew update_homebrew install_formulae cleanup_homebrew
 }
 
 cmd_casks_install() {
-    print_banner
-
-    if is_dry_run; then
-        log_warn "DRY-RUN MODE - No changes will be made"
-        echo ""
-    fi
-
-    # Load profile if specified
-    if [[ -n "$PROFILE" ]]; then
-        load_profile "$PROFILE"
-    fi
-
-    source "$SCRIPT_DIR/platforms/macos/homebrew.sh"
-    install_homebrew
-    update_homebrew
-    install_casks
-    cleanup_homebrew
-
-    echo ""
-    log_success "Casks installation complete"
+    run_stage "$SCRIPT_DIR/platforms/macos/homebrew.sh" "Casks installation complete" \
+        install_homebrew update_homebrew install_casks cleanup_homebrew
 }
 
 cmd_mas_install() {
-    print_banner
-
-    if is_dry_run; then
-        log_warn "DRY-RUN MODE - No changes will be made"
-        echo ""
-    fi
-
-    source "$SCRIPT_DIR/platforms/macos/homebrew.sh"
-    install_homebrew
-    install_mas_apps
-
-    echo ""
-    log_success "Mac App Store apps installation complete"
+    run_stage "$SCRIPT_DIR/platforms/macos/homebrew.sh" "Mac App Store apps installation complete" \
+        install_homebrew install_mas_apps
 }
 
 cmd_defaults_apply() {
-    print_banner
-
-    if is_dry_run; then
-        log_warn "DRY-RUN MODE - No changes will be made"
-        echo ""
-    fi
-
-    # Load profile if specified
-    if [[ -n "$PROFILE" ]]; then
-        load_profile "$PROFILE"
-    fi
-
-    source "$SCRIPT_DIR/platforms/macos/defaults.sh"
-    setup_defaults
-
-    echo ""
-    log_success "System preferences applied"
+    run_stage "$SCRIPT_DIR/platforms/macos/defaults.sh" "System preferences applied" setup_defaults
 }
 
 # Subcommand: launcher (macOS Tauri app in app/)
