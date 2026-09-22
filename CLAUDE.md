@@ -315,8 +315,8 @@ the user prefs `desktop/`, not the repo — copy that file back into
 `examples/`.
 
 **Asset library.** `config/dcc/blender/assets/` is registered by `setup.py`
-as Blender asset library "Loadout", and the Layout workspace's asset shelf
-defaults to it. `assets/build.py` (run via `bin/blender -b --factory-startup
+as Blender asset library "Loadout" (the Layout asset browser shows all
+libraries; `params` is unset while `setup.py` runs, so it cannot pin one). `assets/build.py` (run via `bin/blender -b --factory-startup
 --python assets/build.py`) regenerates `reference.blend` from
 `assets/reference/*.fbx`, each FBX becoming an asset collection in the
 "Reference" catalog. Add assets by extending `build.py` or by dropping
