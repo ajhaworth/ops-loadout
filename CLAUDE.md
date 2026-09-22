@@ -24,7 +24,7 @@ executing `brew`/`mas` at all - not even for status - so a Mac without Homebrew
 never sees a "command not found". `INSTALLERS_<CATEGORY>` gates
 `config/packages/macos/installers/<category>.txt` the same way `CASKS_*` gates
 casks. `workstation.conf` keeps Homebrew (core and shell formulae only, no
-casks, no MAS) and leaves `installers/dcc.txt` (Blender, Houdini) and
+casks, no MAS) and leaves `installers/3D.txt` (Blender, Houdini) and
 `installers/development.txt` (Fork, Ghostty) visible; the user installs those
 by hand from the launcher tiles. Apps added for the work Mac go in as installer
 scripts, not casks, so the allow-list stays explicit.
@@ -39,7 +39,7 @@ quarantine flag. The app still needs the repo checkout for its UI and scripts.
 Packages are defined in text files under `config/packages/` — one package per line, comments start with `#`.
 
 - `macos/formulae/*.txt` / `macos/casks/*.txt` - Homebrew CLI tools and GUI apps
-- `macos/mas/apps.txt` - Mac App Store apps (`ID|Name` format)
+- `macos/mas/*.txt` - Mac App Store apps (`ID|Name` format); one list per category like casks, all gated by `PROFILE_MAS`
 - `linux/apt/*.txt` - APT packages
 - `windows/github/*.txt` - GitHub release installers (see below)
 - `windows/comfynodes/*.txt` - ComfyUI custom nodes (see below)

@@ -1,0 +1,5 @@
+# development.txt - Mac App Store apps: Apple developer tools
+# Format: ID|Name   (find IDs with: mas search <name>)
+
+497799835|Xcode
+899247664|TestFlight

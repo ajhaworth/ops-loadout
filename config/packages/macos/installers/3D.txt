@@ -1,0 +1,6 @@
+# 3D.txt - 3D apps with no Homebrew cask, installed by platforms/macos/installers/<token>.sh
+# token | display-name | homepage
+
+blender | Blender | https://www.blender.org/
+houdini | Houdini | https://www.sidefx.com/
+sidefxlabs | SideFX Labs | https://github.com/sideeffects/SideFXLabs

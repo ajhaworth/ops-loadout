@@ -1,0 +1,6 @@
+# media.txt - Mac App Store apps: reading and games
+# Format: ID|Name   (find IDs with: mas search <name>)
+
+1529448980|Reeder
+6475002485|Reeder 2
+1136800740|GameTrack

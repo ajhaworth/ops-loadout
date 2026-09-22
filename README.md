@@ -196,7 +196,7 @@ Packages are defined in text files under `config/packages/`:
 **macOS** (`config/packages/macos/`):
 - `formulae/*.txt` - Homebrew CLI tools (one package per line)
 - `casks/*.txt` - Homebrew GUI apps (one package per line)
-- `mas/apps.txt` - Mac App Store apps (`ID|Name` format)
+- `mas/*.txt` - Mac App Store apps (`ID|Name` format)
 - `installers/*.txt` - Apps with no cask, `token | display-name | homepage`.
   Each token is a script `platforms/macos/installers/<token>.sh` that takes
   one of `status|install|update|reinstall|uninstall`; `status` prints the

@@ -1,0 +1,12 @@
+# productivity.txt - Mac App Store apps: tasks, documents, messaging
+# Format: ID|Name   (find IDs with: mas search <name>)
+
+585829637|Todoist
+904280696|Things
+966085870|TickTick
+409201541|Pages
+409183694|Keynote
+375589283|Parcel
+457622435|Yoink
+1569813296|1Password for Safari
+539883307|LINE
