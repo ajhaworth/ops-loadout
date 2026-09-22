@@ -20,7 +20,7 @@
 #   mas                 Install Mac App Store apps
 #   mas ls              List Mac App Store apps
 #   defaults            Apply system preferences
-#   launcher            Build Ops Launcher.app and copy it into /Applications
+#   launcher            Build Launchbay.app and copy it into /Applications
 #   launcher build      Build the launcher bundle only
 #   launcher dev        Run the launcher against this checkout
 #
@@ -80,7 +80,7 @@ Commands:
     mas                 Install Mac App Store apps
     mas ls              List Mac App Store apps
     defaults            Apply system preferences
-    launcher            Build Ops Launcher.app and copy it into /Applications
+    launcher            Build Launchbay.app and copy it into /Applications
     launcher build      Build the launcher bundle only
     launcher dev        Run the launcher against this checkout
 
@@ -102,7 +102,7 @@ Examples:
     ./setup.sh homebrew                 # Install Homebrew packages (macOS)
     ./setup.sh homebrew ls              # List Homebrew packages (macOS)
     ./setup.sh defaults                 # Apply system preferences (macOS)
-    ./setup.sh launcher                 # Build and install Ops Launcher (macOS)
+    ./setup.sh launcher                 # Build and install Launchbay (macOS)
     ./setup.sh packages                 # Install system packages (Linux)
     ./setup.sh packages ls              # List system packages (Linux)
 Available profiles:
@@ -324,7 +324,7 @@ cmd_launcher() {
         fi
     done
 
-    log_step "Ops Launcher: $target"
+    log_step "Launchbay: $target"
     cd "$SCRIPT_DIR/app"
     run_cmd npm install
 

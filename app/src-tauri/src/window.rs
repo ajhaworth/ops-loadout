@@ -158,7 +158,7 @@ pub(crate) async fn open_page(handle: AppHandle, path: String) -> Result<(), Str
     }
     let url = url.parse().map_err(|e| format!("bad page url: {e}"))?;
     tauri::WebviewWindowBuilder::new(&handle, label, tauri::WebviewUrl::External(url))
-        .title("Ops Launcher")
+        .title("Launchbay")
         .inner_size(1100.0, 780.0)
         .build()
         .map_err(|e| e.to_string())?;

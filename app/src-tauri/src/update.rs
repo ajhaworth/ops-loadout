@@ -1,5 +1,5 @@
 //! Tray > Check for Updates. tauri-plugin-updater against the `latest.json`
-//! attached to each GitHub release - see CLAUDE.md "Ops Launcher".
+//! attached to each GitHub release - see CLAUDE.md "Launchbay".
 use crate::emit_line;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::AppHandle;
@@ -32,7 +32,7 @@ async fn run(app: &AppHandle) {
         Err(e) => return say(app, &format!("Update check failed: {e}")),
         Ok(None) => {
             let version = app.package_info().version.to_string();
-            return say(app, &format!("Ops Launcher {version} is up to date."));
+            return say(app, &format!("Launchbay {version} is up to date."));
         }
         Ok(Some(update)) => update,
     };
@@ -43,7 +43,7 @@ async fn run(app: &AppHandle) {
             "Version {} is available. Install and relaunch?",
             update.version
         ))
-        .title("Ops Launcher")
+        .title("Launchbay")
         .buttons(MessageDialogButtons::OkCancelCustom(
             "Install".into(),
             "Later".into(),
@@ -53,7 +53,7 @@ async fn run(app: &AppHandle) {
         return;
     }
 
-    log(app, &format!("Downloading Ops Launcher {}", update.version));
+    log(app, &format!("Downloading Launchbay {}", update.version));
     let mut got = 0usize;
     let mut last = 0usize;
     let progress = |chunk: usize, total: Option<u64>| {
@@ -80,7 +80,7 @@ async fn run(app: &AppHandle) {
 
 fn say(app: &AppHandle, text: &str) {
     log(app, text);
-    app.dialog().message(text).title("Ops Launcher").blocking_show();
+    app.dialog().message(text).title("Launchbay").blocking_show();
 }
 
 /// Same `install-log` stream the package jobs use, so the log drawer shows it.

@@ -107,9 +107,9 @@ function Invoke-DebloatCommand {
 }
 
 # Installs the toolchain the launcher needs (Rust, Node, VC++ Build Tools),
-# then builds and silently installs the Ops Launcher app via its NSIS bundle.
+# then builds and silently installs the Launchbay app via its NSIS bundle.
 function Invoke-LauncherCommand {
-    Write-Step "Ops Launcher prerequisites"
+    Write-Step "Launchbay prerequisites"
 
     if (Get-Command cargo -ErrorAction SilentlyContinue) {
         Write-Skip "Rust toolchain already installed"
@@ -158,7 +158,7 @@ function Invoke-LauncherCommand {
     $appDir = Join-Path $repoRoot "app"
     Push-Location $appDir
     try {
-        Write-Step "Building Ops Launcher"
+        Write-Step "Building Launchbay"
         npm install
         if ($LASTEXITCODE -ne 0) {
             $script:StageFailures++
@@ -183,7 +183,7 @@ function Invoke-LauncherCommand {
 
     Write-SubStep "Running installer: $($installer.Name)"
     Start-Process -Wait -FilePath $installer.FullName -ArgumentList '/S'
-    Write-Success "Ops Launcher installed"
+    Write-Success "Launchbay installed"
 }
 
 # winget-installed tools register their PATH entries in the registry, but

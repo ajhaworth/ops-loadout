@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Ops Launcher",
-  "version": "0.2.3",
-  "identifier": "dev.alx.ops-launcher",
+  "productName": "Launchbay",
+  "version": "0.3.0",
+  "identifier": "dev.alx.launchbay",
   "build": {
     "beforeBuildCommand": "npm run bundle-repo",
     "frontendDist": "../ui"
@@ -14,7 +14,7 @@
         "label": "main",
         "url": "ops://localhost/index.html",
         "visible": false,
-        "title": "Ops Launcher",
+        "title": "Launchbay",
         "width": 550,
         "height": 680,
         "minWidth": 480,
@@ -26,7 +26,7 @@
       {
         "label": "quick",
         "url": "ops://localhost/quick.html",
-        "title": "Ops Launcher",
+        "title": "Launchbay",
         "width": 340,
         "height": 400,
         "visible": false,
