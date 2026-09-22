@@ -3,6 +3,7 @@
 # Copies Compositor.app out of the latest GitHub release dmg into /Applications.
 
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/_dmg.sh"
 
 APP="/Applications/Compositor.app"
 LATEST="https://api.github.com/repos/robbietilton/Compositor/releases/latest"
@@ -15,7 +16,7 @@ do_status() {
 MOUNT=""
 TMP=""
 cleanup() {
-    [[ -n "$MOUNT" ]] && hdiutil detach "$MOUNT" -quiet >/dev/null 2>&1
+    dmg_detach "$MOUNT"
     [[ -n "$TMP" ]] && rm -rf "$TMP"
     return 0
 }
@@ -44,8 +45,7 @@ do_install() {
     curl -fsSL -o "$TMP/Compositor.dmg" "$url"
 
     echo "==> Mounting"
-    MOUNT="$(hdiutil attach -nobrowse -noverify -readonly "$TMP/Compositor.dmg" 2>/dev/null \
-        | tail -1 | awk -F'\t' '{ print $NF }')"
+    MOUNT="$(dmg_attach "$TMP/Compositor.dmg")"
     [[ -d "$MOUNT/Compositor.app" ]] || {
         echo "No Compositor.app on the mounted image. Contents:" >&2
         ls -1 "${MOUNT:-$TMP}" >&2

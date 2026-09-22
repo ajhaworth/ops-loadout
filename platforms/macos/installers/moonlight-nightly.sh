@@ -6,6 +6,7 @@
 # in software-dev.txt) with an active `gh auth login`.
 
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/_dmg.sh"
 
 REPO="moonlight-stream/moonlight-qt"
 APP="/Applications/Moonlight Nightly.app"
@@ -22,7 +23,7 @@ do_status() {
 MOUNT=""
 TMP=""
 cleanup() {
-    [[ -n "$MOUNT" ]] && hdiutil detach "$MOUNT" -quiet >/dev/null 2>&1
+    dmg_detach "$MOUNT"
     [[ -n "$TMP" ]] && rm -rf "$TMP"
     return 0
 }
@@ -56,8 +57,7 @@ do_install() {
     [[ -n "$dmg" ]] || { echo "No dmg in the macOS artifact" >&2; return 1; }
 
     echo "==> Mounting"
-    MOUNT="$(hdiutil attach -nobrowse -noverify -readonly "$dmg" 2>/dev/null \
-        | tail -1 | awk -F'\t' '{ print $NF }')"
+    MOUNT="$(dmg_attach "$dmg")"
     [[ -d "$MOUNT/Moonlight.app" ]] || {
         echo "No Moonlight.app on the mounted image. Contents:" >&2
         ls -1 "${MOUNT:-$TMP}" >&2
