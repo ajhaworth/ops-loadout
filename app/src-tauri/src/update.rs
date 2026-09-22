@@ -1,13 +1,15 @@
 //! Tray > Check for Updates. Asks the GitHub releases API for the newest
 //! release, compares its tag with the running version and installs the dmg
-//! (macOS) or NSIS exe (Windows) - see CLAUDE.md "Launchbay".
+//! (macOS) or NSIS exe (Windows) - see CLAUDE.md "Loadout".
 use crate::emit_line;
+#[cfg(target_os = "macos")]
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::AppHandle;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 
-const LATEST: &str = "https://api.github.com/repos/ajhaworth/ops-workstation/releases/latest";
+const LATEST: &str = "https://api.github.com/repos/ajhaworth/ops-loadout/releases/latest";
 
 /// Checks, asks, installs and relaunches. Runs off the main thread, since the
 /// dialogs block and the download takes as long as it takes.
@@ -26,7 +28,7 @@ pub fn check_for_updates(app: &AppHandle) {
 }
 
 async fn run(app: &AppHandle) {
-    let body = match sh("curl", &["-fsSL", "-H", "User-Agent: Launchbay", LATEST]) {
+    let body = match sh("curl", &["-fsSL", "-H", "User-Agent: Loadout", LATEST]) {
         Ok(body) => body,
         Err(e) => return say(app, &format!("Update check failed: {e}")),
     };
@@ -45,7 +47,7 @@ async fn run(app: &AppHandle) {
     };
     if latest <= app.package_info().version {
         let version = app.package_info().version.to_string();
-        return say(app, &format!("Launchbay {version} is up to date."));
+        return say(app, &format!("Loadout {version} is up to date."));
     }
 
     let ext = if cfg!(target_os = "macos") {
@@ -90,7 +92,7 @@ async fn run(app: &AppHandle) {
         .message(format!(
             "Version {latest} is available. Install and relaunch?"
         ))
-        .title("Launchbay")
+        .title("Loadout")
         .buttons(MessageDialogButtons::OkCancelCustom(
             "Install".into(),
             "Later".into(),
@@ -100,7 +102,7 @@ async fn run(app: &AppHandle) {
         return;
     }
 
-    log(app, &format!("Downloading Launchbay {latest}"));
+    log(app, &format!("Downloading Loadout {latest}"));
     let file = std::env::temp_dir().join(&name);
     if let Err(e) = sh("curl", &["-fL", "-o", &file.to_string_lossy(), &url]) {
         return say(app, &format!("Update failed: {e}"));
@@ -108,9 +110,9 @@ async fn run(app: &AppHandle) {
 
     #[cfg(target_os = "macos")]
     {
-        let mnt = std::env::temp_dir().join("launchbay-update");
+        let mnt = std::env::temp_dir().join("loadout-update");
         let bundle = match std::env::current_exe().ok().and_then(|exe| {
-            // exe is <Launchbay.app>/Contents/MacOS/launchbay
+            // exe is <Loadout.app>/Contents/MacOS/loadout
             exe.parent()?.parent()?.parent().map(|p| p.to_path_buf())
         }) {
             Some(b) if b.extension().is_some_and(|e| e == "app") => b,
@@ -131,27 +133,23 @@ async fn run(app: &AppHandle) {
         }
         // Copy beside the old bundle first, then swap, so a failed copy never
         // leaves the app deleted.
-        let app_name = bundle
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .into_owned();
         let staged = bundle.with_extension("app.new");
         let old = bundle.with_extension("app.old");
-        let replaced = sh(
-            "rm",
-            &["-rf", &staged.to_string_lossy(), &old.to_string_lossy()],
-        )
-        .and_then(|_| {
-            sh(
-                "ditto",
-                &[
-                    &mnt.join(&app_name).to_string_lossy(),
-                    &staged.to_string_lossy(),
-                ],
-            )
-        })
-        .and_then(|_| sh("mv", &[&bundle.to_string_lossy(), &old.to_string_lossy()]))
+        let replaced = mounted_app(&mnt)
+            .and_then(|src| {
+                sh(
+                    "rm",
+                    &["-rf", &staged.to_string_lossy(), &old.to_string_lossy()],
+                )
+                .map(|_| src)
+            })
+            .and_then(|src| {
+                sh(
+                    "ditto",
+                    &[&src.to_string_lossy(), &staged.to_string_lossy()],
+                )
+            })
+            .and_then(|_| sh("mv", &[&bundle.to_string_lossy(), &old.to_string_lossy()]))
         .and_then(|_| {
             sh(
                 "mv",
@@ -184,6 +182,24 @@ async fn run(app: &AppHandle) {
     );
 }
 
+/// The one `.app` inside a mounted disk image. Its name follows the product
+/// name, which renames do change - so this never assumes it matches the bundle
+/// being replaced. Guessing that name is what stranded the updater across the
+/// Ops Launcher -> Launchbay -> Loadout renames.
+#[cfg(target_os = "macos")]
+fn mounted_app(mnt: &Path) -> Result<PathBuf, String> {
+    let mut apps: Vec<PathBuf> = std::fs::read_dir(mnt)
+        .map_err(|e| format!("{}: {e}", mnt.display()))?
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "app"))
+        .collect();
+    match apps.len() {
+        1 => Ok(apps.remove(0)),
+        n => Err(format!("expected one .app in the disk image, found {n}")),
+    }
+}
+
 /// Runs a command to completion, stdout on success, stderr in the error.
 fn sh(program: &str, args: &[&str]) -> Result<String, String> {
     let out = Command::new(program)
@@ -205,11 +221,32 @@ fn say(app: &AppHandle, text: &str) {
     log(app, text);
     app.dialog()
         .message(text)
-        .title("Launchbay")
+        .title("Loadout")
         .blocking_show();
 }
 
 /// Same `install-log` stream the package jobs use, so the log drawer shows it.
 fn log(app: &AppHandle, line: &str) {
     emit_line(app, "updater", "update", line);
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::mounted_app;
+
+    #[test]
+    fn takes_the_apps_own_name_not_the_running_bundles() {
+        let mnt = std::env::temp_dir().join("loadout-update-test");
+        let _ = std::fs::remove_dir_all(&mnt);
+        std::fs::create_dir_all(mnt.join("Applications")).unwrap();
+        assert!(mounted_app(&mnt).is_err(), "no .app yet");
+
+        // The dmg carries the new name; the running bundle is still the old one.
+        std::fs::create_dir(mnt.join("Loadout.app")).unwrap();
+        assert_eq!(mounted_app(&mnt).unwrap(), mnt.join("Loadout.app"));
+
+        std::fs::create_dir(mnt.join("Launchbay.app")).unwrap();
+        assert!(mounted_app(&mnt).is_err(), "ambiguous with two bundles");
+        std::fs::remove_dir_all(&mnt).unwrap();
+    }
 }

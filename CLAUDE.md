@@ -4,7 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Cross-platform workstation setup tool. Automates installation of packages, dotfiles, and system preferences across macOS, Linux, and Windows.
+Loadout: the set of apps a workstation runs, plus their configuration, kept in
+one repo. It tracks what is installed, installs it, and configures both the apps
+themselves (dotfiles, DCC configs, keymaps) and the OS around them - across
+macOS, Linux and Windows, for work and personal machines. The desktop app in
+`app/` is the primary interface; the shell/PowerShell entry points do the same
+work headlessly.
 
 ## Key Concepts
 
@@ -13,23 +18,23 @@ Cross-platform workstation setup tool. Automates installation of packages, dotfi
 Profiles (`config/profiles/*.conf`) control what gets installed. Profile variables are bash-style `KEY="value"` pairs parsed by both bash (source) and PowerShell (regex).
 
 - `personal.conf` - Full installation for personal macOS devices
-- `workstation.conf` - Work macOS device: Blender, Houdini, Fork, Ghostty and core CLI tools, from the launcher
+- `workstation.conf` - Work macOS device: Blender, Houdini, Fork, Ghostty and core CLI tools, from Loadout
 - `linux.conf` - Full dev station setup for Linux (Debian/Ubuntu)
 - `windows.conf` - Gaming workstation setup for Windows
 
 Two profile-wide switches sit above the per-category flags. `PROFILE_HOMEBREW="false"`
-disables every formula, cask and MAS app at once, makes `homebrew.sh` and the
-launcher's prerequisites row skip Homebrew entirely, and stops the launcher
+disables every formula, cask and MAS app at once, makes `homebrew.sh` and
+Loadout's prerequisites row skip Homebrew entirely, and stops Loadout
 executing `brew`/`mas` at all - not even for status - so a Mac without Homebrew
 never sees a "command not found". `INSTALLERS_<CATEGORY>` gates
 `config/packages/macos/installers/<category>.txt` the same way `CASKS_*` gates
 casks. `workstation.conf` keeps Homebrew (core and shell formulae only, no
 casks, no MAS) and leaves `installers/3D.txt` (Blender, Houdini) and
 `installers/development.txt` (Fork, Ghostty) visible; the user installs those
-by hand from the launcher tiles. Apps added for the work Mac go in as installer
+by hand from the Loadout tiles. Apps added for the work Mac go in as installer
 scripts, not casks, so the allow-list stays explicit.
 
-`.github/workflows/release.yml` builds the launcher for every `v*` tag - the
+`.github/workflows/release.yml` builds Loadout for every `v*` tag - the
 macOS dmg on a macOS runner and the Windows installer on a Windows runner - and
 attaches both to a GitHub Release (`tauri-apps/tauri-action`).
 It is unsigned, so README tells downloaders to use Open Anyway or clear the
@@ -81,7 +86,7 @@ reinstalls regardless.
 are different schemes and need not agree. Vibepollo's `v1.18.4` release installs
 a binary that registers itself as `1.18.4-beta.3`, which reads as "older than
 the release" forever — the package reinstalls on every run. So a successful
-install records its tag under `HKCU:\Software\ops-workstation\GitHubReleases`
+install records its tag under `HKCU:\Software\ops-loadout\GitHubReleases`
 (`Get-`/`Set-GitHubReleaseStamp`), and later runs compare tag against tag.
 
 Without a stamp — an install this tool did not perform — it falls back to
@@ -213,21 +218,21 @@ lists apps with no Homebrew cask. Each token is
 `platforms/macos/installers/<token>.sh`, taking one of
 `status|install|update|reinstall|uninstall`: `status` prints the `.app` (or
 package directory) path and exits 0 when installed, and must stay fast and
-offline because the launcher runs it at startup. Only the launcher consumes
+offline because Loadout runs it at startup. Only Loadout consumes
 this kind (`catalog.rs` kind `installer`, `platform/macos.rs`); `setup.sh`
-does not. Root work goes through `sudo -A` so the launcher's askpass dialog
+does not. Root work goes through `sudo -A` so Loadout's askpass dialog
 can answer it.
 
 `houdini.sh` resolves the latest production build through the SideFX download
 API, which needs `config/sidefx.local` (`SIDEFX_CLIENT_ID`,
-`SIDEFX_CLIENT_SECRET`; gitignored via `*.local`). The launcher's Settings
+`SIDEFX_CLIENT_SECRET`; gitignored via `*.local`). Loadout's Settings
 dialog writes that file (`get_settings`/`set_settings` in `main.rs`); the
 script only reads it and points at Settings when it is missing. The dmg holds
 `Houdini.pkg`, installed with `installer -pkg ... -target /`. The Apprentice
 license cannot be scripted: a post-install dialog explains the License
 Administrator -> "Activate Apprentice" step and offers to open Houdini; no
 account is required. That dialog is shown only when `SUDO_ASKPASS` is set,
-which the launcher alone does, so it doubles as "a GUI is present".
+which Loadout alone does, so it doubles as "a GUI is present".
 `outdated` is never set for this kind; Update simply installs the latest.
 `sidefxlabs.sh` takes Labs from GitHub releases (tags match Houdini
 `X.Y.ZZZ`) into `~/Library/Preferences/houdini/<X.Y>/packages/`
@@ -282,8 +287,8 @@ replace it rather than `rm -rf`-ing someone else's app.
   step re-registers the `blender` server at Claude Code user scope, run via `uvx`
   from upstream git so it is never vendored (skipped without `claude` + `uvx`).
   Blender must be open for the tools to work.
-- **Keymap viewer.** `keymap.html`/`keymap.js` are served by the launcher at
-  `ops://localhost/dcc/blender/keymap.html` (`serve_ui` maps `dcc/*` to
+- **Keymap viewer.** `keymap.html`/`keymap.js` are served by Loadout at
+  `loadout://localhost/dcc/blender/keymap.html` (`serve_ui` maps `dcc/*` to
   `config/dcc/*`) and opened from the Blender tile's Keymap menu item. They read
   `dcc.py` at runtime — never export a JSON copy, one source of truth.
 
@@ -300,12 +305,22 @@ Adding the next DCC (Houdini) means `config/dcc/houdini/` plus its own installer
 beside `sidefxlabs.sh`, linking into `~/Library/Preferences/houdini/<X.Y>/` and
 resolving that `X.Y` the way `sidefxlabs.sh` does.
 
-### Launchbay (`app/`)
+### Loadout (`app/`)
 
-Renamed from "Ops Launcher" to "Launchbay" on 2026-09-21. The identifier change
-(`dev.alx.ops-launcher` → `dev.alx.launchbay`) means the tray updater on a machine
-still running Ops Launcher cannot update across the rename; moving to Launchbay
-there is a manual download.
+Named "Ops Launcher", then "Launchbay" (2026-09-21), then "Loadout"
+(2026-09-22) - the repo went `ops-workstation` -> `ops-desktop` -> `ops-loadout`
+alongside it. "Launcher" was retired because launching is the smallest thing
+this does: it tracks the apps a workstation runs, installs them, and configures
+them and the OS around them.
+
+Each identifier change (`dev.alx.ops-launcher` -> `dev.alx.launchbay` ->
+`dev.alx.loadout`) strands the previous install: the app config dir, the seeded
+repo copy and the Launch-at-Login agent are all keyed off the identifier, so
+settings reset and the old `.app` has to be deleted by hand. The tray updater
+was stranded too, because it looked for the *running* bundle's file name inside
+the downloaded dmg - `update.rs` now takes whatever single `.app` the dmg
+contains, so the next rename updates in place. A machine still on Launchbay
+predates that fix and needs one manual download.
 
 The Tauri desktop app the README calls the primary interface. Plain
 HTML/CSS/vanilla JS in `app/ui/` (no framework, no bundler; `frontendDist`
@@ -323,7 +338,7 @@ points straight at `../ui`) over a Rust backend in `app/src-tauri/src/`:
   using the same `<PREFIX>_<CATEGORY>` / `PROFILE_MAS` / `PROFILE_HOMEBREW`
   semantics as the bash side, before `hydrate` runs. `hydrate` only shells to
   `brew`/`mas` when the filtered set still contains an app of that kind. With
-  no profile saved the launcher opens Settings first so one gets picked.
+  no profile saved Loadout opens Settings first so one gets picked.
 - `platform.rs` picks `platform/macos.rs` or `platform/windows.rs` by
   `cfg(target_os)`; Linux is a stub that errors. macOS talks to `brew`/`mas`/
   the installer scripts directly. Windows shells *everything* to
@@ -333,14 +348,14 @@ points straight at `../ui`) over a Rust backend in `app/src-tauri/src/`:
   `lib/windows/*.psm1`, not in the bridge or in Rust — add features there.
 
 The UI is served off disk, not from the binary. `serve_ui` in `main.rs`
-registers an `ops://` scheme (`http://ops.localhost` on Windows, hence
+registers a `loadout://` scheme (`http://loadout.localhost` on Windows, hence
 `tauri.windows.conf.json` restating the window URLs) that reads
 `<repo>/app/ui/<path>` and falls back to the embedded `frontendDist` copy when
 the repo isn't found. So HTML/CSS/JS edits and `git pull` reach the installed
 app on the next window load; only Rust changes need `./setup.sh launcher`.
 
-Repo discovery (`find_repo`): `OPS_DESKTOP_DIR` → saved config → the checkout
-it was built from → `~/Developer/ops/ops-desktop` → the copy seeded from the
+Repo discovery (`find_repo`): `OPS_LOADOUT_DIR` → saved config → the checkout
+it was built from → `~/Developer/ops/ops-loadout` → the copy seeded from the
 bundle → folder picker. Settings (`repo`, `profile`) persist in the app config
 dir as `config.json`; the SideFX credentials go to `<repo>/config/sidefx.local`
 at mode 0600.
@@ -360,7 +375,7 @@ Blender `.blend` preferences/startup files and overwriting other tracked files b
 **never deleting**, so local state survives an update. The seed runs before the
 candidate list is walked, since a saved path pointing at the seeded copy matches
 earlier. A real checkout still wins, so development is unaffected -
-`OPS_DESKTOP_DIR=bundled` forces the seeded copy instead, unsaved, for testing a
+`OPS_LOADOUT_DIR=bundled` forces the seeded copy instead, unsaved, for testing a
 release build on a machine that has one. The seeded
 copy has no `app/` — `serve_ui` finds no file there and falls back to the
 embedded UI, which is the built-in behaviour.
@@ -384,9 +399,9 @@ gate it. The CSP allows no external scripts or styles; images only from
 `data:` and Google's favicon hosts. `src-tauri/gen/` and `target/` are build
 output and gitignored.
 
-### Setup Tasks (launcher)
+### Setup Tasks (Loadout)
 
-The launcher's **Updates** tab (below outdated packages) drives the non-package stages: prerequisites,
+Loadout's **Updates** tab (below outdated packages) drives the non-package stages: prerequisites,
 dotfiles, system defaults and (Windows) debloat. Every section is fed by one
 status verb per platform and applied by one apply verb:
 
@@ -449,7 +464,7 @@ Each `apply_<name>()` is built from two declarative helpers in `lib/tasks.sh`:
 `defaults_hook <hook-id> <label> <check-cmd> <apply-cmd>` covers anything that
 isn't a scalar `defaults write` (an `-array` write, a `chflags`, a `mkdir -p`).
 Both branch on the same code path for status (writes off) and apply, per
-"Setup Tasks (launcher)" above - there is no separate checker to keep in sync.
+"Setup Tasks (Loadout)" above - there is no separate checker to keep in sync.
 
 ### Windows Defaults
 
@@ -462,11 +477,11 @@ Registry writes go through `lib/windows/registry.psm1` (`Set-RegistryValue`,
 aware, and buckets every setting into `Changed`/`Skipped`/`Pending`/`Failed`/
 `NeedsAdmin` (`Get-RegistryResults`). `debloat.ps1` uses the same helpers.
 Each bucket entry is `@{ Id; Label; Detail }`, not a bare string — `Id` is the
-stable `"$Path\$Name"` (or bare `$Path` for `Remove-RegistryKey`) that the
-launcher's Setup tab uses to target one setting.
+stable `"$Path\$Name"` (or bare `$Path` for `Remove-RegistryKey`) that
+Loadout's Setup tab uses to target one setting.
 
 A `-DryRun` write that would change something lands in `Pending` rather than
-`Skipped`, so the launcher's tasks-status (see "Setup Tasks (launcher)") can
+`Skipped`, so Loadout's tasks-status (see "Setup Tasks (Loadout)") can
 tell "already correct" from "would change this" without a second checker.
 
 Not every setting is a registry write. `Invoke-TrackedStep -Id -Label -Check
@@ -494,15 +509,15 @@ so a non-elevated run legitimately cannot write them.
 
 `Set-RegistryOnlyId` (module-scoped, cleared by passing `$null`) restricts
 `Set-RegistryValue`/`Remove-RegistryKey` to a single id, no-oping everything
-else without recording it. That is how the launcher applies one setting from
+else without recording it. That is how Loadout applies one setting from
 a defaults module that writes several: it re-runs the whole module with the
 filter set, so every other setting in it is inert. `Invoke-DefaultsModules`
 (also in `registry.psm1`) is the discovery-and-invoke loop itself — the one
 place that walks `platforms\windows\defaults\*.ps1`, gates each file by its
 `DEFAULTS_<NAME>` flag, and calls `Apply-<Name>`. `defaults.ps1` (the CLI) and
-`bridge.ps1` (the launcher) both call it rather than each keeping their own
+`bridge.ps1` (Loadout) both call it rather than each keeping their own
 copy of that loop. `-Narrate` prints the per-module header inline as the loop
-goes - the CLI passes it, the launcher does not. It has to be inline: narrating
+goes - the CLI passes it, Loadout does not. It has to be inline: narrating
 from a second loop afterwards puts every header below the output it belongs to.
 
 Filenames map to profile variables like package lists: `taskbar.ps1` →
@@ -712,7 +727,7 @@ setup.ps1 (Windows entry point — thin wrapper)
         ├── defaults.ps1 (dynamically loads defaults/*.ps1)
         └── debloat.ps1 (optional bloatware removal)
 
-app/ (Launchbay, Tauri)
+app/ (Loadout, Tauri)
     ├── ui/ (static HTML/JS, no build step)
     └── src-tauri/src/main.rs → catalog.rs (parse lists), platform/{macos,windows}.rs
         ├── macOS: brew / mas / platforms/macos/installers/*.sh / lib/tasks.sh

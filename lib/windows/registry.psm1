@@ -8,7 +8,7 @@
 Import-Module (Join-Path $PSScriptRoot "common.psm1") -Global -Force
 
 # Every bucket holds @{ Id; Label; Detail } objects. Id is the stable
-# "$Path\$Name" (or bare $Path for Remove-RegistryKey) that the launcher's
+# "$Path\$Name" (or bare $Path for Remove-RegistryKey) that Loadout's
 # Setup tab uses to target a single setting; Label/Detail are what the CLI
 # prints.
 function New-RegistryResultsBag {
@@ -24,7 +24,7 @@ function New-RegistryResultsBag {
 $script:Results = New-RegistryResultsBag
 
 # When set, Set-RegistryValue/Remove-RegistryKey act on nothing but this one
-# id and return without recording anything else. Used by the launcher's
+# id and return without recording anything else. Used by Loadout's
 # tasks-apply to turn a whole defaults module's settings into a single-item
 # write, by re-running the module and letting every other setting no-op.
 $script:RegistryOnlyId = $null
@@ -235,7 +235,7 @@ function Remove-RegistryKey {
 # that reports whether the desired state already holds and an -Apply that
 # establishes it. Windows counterpart of lib/tasks.sh `defaults_hook` - it
 # records into the same buckets and honours the same OnlyId filter, so
-# non-registry settings show up as ordinary rows in the launcher's Setup tab
+# non-registry settings show up as ordinary rows in Loadout's Setup tab
 # instead of vanishing from it.
 #
 # -Check runs first, so an already-correct step reports Skipped even without an
@@ -321,7 +321,7 @@ function Set-RegistryValueSet {
 
 # Discover platforms\windows\defaults\*.ps1, gate each by its DEFAULTS_<NAME>
 # profile flag, dot-source it and invoke Apply-<Name>. Shared by defaults.ps1
-# (the CLI) and bridge.ps1 (the launcher's Setup tab) so there is exactly one
+# (the CLI) and bridge.ps1 (Loadout's Setup tab) so there is exactly one
 # place that decides which modules run and how they are gated.
 #
 # Returns one record per discovered file:
@@ -341,7 +341,7 @@ function Invoke-DefaultsModules {
         # When set, only this module (by file base name) is considered.
         [string]$OnlyModule = '',
         # Print the per-module header/skip/failure narration inline. The CLI
-        # wants it; the launcher does not (bridge.ps1 reads the records and
+        # wants it; Loadout does not (bridge.ps1 reads the records and
         # renders its own rows). It has to happen here rather than in a second
         # loop afterwards, or every module's own output lands before the
         # headers it belongs under.

@@ -386,7 +386,7 @@ function taskRowEl(t) {
     const admin = document.createElement("span");
     admin.className = "task-needs-admin";
     admin.textContent = "Needs admin";
-    admin.title = "Run the launcher as Administrator to apply this";
+    admin.title = "Run Loadout as Administrator to apply this";
     right.append(admin);
   } else {
     const btn = document.createElement("button");
@@ -688,7 +688,7 @@ function menuItems(app) {
       danger: true,
       run: async () => {
         // Destructive, so confirm before the package manager is touched.
-        const go = await ask(`Uninstall ${app.name}?`, { title: "Launchbay", kind: "warning" });
+        const go = await ask(`Uninstall ${app.name}?`, { title: "Loadout", kind: "warning" });
         if (go) doJob(app, "uninstall");
       },
     });

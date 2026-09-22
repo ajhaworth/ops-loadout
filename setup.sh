@@ -20,9 +20,9 @@
 #   mas                 Install Mac App Store apps
 #   mas ls              List Mac App Store apps
 #   defaults            Apply system preferences
-#   launcher            Build Launchbay.app and copy it into /Applications
-#   launcher build      Build the launcher bundle only
-#   launcher dev        Run the launcher against this checkout
+#   launcher            Build Loadout.app and copy it into /Applications
+#   launcher build      Build Loadout bundle only
+#   launcher dev        Run Loadout against this checkout
 #
 #   Linux only:
 #   packages            Install system packages (apt/dnf/etc)
@@ -80,9 +80,9 @@ Commands:
     mas                 Install Mac App Store apps
     mas ls              List Mac App Store apps
     defaults            Apply system preferences
-    launcher            Build Launchbay.app and copy it into /Applications
-    launcher build      Build the launcher bundle only
-    launcher dev        Run the launcher against this checkout
+    launcher            Build Loadout.app and copy it into /Applications
+    launcher build      Build Loadout bundle only
+    launcher dev        Run Loadout against this checkout
 
   Linux only:
     packages            Install system packages (apt/dnf/etc)
@@ -102,7 +102,7 @@ Examples:
     ./setup.sh homebrew                 # Install Homebrew packages (macOS)
     ./setup.sh homebrew ls              # List Homebrew packages (macOS)
     ./setup.sh defaults                 # Apply system preferences (macOS)
-    ./setup.sh launcher                 # Build and install Launchbay (macOS)
+    ./setup.sh launcher                 # Build and install Loadout (macOS)
     ./setup.sh packages                 # Install system packages (Linux)
     ./setup.sh packages ls              # List system packages (Linux)
 Available profiles:
@@ -307,7 +307,7 @@ cmd_launcher() {
         exit 1
     fi
 
-    # Install the launcher's own toolchain deps rather than erroring out.
+    # Install Loadout's own toolchain deps rather than erroring out.
     source "$SCRIPT_DIR/platforms/macos/setup.sh"
     ensure_xcode_clt
     source "$SCRIPT_DIR/platforms/macos/homebrew.sh"
@@ -324,7 +324,7 @@ cmd_launcher() {
         fi
     done
 
-    log_step "Launchbay: $target"
+    log_step "Loadout: $target"
     cd "$SCRIPT_DIR/app"
     run_cmd npm install
 

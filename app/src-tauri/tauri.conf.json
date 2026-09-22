@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Launchbay",
-  "version": "0.3.4",
-  "identifier": "dev.alx.launchbay",
+  "productName": "Loadout",
+  "version": "0.4.0",
+  "identifier": "dev.alx.loadout",
   "build": {
     "beforeBuildCommand": "npm run bundle-repo",
     "frontendDist": "../ui"
@@ -12,9 +12,9 @@
     "windows": [
       {
         "label": "main",
-        "url": "ops://localhost/index.html",
+        "url": "loadout://localhost/index.html",
         "visible": false,
-        "title": "Launchbay",
+        "title": "Loadout",
         "width": 550,
         "height": 680,
         "minWidth": 480,
@@ -25,8 +25,8 @@
       },
       {
         "label": "quick",
-        "url": "ops://localhost/quick.html",
-        "title": "Launchbay",
+        "url": "loadout://localhost/quick.html",
+        "title": "Loadout",
         "width": 340,
         "height": 400,
         "visible": false,

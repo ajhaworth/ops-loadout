@@ -1,4 +1,4 @@
-# bridge.ps1 - Launchbay <-> lib/windows/packages.psm1
+# bridge.ps1 - Loadout <-> lib/windows/packages.psm1
 #
 # Invoked as:
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 status  <repo>
@@ -13,8 +13,8 @@
 #
 # `status`/`tasks-status` print one JSON array; the rest stream plain text.
 #
-# tasks-status/tasks-apply feed the launcher's Setup tab (see CLAUDE.md,
-# "Setup Tasks (launcher)"). Sections: prereq, dotfiles, defaults, debloat.
+# tasks-status/tasks-apply feed Loadout's Setup tab (see CLAUDE.md,
+# "Setup Tasks (Loadout)"). Sections: prereq, dotfiles, defaults, debloat.
 
 param(
     [Parameter(Mandatory, Position = 0)]
@@ -51,7 +51,7 @@ function Import-TaskModules {
 # Read-Profile narrates a missing profile through Write-Err, which is Write-Host
 # underneath and therefore lands on this process's stdout - ahead of the single
 # JSON array a status verb prints. Hence the same 6>$null guard the status
-# traversal itself runs behind; the note goes to stderr, which the launcher
+# traversal itself runs behind; the note goes to stderr, which Loadout
 # already treats as log output.
 function Get-BridgeProfileConfig {
     param([string]$ProfileName)
@@ -122,7 +122,7 @@ function Get-PrereqStatusRows {
             -State 'applied' -Detail 'symlinks already work'
     } elseif (-not (Test-Administrator)) {
         $rows += New-TaskRow -Id 'prereq:developer-mode' -Section 'prereq' -Group 'Tools' -Name 'Developer Mode' `
-            -State 'needs_admin' -Detail 'enable Developer Mode, or run the launcher as Administrator'
+            -State 'needs_admin' -Detail 'enable Developer Mode, or run Loadout as Administrator'
     } else {
         $rows += New-TaskRow -Id 'prereq:developer-mode' -Section 'prereq' -Group 'Tools' -Name 'Developer Mode' `
             -State 'pending' -Detail 'AllowDevelopmentWithoutDevLicense not set'
@@ -219,7 +219,7 @@ function Invoke-DotfilesApply {
     $sourceFull = Join-Path $RepoRoot $entry.Source
     # -Force: without it New-Symlink *skips* a destination that points
     # somewhere else, or whose parent tree is missing more than one level, and
-    # returns $true - so the launcher reported "applied" for a link it never
+    # returns $true - so Loadout reported "applied" for a link it never
     # made. An explicit per-row apply is the user asking for that row, and
     # Backup-ExistingPath still preserves whatever was there.
     New-Symlink -Source $sourceFull -Destination $entry.Dest -DryRun:$false -Force | Out-Null
@@ -343,7 +343,7 @@ function Invoke-DefaultsApply {
     # Same for an access-denied write: it lands in NeedsAdmin rather than
     # Failed, but the setting was not applied.
     if ((Get-RegistryResults).NeedsAdmin.Count -gt 0) {
-        Write-Host "$module needs Administrator - restart the launcher elevated"
+        Write-Host "$module needs Administrator - restart Loadout elevated"
         exit 1
     }
 
@@ -425,7 +425,7 @@ function Invoke-DebloatApply {
         exit 1
     }
     if ($status.NeedsAdmin) {
-        Write-Host "$groupId needs Administrator - restart the launcher elevated"
+        Write-Host "$groupId needs Administrator - restart Loadout elevated"
         exit 1
     }
 

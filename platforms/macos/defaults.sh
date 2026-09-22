@@ -3,7 +3,7 @@
 #
 # Each platforms/macos/defaults/*.sh file defines an apply_<name>() function
 # built from defaults_set/defaults_hook calls (see lib/tasks.sh). This same
-# discovery loop backs both `./setup.sh defaults` and the launcher's
+# discovery loop backs both `./setup.sh defaults` and Loadout's
 # `lib/tasks.sh status|apply defaults ...` - one loop, one code path.
 
 # shellcheck source=/dev/null
@@ -16,7 +16,7 @@ setup_defaults() {
         status_mode="true"
     fi
 
-    # A single targeted item (the launcher applying one toggle) skips the
+    # A single targeted item (Loadout applying one toggle) skips the
     # orchestration side effects below too - quitting System Settings and
     # relaunching Finder/Dock/SystemUIServer for one setting is disruptive
     # and unnecessary; those only make sense for a full apply.

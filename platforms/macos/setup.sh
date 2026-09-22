@@ -80,7 +80,7 @@ ensure_xcode_clt() {
     log_info "Please complete the Xcode Command Line Tools installation in the popup"
     log_info "Waiting for installation to complete..."
 
-    # Bounded: 30 minutes. From the launcher a dismissed dialog would otherwise
+    # Bounded: 30 minutes. From Loadout a dismissed dialog would otherwise
     # wedge the job forever with no way to cancel.
     local waited=0
     until xcode-select -p &>/dev/null; do

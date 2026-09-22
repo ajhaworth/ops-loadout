@@ -20,7 +20,11 @@
 # Auth comes from ComfyUI-Login in comfynodes/core.txt, which adds a login page
 # and accepts `Authorization: Bearer <token>` for API calls.
 
-$script:ComfyFirewallRule = 'ComfyUI (ops-workstation)'
+$script:ComfyFirewallRule = 'ComfyUI (ops-loadout)'
+# The repo was called ops-workstation, then ops-desktop, then ops-loadout. A
+# rule left under an older name still holds the port open and nothing here
+# manages it, so it is adopted rather than abandoned.
+$script:ComfyFirewallRuleLegacy = @('ComfyUI (ops-desktop)', 'ComfyUI (ops-workstation)')
 
 # Merge a flag into an existing launchArgs string, replacing the value when the
 # flag is already there so re-runs do not accumulate duplicates.
@@ -251,6 +255,22 @@ function Set-ComfyFirewallRule {
         return
     }
 
+    foreach ($stale in $script:ComfyFirewallRuleLegacy) {
+        if (-not (Get-NetFirewallRule -DisplayName $stale -ErrorAction SilentlyContinue)) { continue }
+        if ($DryRun) {
+            Write-DryRun "Would rename the firewall rule '$stale' to '$script:ComfyFirewallRule'"
+        } elseif (-not (Test-Administrator)) {
+            Write-Skip "Renaming the firewall rule '$stale' needs Administrator"
+        } else {
+            try {
+                Set-NetFirewallRule -DisplayName $stale -NewDisplayName $script:ComfyFirewallRule -ErrorAction Stop
+                Write-Success "Adopted the firewall rule from '$stale'"
+            } catch {
+                Write-Warn "Failed to rename the firewall rule '$stale': $_"
+            }
+        }
+    }
+
     $existing = Get-NetFirewallRule -DisplayName $script:ComfyFirewallRule -ErrorAction SilentlyContinue
 
     if ($existing) {
@@ -299,7 +319,7 @@ function Set-ComfyFirewallRule {
         New-NetFirewallRule -DisplayName $script:ComfyFirewallRule `
             -Direction Inbound -Action Allow -Protocol TCP -LocalPort $Port `
             -Profile Private -RemoteAddress LocalSubnet `
-            -Description 'Managed by ops-workstation' -ErrorAction Stop | Out-Null
+            -Description 'Managed by ops-loadout' -ErrorAction Stop | Out-Null
         Write-Success "Firewall allows inbound TCP $Port from the local subnet"
     } catch {
         Write-Warn "Failed to create the firewall rule: $_"
