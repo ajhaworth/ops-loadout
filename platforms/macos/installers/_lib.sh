@@ -8,9 +8,11 @@
 # Usage: dl <url> <out-file>
 dl() {
     echo "  downloading $(basename "$2")"
-    curl -fL -# -o "$2" "$1" 2>&1 | tr '\r' '\n' \
-        | awk '/^[#= ]*$/ { next }              # the bar itself, before any percentage
-               !/%/ { print; fflush(); next }   # curl errors have no % in them
+    # awk splits on \r itself: a `tr` in between would sit on its output until curl exits.
+    curl -fL -# -o "$2" "$1" 2>&1 \
+        | awk 'BEGIN { RS = "\r" }
+               /^[#=O -]*\n?$/ { next }         # the bar itself, before any percentage
+               !/%/ { gsub(/^\n|\n$/, ""); if ($0 != "") { print; fflush() }; next }   # curl errors have no % in them
                { p = int($NF); if (p >= next_) { printf "  %d%%\n", p; fflush(); next_ += 10 } }'
 }
 
