@@ -406,9 +406,34 @@ tauri-plugin-process, since restart is core Tauri. On Windows it runs the NSIS
 dmg on macOS and nsis on Windows, and its `prune` job deletes every other
 release and tag, so only the latest exists; GitHub's automatic "Source code"
 archives are attached to a release regardless and cannot be removed. Nothing is
-signed - neither by Apple nor minisign. **A release must still bump `version` in
-both `tauri.conf.json` and `Cargo.toml`** - the check compares against the
-running app's version, so an unbumped release is invisible to it.
+signed - neither by Apple nor minisign. The check compares against the running
+app's version, so an unbumped release is invisible to it - see Versioning.
+
+**Versioning.** Every change that reaches main and touches something a release
+ships gets a version bump: `app/`, `config/`, `lib/`, `platforms/` (the bundle),
+plus `setup.sh`/`setup.ps1`. That includes package-list edits, installer
+scripts, DCC configs, keymaps and `.blend` prefs - a downloaded app sees none of
+it until a new version exists. No bump for docs (`README`, `CLAUDE.md`),
+`tests/`, or CI-only changes. One bump per merge to main, not per commit on the
+branch: bump as the branch's last commit, before review.
+
+- **patch** (0.4.1 -> 0.4.2): fixes and tweaks to existing things - a bug fix, a
+  package added to or removed from a list, a changed default, keymap or prefs
+  edits, installer script fixes.
+- **minor** (0.4.x -> 0.5.0): something new the user can see or do - a new
+  installer app, tab, setting, task section, package kind or platform
+  capability. While on 0.x, breaking changes also go here (as the Launchbay ->
+  Loadout rename did in 0.4.0).
+- **major**: reserved. 1.0.0 is cut deliberately when the user declares it
+  stable; after that, major means a change that needs manual action on existing
+  machines (an identifier rename stranding the install, a profile format
+  change, a repo layout the seeded copy can't follow).
+
+Bump the same version in `app/src-tauri/tauri.conf.json`,
+`app/src-tauri/Cargo.toml` and `app/package.json` (let `cargo` refresh
+`Cargo.lock`). Commit as `release: X.Y.Z (<summary>)`. The release itself is the
+`vX.Y.Z` tag push, which runs `release.yml` - push it only after the signed-off
+merge.
 
 `capabilities/default.json` grants no shell/fs plugin permissions: all process
 execution is native `std::process::Command`, so the capabilities file does not
