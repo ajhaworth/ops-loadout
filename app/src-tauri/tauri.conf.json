@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Launchbay",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "identifier": "dev.alx.launchbay",
   "build": {
     "beforeBuildCommand": "npm run bundle-repo",
@@ -44,7 +44,6 @@
   },
   "bundle": {
     "active": true,
-    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -58,13 +57,5 @@
       "bundled/": "bundled/"
     }
   },
-  "plugins": {
-    "updater": {
-      "endpoints": [
-        "https://github.com/ajhaworth/ops-workstation/releases/latest/download/latest.json"
-      ],
-      "requireSignedVersion": true,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYyMDhERDlFMTU0OUE3NzYKUldSMnAwa1ZudDBJOGp3QVgyd0JGTkJsQlVXb1YrbWs0aUxhSmo1cldxZFlSUVhFQUFYY0wwM3oK"
-    }
-  }
+  "plugins": {}
 }
