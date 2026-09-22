@@ -8,6 +8,12 @@ bpy.ops.wm.read_homefile(use_factory_startup=True)  # start from the factory sce
 if not bpy.utils.keyconfig_set(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'portable', 'scripts', 'presets', 'keyconfig', 'dcc.py')):
     raise RuntimeError('Could not activate custom dcc keymap')
 p = bpy.context.preferences
+# Asset library: config/dcc/blender/assets, registered idempotently (drop any stale "Loadout" entry first).
+assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
+for lib in list(p.filepaths.asset_libraries):
+    if lib.name == 'Loadout':
+        p.filepaths.asset_libraries.remove(lib)
+p.filepaths.asset_libraries.new(name='Loadout', directory=assets_dir)
 p.view.show_splash = False
 p.view.show_navigate_ui = False   # drop the zoom/pan/camera/persp buttons; the axis gizmo stays
 p.inputs.use_zoom_to_mouse = True

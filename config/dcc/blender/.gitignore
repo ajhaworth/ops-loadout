@@ -5,3 +5,4 @@ portable/config/platform_support.txt
 portable/config/bookmarks.txt
 portable/scripts/addons/
 __pycache__/
+*.blend1
