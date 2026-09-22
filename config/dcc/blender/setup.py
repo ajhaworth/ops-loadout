@@ -30,6 +30,7 @@ for module in ['node_wrangler', *os.environ.get('OPS_BLENDER_ADDONS', '').split(
     except Exception as exc:
         setup_errors.append(module)
         print(f'Failed to enable {module}: {exc}', flush=True)
+bpy.ops.preferences.addon_disable(module='pose_library')  # character-animation tool, no use for environment work
 
 # scene: metric shown in cm (Unreal), empty but for a linked scale-reference mannequin
 sc = bpy.context.scene
