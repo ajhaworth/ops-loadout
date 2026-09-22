@@ -3,7 +3,7 @@
 # Uses the SideFX Web API to resolve the latest production daily build.
 
 set -euo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/_dmg.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 
 REPO="$(cd "$(dirname "$0")/../../.." && pwd)"
 CREDS="${SIDEFX_CREDENTIALS:-$REPO/config/sidefx.local}"
@@ -125,7 +125,7 @@ do_install() {
 
     dmg="$TMP/$filename"
     echo "==> Downloading $filename ($gb GB)"
-    curl -fsSL -o "$dmg" "$url"
+    dl "$url" "$dmg"
 
     echo "==> Verifying checksum"
     local actual

@@ -3,7 +3,7 @@
 # Copies Fork.app out of the latest Sparkle-appcast dmg into /Applications.
 
 set -euo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/_dmg.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 
 APP="/Applications/Fork.app"
 APPCAST="https://git-fork.com/update/feed.xml"
@@ -44,7 +44,7 @@ do_install() {
     trap cleanup EXIT
 
     echo "==> Downloading $url"
-    curl -fsSL -o "$TMP/Fork.dmg" "$url"
+    dl "$url" "$TMP/Fork.dmg"
 
     echo "==> Mounting"
     MOUNT="$(dmg_attach "$TMP/Fork.dmg")"

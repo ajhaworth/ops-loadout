@@ -3,7 +3,7 @@
 # Installs the latest release into /Applications and points its portable config dir at config/dcc/blender/portable.
 
 set -euo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/_dmg.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 
 REPO="$(cd "$(dirname "$0")/../../.." && pwd)"
 APP="/Applications/Blender.app"
@@ -53,7 +53,7 @@ do_install() {
         TMP="$(mktemp -d)"
         trap cleanup EXIT
         echo "==> Downloading $dmg"
-        get -o "$TMP/b.dmg" "$BASE/$series$dmg"
+        dl "$BASE/$series$dmg" "$TMP/b.dmg"
         MOUNT=$(dmg_attach "$TMP/b.dmg")
         echo "==> Installing into $APP"
         rm -rf "$APP"                       # one statement per line so set -e aborts before the link is rewritten
@@ -66,7 +66,10 @@ do_install() {
 
     # Config dir -> repo. Before the extensions, so they land in the repo's portable/extensions/.
     ln -sfn "$CFG/portable" "$PORTABLE"
-    b() { "$APP/Contents/MacOS/Blender" --online-mode "$@"; }
+    # Unbuffered so the launcher sees lines as they happen; drop the per-chunk
+    # PROGRESS spam and keep the STATUS lines (awk, not grep -v: an all-PROGRESS
+    # run must not read as a failure under pipefail).
+    b() { PYTHONUNBUFFERED=1 "$APP/Contents/MacOS/Blender" --online-mode "$@" 2>&1 | awk '!/^PROGRESS/ { print; fflush() }'; }
 
     echo "==> Installing extensions"
     { grep -vE '^\s*(#|$)' "$CFG/extensions.txt" || true; } | while read -r kind ref; do

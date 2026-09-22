@@ -3,7 +3,7 @@
 # Copies Compositor.app out of the latest GitHub release dmg into /Applications.
 
 set -euo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/_dmg.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 
 APP="/Applications/Compositor.app"
 LATEST="https://api.github.com/repos/robbietilton/Compositor/releases/latest"
@@ -42,7 +42,7 @@ do_install() {
     trap cleanup EXIT
 
     echo "==> Downloading $url"
-    curl -fsSL -o "$TMP/Compositor.dmg" "$url"
+    dl "$url" "$TMP/Compositor.dmg"
 
     echo "==> Mounting"
     MOUNT="$(dmg_attach "$TMP/Compositor.dmg")"

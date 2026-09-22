@@ -6,7 +6,7 @@
 # in software-dev.txt) with an active `gh auth login`.
 
 set -euo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/_dmg.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 
 REPO="moonlight-stream/moonlight-qt"
 APP="/Applications/Moonlight Nightly.app"
