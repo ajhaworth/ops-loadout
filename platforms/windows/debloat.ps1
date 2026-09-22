@@ -307,13 +307,13 @@ function Disable-GameDvr {
 # Registry-based groups already report through registry.psm1's buckets, so
 # their status is a before/after diff of Get-RegistryResults rather than a
 # second, separately-maintained counter.
-function Invoke-DebloatGameDvrGroup {
-    param([switch]$DryRun)
+function Invoke-DebloatRegistryGroup {
+    param([Parameter(Mandatory)][scriptblock]$Action)
 
     $before = Get-RegistryResults
     $counts = @{ Pending = $before.Pending.Count; Failed = $before.Failed.Count; NeedsAdmin = $before.NeedsAdmin.Count }
 
-    Disable-GameDvr -DryRun:$DryRun
+    & $Action
 
     $after = Get-RegistryResults
     return @{
@@ -321,6 +321,12 @@ function Invoke-DebloatGameDvrGroup {
         Failed     = $after.Failed.Count - $counts.Failed
         NeedsAdmin = ($after.NeedsAdmin.Count - $counts.NeedsAdmin) -gt 0
     }
+}
+
+function Invoke-DebloatGameDvrGroup {
+    param([switch]$DryRun)
+
+    return Invoke-DebloatRegistryGroup -Action { Disable-GameDvr -DryRun:$DryRun }
 }
 
 function Remove-GameBarProtocols {
@@ -336,17 +342,7 @@ function Remove-GameBarProtocols {
 function Invoke-DebloatGameBarGroup {
     param([switch]$DryRun)
 
-    $before = Get-RegistryResults
-    $counts = @{ Pending = $before.Pending.Count; Failed = $before.Failed.Count; NeedsAdmin = $before.NeedsAdmin.Count }
-
-    Remove-GameBarProtocols -DryRun:$DryRun
-
-    $after = Get-RegistryResults
-    return @{
-        Pending    = $after.Pending.Count - $counts.Pending
-        Failed     = $after.Failed.Count - $counts.Failed
-        NeedsAdmin = ($after.NeedsAdmin.Count - $counts.NeedsAdmin) -gt 0
-    }
+    return Invoke-DebloatRegistryGroup -Action { Remove-GameBarProtocols -DryRun:$DryRun }
 }
 
 function Disable-SuggestedApps {
@@ -384,17 +380,7 @@ function Disable-SuggestedApps {
 function Invoke-DebloatSuggestedGroup {
     param([switch]$DryRun)
 
-    $before = Get-RegistryResults
-    $counts = @{ Pending = $before.Pending.Count; Failed = $before.Failed.Count; NeedsAdmin = $before.NeedsAdmin.Count }
-
-    Disable-SuggestedApps -DryRun:$DryRun
-
-    $after = Get-RegistryResults
-    return @{
-        Pending    = $after.Pending.Count - $counts.Pending
-        Failed     = $after.Failed.Count - $counts.Failed
-        NeedsAdmin = ($after.NeedsAdmin.Count - $counts.NeedsAdmin) -gt 0
-    }
+    return Invoke-DebloatRegistryGroup -Action { Disable-SuggestedApps -DryRun:$DryRun }
 }
 
 # Find Marvell AQtion 10GbE adapter by description (avoids hardcoding "Ethernet 3")
