@@ -188,10 +188,9 @@ install_mas_apps() {
         fi
     fi
 
-    local mas_file="$SCRIPT_DIR/config/packages/macos/mas/apps.txt"
-
-    if [[ ! -f "$mas_file" ]]; then
-        log_warn "MAS apps file not found: $mas_file"
+    local mas_file
+    if ! ls "$MAS_DIR"/*.txt >/dev/null 2>&1; then
+        log_warn "No MAS app lists in $MAS_DIR"
         return 0
     fi
 
@@ -219,7 +218,7 @@ install_mas_apps() {
                 log_warn "Failed to install: $name"
             fi
         fi
-    done < <(parse_mas_list "$mas_file")
+    done < <(for mas_file in "$MAS_DIR"/*.txt; do parse_mas_list "$mas_file"; done)
 
     log_success "MAS app installation complete"
 }
@@ -372,10 +371,9 @@ cmd_mas_ls() {
     log_step "Mac App Store Apps"
     echo ""
 
-    local mas_file="$MAS_DIR/apps.txt"
-
-    if [[ ! -f "$mas_file" ]]; then
-        log_warn "MAS apps file not found: $mas_file"
+    local mas_file
+    if ! ls "$MAS_DIR"/*.txt >/dev/null 2>&1; then
+        log_warn "No MAS app lists in $MAS_DIR"
         return 1
     fi
 
@@ -403,7 +401,7 @@ cmd_mas_ls() {
         fi
 
         printf "  %-12s  %-35s  ${status_color}%s${RESET}\n" "$id" "$name" "$status"
-    done < <(parse_mas_list "$mas_file")
+    done < <(for mas_file in "$MAS_DIR"/*.txt; do parse_mas_list "$mas_file"; done)
 
     echo ""
     printf "  ${DIM}%-12s  %-35s  %s${RESET}\n" "$(printf '─%.0s' {1..12})" "$(printf '─%.0s' {1..35})" "$(printf '─%.0s' {1..12})"

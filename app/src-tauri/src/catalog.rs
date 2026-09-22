@@ -146,7 +146,7 @@ fn mas(repo: &Path) -> Vec<App> {
                     return None;
                 }
                 let name = field(&line, 1).unwrap_or_else(|| id.clone());
-                Some(App::new("mas", &id, &name, "App Store", &stem))
+                Some(App::new("mas", &id, &name, &title_case(&stem), &stem))
             })
         })
         .collect()
@@ -315,7 +315,7 @@ houdini | Houdini | https://www.sidefx.com/
             app("formula", "core"),
             app("cask", "software-dev"),
             app("cask", "development"),
-            app("mas", "apps"),
+            app("mas", "productivity"),
             app("installer", "creative"),
             app("installer", "dcc"),
         ];
@@ -338,7 +338,7 @@ houdini | Houdini | https://www.sidefx.com/
         let kept = filter_by_profile(apps.clone(), &flags(&[("CASKS_SOFTWARE_DEV", "false")]));
         assert_eq!(
             listed(&kept),
-            ["formula:core", "cask:development", "mas:apps", "installer:creative", "installer:dcc"]
+            ["formula:core", "cask:development", "mas:productivity", "installer:creative", "installer:dcc"]
         );
 
         // Unset means enabled, everywhere.

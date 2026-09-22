@@ -1,5 +1,4 @@
 # creative.txt - Apps with no Homebrew cask, installed by platforms/macos/installers/<token>.sh
 # token | display-name | homepage
 
-sidefxlabs | SideFX Labs | https://github.com/sideeffects/SideFXLabs
 compositor | Compositor  | https://github.com/robbietilton/Compositor

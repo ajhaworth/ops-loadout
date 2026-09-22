@@ -1,0 +1,8 @@
+# utilities.txt - Mac App Store apps: system and network helpers
+# Format: ID|Name   (find IDs with: mas search <name>)
+
+937984704|Amphetamine
+1451685025|WireGuard
+1663047912|Screens 5
+6445964986|Speech to Text
+6760346035|RadianceKit

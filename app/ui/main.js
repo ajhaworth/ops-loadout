@@ -26,13 +26,11 @@ let updatingAll = false;
 // setup tasks. Within Apps, a category sub-tab narrows the grid. Categories
 // are list-file names; the ids are App Store apps that belong with the others.
 const TABS = ["Apps", "Updates"];
-const DEV_IDS = new Set(["mas:497799835", "mas:899247664"]); // Xcode, TestFlight
 const CATEGORIES = {
   All: () => true,
   Learning: (a) => a.category === "Learning",
-  Creative: (a) => a.category === "Creative" || a.kind === "comfynode",
-  Development: (a) =>
-    ["Development", "Software Dev", "Devops"].includes(a.category) || DEV_IDS.has(a.id),
+  Creative: (a) => ["Creative", "3D"].includes(a.category) || a.kind === "comfynode",
+  Development: (a) => ["Development", "Software Dev", "Devops"].includes(a.category),
 };
 let tab = "Apps";
 let category = "All";
