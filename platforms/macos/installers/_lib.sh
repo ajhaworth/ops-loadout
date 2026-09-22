@@ -2,19 +2,33 @@
 # Shared by the installer scripts: download with progress, mount a dmg
 # read-only and unmount it again. Not an installer token (leading `_`).
 #
-# The launcher streams each output line to its log drawer, so progress has to
-# arrive as whole lines: curl's \r-driven bar is turned into one line per 10%.
-
+# The launcher reads newline-delimited output, not terminal progress bars.
+# Emit at most one line per 10% milestone, without a buffering text filter.
 # Usage: dl <url> <out-file>
-dl() {
+dl() (
+    set -o pipefail
+    local line percent milestone last=-1 next_bytes=$((SECONDS + 2)) bytes
     echo "  downloading $(basename "$2")"
-    # awk splits on \r itself: a `tr` in between would sit on its output until curl exits.
-    curl -fL -# -o "$2" "$1" 2>&1 \
-        | awk 'BEGIN { RS = "\r" }
-               /^[#=O -]*\n?$/ { next }         # the bar itself, before any percentage
-               !/%/ { gsub(/^\n|\n$/, ""); if ($0 != "") { print; fflush() }; next }   # curl errors have no % in them
-               { p = int($NF); if (p >= next_) { printf "  %d%%\n", p; fflush(); next_ += 10 } }'
-}
+    curl -fL -# --connect-timeout 30 --speed-limit 1024 --speed-time 60 -o "$2" "$1" 2>&1 \
+        | while IFS= read -r -d $'\r' line || [[ -n "$line" ]]; do
+            if [[ "$line" == *"curl:"* ]]; then
+                printf '%s\n' "$line"
+            elif [[ "$line" =~ ([0-9]+\.[0-9]+)% ]]; then
+                percent="${BASH_REMATCH[1]}"
+                milestone=$((10#${percent%.*} / 10 * 10))
+                if (( milestone > last )); then
+                    printf '  %d%%\n' "$milestone"
+                    last=$milestone
+                fi
+            elif [[ -s "$2" && $last -lt 0 && $SECONDS -ge $next_bytes ]]; then
+                # Chunked responses have no total: curl draws a moving bar instead.
+                bytes=$(wc -c < "$2")
+                printf '  %s bytes downloaded (total unknown)\n' "${bytes//[[:space:]]/}"
+                next_bytes=$((SECONDS + 30))
+            fi
+        done || exit $?
+    echo "  download complete"
+)
 
 # hdiutil is deprecated as of macOS 27; `diskutil image` replaces it, so prefer
 # that and fall back on older systems.

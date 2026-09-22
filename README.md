@@ -181,6 +181,8 @@ propagates that, so `.\setup.ps1` is usable from CI or a scheduled task.
 ```powershell
 pwsh tests\windows\smoke.ps1   # Windows
 bash tests/bash/smoke.sh       # macOS/Linux
+python3 tests/bash/download_progress.py  # real curl streaming regression
+python3 tests/bash/blender_install.py    # isolated macOS install/rollback regression
 ```
 
 The Windows suite checks syntax, helper functions, and that profiles, package

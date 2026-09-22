@@ -9,7 +9,18 @@ platforms/macos/installers/blender.sh install
 ```
 
 That downloads the latest Blender into `/Applications`, points its portable config dir at
-this one, and installs everything in `extensions.txt`. Re-run it any time to upgrade.
+this one, and installs everything in `extensions.txt`.
+
+**Update** checks for a newer Blender and downloads the app only when one is available.
+If the mirror cannot be reached, it keeps the installed version and continues setup.
+Each run reconnects the portable configuration, installs missing plugins, re-enables
+configured plugins, and runs `setup.py` to reapply the custom preferences, keymap,
+and startup/workspace layout. Blender opens briefly and closes after saving.
+Plugin failures are reported, but do not prevent the remaining setup steps.
+**Reinstall** always downloads Blender again and therefore requires the mirror.
+
+GitHub/Forgejo entries may include a third field with the extension's manifest id.
+This lets setup reuse an installed plugin without downloading its archive again.
 
 Everything Blender saves lands in `portable/`, so it shows up in `git status`:
 
@@ -21,6 +32,6 @@ Everything Blender saves lands in `portable/`, so it shows up in `git status`:
 | `bin/keymap-export` | `portable/scripts/presets/keyconfig/dcc.py` (user changes only, text diff) |
 | Blender tile → Keymap in the launcher | opens `keymap.html`, a keyboard view of `dcc.py` (reads it live, nothing to regenerate) |
 
-`setup.py` is how the startup file/prefs were first generated (Industry Compatible keymap, no timeline, env-art workspaces only); re-run it to reset.
+`setup.py` reapplies the managed startup file/preferences (Industry Compatible keymap, no timeline, environment-art workspaces). Install, Update, and Reinstall run it automatically.
 
 Extensions install into `portable/extensions/` (ignored); the source of truth is `extensions.txt`.
