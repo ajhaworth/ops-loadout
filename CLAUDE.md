@@ -419,8 +419,8 @@ ships gets a version bump: `app/`, `config/`, `lib/`, `platforms/` (the bundle),
 plus `setup.sh`/`setup.ps1`. That includes package-list edits, installer
 scripts, DCC configs, keymaps and `.blend` prefs - a downloaded app sees none of
 it until a new version exists. No bump for docs (`README`, `CLAUDE.md`),
-`tests/`, or CI-only changes. One bump per merge to main, not per commit on the
-branch: bump as the branch's last commit, before review.
+`tests/`, or CI-only changes. One bump per push to main, not per commit: bump as
+the last commit before the push.
 
 - **patch** (0.4.1 -> 0.4.2): fixes and tweaks to existing things - a bug fix, a
   package added to or removed from a list, a changed default, keymap or prefs
@@ -437,8 +437,12 @@ branch: bump as the branch's last commit, before review.
 Bump the same version in `app/src-tauri/tauri.conf.json`,
 `app/src-tauri/Cargo.toml` and `app/package.json` (let `cargo` refresh
 `Cargo.lock`). Commit as `release: X.Y.Z (<summary>)`. The release itself is the
-`vX.Y.Z` tag push, which runs `release.yml` - push it only after the signed-off
-merge.
+`vX.Y.Z` tag push, which runs `release.yml` - push main and the tag only when
+the user asks.
+
+**Work directly on main.** No feature branches, worktrees or merge commits in
+this repo: commit to `main` and push when asked. This overrides the global
+branch/worktree doctrine here.
 
 `capabilities/default.json` grants no shell/fs plugin permissions: all process
 execution is native `std::process::Command`, so the capabilities file does not
