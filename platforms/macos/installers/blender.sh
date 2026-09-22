@@ -3,6 +3,7 @@
 # Installs the latest release into /Applications and points its portable config dir at config/dcc/blender/portable.
 
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/_dmg.sh"
 
 REPO="$(cd "$(dirname "$0")/../../.." && pwd)"
 APP="/Applications/Blender.app"
@@ -22,7 +23,7 @@ do_status() {
 TMP=""
 MOUNT=""
 cleanup() {
-    [[ -n "$MOUNT" ]] && hdiutil detach "$MOUNT" -quiet >/dev/null 2>&1
+    dmg_detach "$MOUNT"
     [[ -n "$TMP" ]] && rm -rf "$TMP"
     return 0
 }
@@ -53,11 +54,11 @@ do_install() {
         trap cleanup EXIT
         echo "==> Downloading $dmg"
         get -o "$TMP/b.dmg" "$BASE/$series$dmg"
-        MOUNT=$(hdiutil attach -nobrowse -readonly "$TMP/b.dmg" | awk -F'\t' '/\/Volumes\//{print $NF}')
+        MOUNT=$(dmg_attach "$TMP/b.dmg")
         echo "==> Installing into $APP"
         rm -rf "$APP"                       # one statement per line so set -e aborts before the link is rewritten
         ditto "$MOUNT/Blender.app" "$APP"
-        hdiutil detach "$MOUNT" -quiet; MOUNT=""
+        dmg_detach "$MOUNT"; MOUNT=""
         rm -rf "$TMP"; TMP=""
     else
         echo "Blender $current is already the latest release."

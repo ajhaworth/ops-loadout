@@ -3,6 +3,7 @@
 # Uses the SideFX Web API to resolve the latest production daily build.
 
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/_dmg.sh"
 
 REPO="$(cd "$(dirname "$0")/../../.." && pwd)"
 CREDS="${SIDEFX_CREDENTIALS:-$REPO/config/sidefx.local}"
@@ -78,7 +79,7 @@ MOUNT=""
 TMP=""
 
 cleanup() {
-    [[ -n "$MOUNT" ]] && hdiutil detach "$MOUNT" -quiet >/dev/null 2>&1
+    dmg_detach "$MOUNT"
     [[ -n "$TMP" ]] && rm -rf "$TMP"
     return 0
 }
@@ -135,8 +136,7 @@ do_install() {
     fi
 
     echo "==> Mounting $filename"
-    MOUNT="$(hdiutil attach -nobrowse -noverify -readonly "$dmg" 2>/dev/null \
-        | tail -1 | awk -F'\t' '{ print $NF }')"
+    MOUNT="$(dmg_attach "$dmg")"
     [[ -d "$MOUNT" ]] || {
         echo "Could not mount $dmg" >&2
         return 1
@@ -151,7 +151,7 @@ do_install() {
     echo "==> Installing (password prompt)"
     sudo -A installer -pkg "$MOUNT/Houdini.pkg" -target /
 
-    hdiutil detach "$MOUNT" -quiet >/dev/null 2>&1 || true
+    dmg_detach "$MOUNT"
     MOUNT=""
 
     echo "Houdini $version.$build installed."
