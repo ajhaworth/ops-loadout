@@ -1,4 +1,4 @@
-# bridge.ps1 - Ops Launcher <-> lib/windows/packages.psm1
+# bridge.ps1 - Launchbay <-> lib/windows/packages.psm1
 #
 # Invoked as:
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 status  <repo>

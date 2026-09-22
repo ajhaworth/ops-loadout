@@ -271,7 +271,7 @@ fn github_license(slug: &str, blocked: &mut bool) -> Option<Option<String>> {
         "-w",
         "\n%{http_code}",
         "-H",
-        "User-Agent: ops-launcher",
+        "User-Agent: launchbay",
         "-H",
         "Accept: application/vnd.github+json",
     ]);

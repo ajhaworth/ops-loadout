@@ -1,6 +1,6 @@
 [package]
-name = "ops-launcher"
-version = "0.2.3"
+name = "launchbay"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.77"
 description = "Launcher for the apps ops-desktop manages"

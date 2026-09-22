@@ -1,4 +1,4 @@
-// Ops Launcher - a grid of every app config/packages/** knows about.
+// Launchbay - a grid of every app config/packages/** knows about.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod catalog;
@@ -49,7 +49,7 @@ pub(crate) fn repo_of(app: &AppHandle, store: &Store) -> Option<PathBuf> {
 fn cache_dir(app: &AppHandle) -> PathBuf {
     app.path()
         .app_cache_dir()
-        .unwrap_or_else(|_| std::env::temp_dir().join("ops-launcher"))
+        .unwrap_or_else(|_| std::env::temp_dir().join("launchbay"))
 }
 
 fn resource_dir(app: &AppHandle) -> PathBuf {
@@ -331,7 +331,7 @@ pub(crate) fn emit_line(handle: &AppHandle, id: &str, action: &str, line: &str) 
 fn install_askpass(dir: &Path) {
     use std::os::unix::fs::PermissionsExt;
     let script = dir.join("askpass.sh");
-    let body = "#!/bin/sh\nexec osascript -e 'display dialog \"Ops Launcher needs your password to finish this update.\" with title \"Ops Launcher\" default answer \"\" with hidden answer buttons {\"Cancel\", \"OK\"} default button \"OK\"' -e 'text returned of result'\n";
+    let body = "#!/bin/sh\nexec osascript -e 'display dialog \"Launchbay needs your password to finish this update.\" with title \"Launchbay\" default answer \"\" with hidden answer buttons {\"Cancel\", \"OK\"} default button \"OK\"' -e 'text returned of result'\n";
     let ok = std::fs::create_dir_all(dir).is_ok()
         && std::fs::write(&script, body).is_ok()
         && std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).is_ok();
@@ -389,14 +389,14 @@ fn main() {
             install_askpass(&cache_dir(app.handle()));
 
             let menu = MenuBuilder::new(app)
-                .text("open", "Open Ops Launcher")
+                .text("open", "Open Launchbay")
                 .text("check-updates", "Check for Updates\u{2026}")
                 .separator()
                 .quit_with_text("Quit")
                 .build()?;
             TrayIconBuilder::with_id("tray")
                 .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("Ops Launcher")
+                .tooltip("Launchbay")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
@@ -456,7 +456,7 @@ fn main() {
             window::hide_quick
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Ops Launcher");
+        .expect("error while running Launchbay");
 }
 
 #[cfg(test)]
@@ -470,7 +470,7 @@ mod smoke {
         assert!(crate::catalog::is_repo(&repo), "{} is not the repo", repo.display());
 
         let mut apps = crate::catalog::scan(&repo);
-        crate::platform::hydrate(&mut apps, &std::env::temp_dir().join("ops-launcher-test"), &repo, &repo);
+        crate::platform::hydrate(&mut apps, &std::env::temp_dir().join("launchbay-test"), &repo, &repo);
 
         let mut by_kind: std::collections::BTreeMap<&str, (usize, usize, usize, usize)> =
             Default::default();
