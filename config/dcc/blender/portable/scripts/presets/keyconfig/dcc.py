@@ -10057,8 +10057,20 @@ keyconfig_data = \
      ),
     ("mesh.select_more", {"type": 'UP_ARROW', "value": 'PRESS', "repeat": True}, None),
     ("mesh.select_less", {"type": 'DOWN_ARROW', "value": 'PRESS', "repeat": True}, None),
-    ("mesh.select_linked", {"type": 'L', "value": 'PRESS', "oskey": True}, None),
-    ("mesh.select_linked", {"type": 'L', "value": 'PRESS', "ctrl": True}, None),
+    ("mesh.select_linked",
+     {"type": 'L', "value": 'PRESS', "oskey": True},
+     {"properties":
+      [("delimit", set()),
+       ],
+      },
+     ),
+    ("mesh.select_linked",
+     {"type": 'L', "value": 'PRESS', "ctrl": True},
+     {"properties":
+      [("delimit", set()),
+       ],
+      },
+     ),
     ("mesh.select_mode",
      {"type": 'ONE', "value": 'PRESS'},
      {"properties":
