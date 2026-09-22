@@ -285,8 +285,11 @@ function render() {
     // A search spans both tabs: every matching app, then every matching task.
     sectionsEl.append(...appSectionEls(apps.filter((a) => matchesApp(a, q)), q), ...setupEls(q));
   } else if (tab === "Apps") {
-    sectionsEl.append(segEl(Object.keys(CATEGORIES), category, "category", (n) => (category = n)));
-    sectionsEl.append(...appSectionEls(apps.filter(CATEGORIES[category]), q));
+    // Only categories the profile leaves apps in; a saved one that emptied falls back to All.
+    const cats = Object.keys(CATEGORIES).filter((c) => c === "All" || apps.some(CATEGORIES[c]));
+    const cat = cats.includes(category) ? category : "All";
+    sectionsEl.append(segEl(cats, cat, "category", (n) => (category = n)));
+    sectionsEl.append(...appSectionEls(apps.filter(CATEGORIES[cat]), q));
   } else {
     const outdated = apps.filter((a) => a.outdated);
     if (outdated.length) sectionsEl.append(sectionEl("App updates", outdated, true));
