@@ -43,6 +43,38 @@ do_status() {
     printf '%s\n' "$app"
 }
 
+# --- config: repo dir on HOUDINI_PATH, desktop set to ALX ------------------
+
+# Resolves X.Y the same way sidefxlabs.sh's require_houdini does, but from
+# our own installed_dir/installed_app rather than shelling to this script.
+apply_config() {
+    local dir app full xy prefs pkgdir pref_file
+
+    dir="$(installed_dir)" || return 1
+    app="$(installed_app "$dir")" || return 1
+    full="$(sed -n 's|.*/Houdini\([0-9][0-9.]*\)/.*|\1|p' <<<"$app")"
+    [[ -n "$full" ]] || {
+        echo "Could not read the Houdini version from: $app" >&2
+        return 1
+    }
+    xy="${full%.*}"
+
+    prefs="$HOME/Library/Preferences/houdini/$xy"
+    pkgdir="$prefs/packages"
+    mkdir -p "$pkgdir"
+    printf '{"path": "%s"}\n' "$REPO/config/dcc/houdini" > "$pkgdir/loadout.json"
+    echo "==> Wrote $pkgdir/loadout.json (HOUDINI_PATH -> $REPO/config/dcc/houdini)"
+
+    pref_file="$prefs/houdini.pref"
+    mkdir -p "$prefs"
+    if [[ -f "$pref_file" ]] && grep -q '^general\.desk\.val' "$pref_file"; then
+        sed -i '' 's|^general\.desk\.val.*|general.desk.val := "ALX";|' "$pref_file"
+    else
+        printf 'general.desk.val := "ALX";\n' >> "$pref_file"
+    fi
+    echo "==> Set general.desk.val := \"ALX\" in $pref_file"
+}
+
 # --- SideFX API ------------------------------------------------------------
 
 load_credentials() {
@@ -108,6 +140,7 @@ do_install() {
         echo "    installed: $current"
         if [[ "$action" != "reinstall" && "$current" == "$version.$build" ]]; then
             echo "Houdini $current is already the latest production build."
+            apply_config || echo "Houdini config not applied; see above" >&2
             return 0
         fi
     fi
@@ -156,6 +189,7 @@ do_install() {
 
     echo "Houdini $version.$build installed."
     echo "Licensing: open \"Houdini Apprentice\", then in License Administrator choose \"Activate Apprentice\" (SideFX login optional; renews every 30 days)."
+    apply_config || echo "Houdini config not applied; see above" >&2
     [[ -n "${SUDO_ASKPASS:-}" ]] && license_dialog "$(installed_app "$HOUDINI_DIR/Houdini$version.$build")"
     return 0
 }
@@ -175,12 +209,24 @@ EOF
 # ponytail: older Houdini versions are left in place on update; delete them by hand.
 
 do_uninstall() {
-    local dir version
+    local dir version app full xy loadout_json
     if ! dir="$(installed_dir)"; then
         echo "Houdini is not installed."
         return 1
     fi
     version="${dir##*/Houdini}"
+
+    if app="$(installed_app "$dir")"; then
+        full="$(sed -n 's|.*/Houdini\([0-9][0-9.]*\)/.*|\1|p' <<<"$app")"
+        if [[ -n "$full" ]]; then
+            xy="${full%.*}"
+            loadout_json="$HOME/Library/Preferences/houdini/$xy/packages/loadout.json"
+            if [[ -f "$loadout_json" ]]; then
+                rm -f "$loadout_json"
+                echo "Removed $loadout_json"
+            fi
+        fi
+    fi
 
     echo "==> Removing Houdini $version (password prompt)"
     sudo -A rm -rf "$HOUDINI_DIR/Houdini$version" "/Library/Frameworks/Houdini.framework/Versions/$version"
@@ -193,8 +239,9 @@ case "${1:-status}" in
     status)                    do_status ;;
     install|update|reinstall)  do_install "$1" ;;
     uninstall)                 do_uninstall ;;
+    config)                    apply_config ;;
     *)
-        echo "usage: $(basename "$0") <status|install|update|reinstall|uninstall>" >&2
+        echo "usage: $(basename "$0") <status|install|update|reinstall|uninstall|config>" >&2
         exit 2
         ;;
 esac
