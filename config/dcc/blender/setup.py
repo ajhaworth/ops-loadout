@@ -56,11 +56,15 @@ def step():
             sp.clip_end = 10000            # large outdoor environments
             sh.light, sh.show_cavity, sh.cavity_type = 'MATCAP', True, 'BOTH'  # read surface form while modeling
     for area in [a for a in win.screen.areas if a.ui_type == 'TIMELINE']:
-        if win.workspace.name == 'Layout':
-            area.ui_type = 'ASSETS'    # asset shelf for drag-and-drop kit placement, instead of a timeline we never use
-        else:
-            with bpy.context.temp_override(window=win, area=area):
-                bpy.ops.screen.area_close()
+        with bpy.context.temp_override(window=win, area=area):
+            bpy.ops.screen.area_close()
+    if win.workspace.name == 'Layout' and not any(a.ui_type == 'ASSETS' for a in win.screen.areas):
+        # asset browser for drag-and-drop kit placement, collapsed to its header (drag the edge up to browse).
+        # Split rather than resize: area_move refuses to run while the mouse is over any region.
+        view = next(a for a in win.screen.areas if a.type == 'VIEW_3D')
+        with bpy.context.temp_override(window=win, area=view):
+            bpy.ops.screen.area_split(direction='HORIZONTAL', factor=0.01)
+        min((a for a in win.screen.areas if a.type == 'VIEW_3D'), key=lambda a: a.y).ui_type = 'ASSETS'
     if todo:
         win.workspace = todo.pop()
         return 0.1
