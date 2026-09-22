@@ -62,6 +62,7 @@ def step():
             sp.overlay.show_stats = True   # poly/vert counts in viewport
             sp.clip_end = 10000            # large outdoor environments
             sh.light, sh.show_cavity, sh.cavity_type = 'MATCAP', True, 'BOTH'  # read surface form while modeling
+            sh.show_backface_culling = True  # flipped normals and one-sided planes show as holes, as in engine
             if win.workspace.name == 'Layout':
                 sp.show_region_ui = True   # N panel open: exact transforms for placement
                 r3d = sp.region_3d         # framed on the mannequin
