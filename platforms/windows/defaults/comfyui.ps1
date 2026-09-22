@@ -105,7 +105,7 @@ function New-ComfyModelsConfig {
     )
 
     $lines = @()
-    $lines += '# Managed by ops-workstation (platforms/windows/defaults/comfyui.ps1).'
+    $lines += '# Managed by ops-loadout (platforms/windows/defaults/comfyui.ps1).'
     $lines += '# Edits here are overwritten on the next `.\setup.ps1 defaults` run.'
     $lines += '#'
     $lines += '# Only the model types present in the library are listed. Downloads still'

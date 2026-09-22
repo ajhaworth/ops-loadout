@@ -106,10 +106,10 @@ function Invoke-DebloatCommand {
     }
 }
 
-# Installs the toolchain the launcher needs (Rust, Node, VC++ Build Tools),
-# then builds and silently installs the Launchbay app via its NSIS bundle.
+# Installs the toolchain Loadout needs (Rust, Node, VC++ Build Tools),
+# then builds and silently installs the Loadout app via its NSIS bundle.
 function Invoke-LauncherCommand {
-    Write-Step "Launchbay prerequisites"
+    Write-Step "Loadout prerequisites"
 
     if (Get-Command cargo -ErrorAction SilentlyContinue) {
         Write-Skip "Rust toolchain already installed"
@@ -158,7 +158,7 @@ function Invoke-LauncherCommand {
     $appDir = Join-Path $repoRoot "app"
     Push-Location $appDir
     try {
-        Write-Step "Building Launchbay"
+        Write-Step "Building Loadout"
         npm install
         if ($LASTEXITCODE -ne 0) {
             $script:StageFailures++
@@ -183,7 +183,7 @@ function Invoke-LauncherCommand {
 
     Write-SubStep "Running installer: $($installer.Name)"
     Start-Process -Wait -FilePath $installer.FullName -ArgumentList '/S'
-    Write-Success "Launchbay installed"
+    Write-Success "Loadout installed"
 }
 
 # winget-installed tools register their PATH entries in the registry, but

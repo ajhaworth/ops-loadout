@@ -1,18 +1,21 @@
-# ops-desktop
+# ops-loadout
 
-Cross-platform workstation setup using simple shell scripts with profile-based customization.
+The apps a workstation runs, and how they and the OS are configured, in one
+repo. Loadout tracks what is installed, installs it, and applies the app and
+system configuration that goes with it - on macOS, Linux and Windows, for work
+and personal machines. Profiles decide which parts apply where.
 
 For Claude Code, Codex, tmux, and agentic coding configuration, see [ops-agents](../ops-agents).
 
 ## Quick Start
 
-The primary way to use this repo is the Launchbay GUI. One command builds
+The primary way to use this repo is the Loadout GUI. One command builds
 and installs it:
 
 ```bash
 # Clone the repository
 git clone <your-repo-url>
-cd ops-workstation
+cd ops-loadout
 
 # macOS
 ./setup.sh launcher
@@ -28,16 +31,16 @@ Node, Rust and the VC++ Build Tools on Windows) before building the app, so a
 bare checkout is enough.
 
 A macOS `.dmg` and a Windows installer are attached to the single
-[GitHub release](https://github.com/ajhaworth/ops-workstation/releases)
+[GitHub release](https://github.com/ajhaworth/ops-loadout/releases)
 (`.github/workflows/release.yml`, run on every `v*` tag, which also deletes the
 older releases so only the latest is there). Both are standalone -
 no checkout needed. The release carries `config/`, `lib/` and `platforms/`
 inside the app and copies them out on first launch to a working copy at
-`~/Library/Application Support/dev.alx.launchbay/repo`, which is where its
+`~/Library/Application Support/dev.alx.loadout/repo`, which is where its
 scripts then read and write. Each app update refreshes that copy without
 deleting anything already in it, so local state survives.
 
-A git checkout at `~/Developer/ops/ops-desktop` takes precedence over the
+A git checkout at `~/Developer/ops/ops-loadout` takes precedence over the
 copied one, so development still edits the repo live.
 
 **Check for Updates...** in the tray menu pulls the next release: it asks the
@@ -48,7 +51,7 @@ The app is not notarized by Apple, so macOS reports a downloaded copy as
 "damaged and can't be opened". Drag it to Applications, then run this once:
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/Launchbay.app"
+xattr -dr com.apple.quarantine "/Applications/Loadout.app"
 ```
 
 Updates installed from the tray menu's **Check for Updates** don't need it
@@ -92,7 +95,7 @@ Full installation for personal macOS devices including all package categories, M
 
 ### Workstation (`--profile workstation`)
 
-Work Mac, driven from Launchbay: Blender, Houdini, Fork and Ghostty (installer scripts) plus the core and shell CLI formulae, no casks, no MAS apps, no system preferences. Terminal dotfiles (zsh, bash, starship, Ghostty) apply, with the existing zshrc backed up and `~/.zshrc.local` for work-only lines; gitconfig is left alone.
+Work Mac, driven from Loadout: Blender, Houdini, Fork and Ghostty (installer scripts) plus the core and shell CLI formulae, no casks, no MAS apps, no system preferences. Terminal dotfiles (zsh, bash, starship, Ghostty) apply, with the existing zshrc backed up and `~/.zshrc.local` for work-only lines; gitconfig is left alone.
 
 ### Linux (`--profile linux`)
 
@@ -203,10 +206,10 @@ Packages are defined in text files under `config/packages/`:
 - `installers/*.txt` - Apps with no cask, `token | display-name | homepage`.
   Each token is a script `platforms/macos/installers/<token>.sh` that takes
   one of `status|install|update|reinstall|uninstall`; `status` prints the
-  `.app` path and exits 0 when installed. Only the launcher runs these, not
+  `.app` path and exits 0 when installed. Only Loadout runs these, not
   `setup.sh`. Root work goes through `sudo -A`.
   - `houdini` - latest production build via the SideFX download API. The
-    API key is entered once in the launcher's Settings dialog (gear icon),
+    API key is entered once in Loadout's Settings dialog (gear icon),
     which explains how to create it on sidefx.com, and is stored in
     `config/sidefx.local`. After installing, a dialog explains the free
     Apprentice license, which only Houdini itself can activate (License
@@ -265,7 +268,7 @@ Machine-specific settings go in `.local` files (not tracked by git):
 ## Project Structure
 
 ```
-ops-workstation/
+ops-loadout/
 ├── setup.sh                    # Entry point (macOS/Linux)
 ├── setup.ps1                   # Entry point (Windows)
 ├── lib/                        # Shared libraries
@@ -314,14 +317,14 @@ ops-workstation/
         └── debloat.ps1         # Bloatware removal
 ```
 
-## App Launcher
+## Loadout
 
 `app/` is a small Tauri desktop app that shows every package in
 `config/packages/` as an icon grid, launches the installed ones and installs
 the missing ones by shelling out to the same package managers `setup.sh` uses.
 
 ```bash
-./setup.sh launcher         # build and copy "Launchbay.app" into /Applications
+./setup.sh launcher         # build and copy "Loadout.app" into /Applications
 ./setup.sh launcher build   # bundle to app/src-tauri/target/release/bundle/
 ./setup.sh launcher dev     # run against the local checkout
 ```
@@ -329,12 +332,12 @@ the missing ones by shelling out to the same package managers `setup.sh` uses.
 Each runs `npm install` first (Tauri CLI only, no frontend dependencies) and
 needs `node` and `rust` from `./setup.sh formulae`.
 
-The bundle is unsigned, so the first launch of `Launchbay.app` needs
+The bundle is unsigned, so the first launch of `Loadout.app` needs
 right-click -> Open rather than a double-click.
 
-It finds this repo through `OPS_DESKTOP_DIR`, then the path saved in its own
+It finds this repo through `OPS_LOADOUT_DIR`, then the path saved in its own
 config directory, then the checkout it was built from, then
-`~/Developer/ops/ops-desktop`, and asks with a folder picker if none of those
+`~/Developer/ops/ops-loadout`, and asks with a folder picker if none of those
 work. Package lists are read at runtime: edit a `.txt` and hit refresh.
 
 ## Security

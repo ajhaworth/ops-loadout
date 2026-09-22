@@ -390,8 +390,8 @@ function New-Symlink {
 # Per-entry status, one object per manifest entry:
 #   Destination, Source (both expanded/full paths), State, Detail
 # State is one of: linked | wrong | file | missing | source-missing.
-# Show-DotfilesStatus below is the only consumer of the printed form; the
-# launcher's Setup tab (bridge.ps1) consumes these objects directly instead of
+# Show-DotfilesStatus below is the only consumer of the printed form;
+# Loadout's Setup tab (bridge.ps1) consumes these objects directly instead of
 # scraping console output.
 function Get-DotfilesStatus {
     param(
@@ -497,7 +497,7 @@ function Show-DotfilesStatus {
 
 # Probe whether this process can create symlinks (Developer Mode or an
 # elevated token). Cheap, self-cleaning, and shared so the CLI (dotfiles.ps1)
-# and the launcher's prereq row use exactly the same check.
+# and Loadout's prereq row use exactly the same check.
 function Test-SymlinkCapability {
     $canSymlink = $false
     try {

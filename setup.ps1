@@ -45,7 +45,7 @@ Commands:
   dotfiles            Symlink dotfiles
   defaults            Apply system preferences
   debloat             Remove Windows bloatware
-  launcher            Install toolchain deps, build and install Launchbay
+  launcher            Install toolchain deps, build and install Loadout
 
 Subcommands:
   ls                  Show status instead of making changes

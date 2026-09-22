@@ -1,4 +1,4 @@
-//! Everything persisted outside the catalog: the launcher's own `config.json`
+//! Everything persisted outside the catalog: Loadout's own `config.json`
 //! (repo path, profile), repo discovery, and the SideFX credentials the
 //! Settings dialog writes into `<repo>/config/sidefx.local`.
 
@@ -69,7 +69,7 @@ pub(crate) fn saved_profile(app: &AppHandle) -> Option<String> {
     read_config(app).profile.filter(|p| !p.is_empty())
 }
 
-/// OPS_DESKTOP_DIR -> saved path -> the source checkout -> ~/Developer/ops/ops-desktop
+/// OPS_LOADOUT_DIR -> saved path -> the source checkout -> ~/Developer/ops/ops-loadout
 /// -> the copy seeded from the bundle -> ask once and remember.
 pub(crate) fn find_repo(app: &AppHandle) -> Option<PathBuf> {
     if let Some(path) = find_repo_on_disk(app) {
@@ -81,7 +81,7 @@ pub(crate) fn find_repo(app: &AppHandle) -> Option<PathBuf> {
     let picked = app
         .dialog()
         .file()
-        .set_title("Where is the ops-desktop repo?")
+        .set_title("Where is the ops-loadout repo?")
         .blocking_pick_folder()?;
     let picked = picked.into_path().ok()?;
     if catalog::is_repo(&picked) {
@@ -100,18 +100,18 @@ pub(crate) fn find_repo_on_disk(app: &AppHandle) -> Option<PathBuf> {
     // `config.json`, where it matches earlier - and an app update still has to
     // refresh it. `seed_bundled_repo` is a no-op when the stamp already matches.
     let seeded = seed_bundled_repo(app);
-    // `OPS_DESKTOP_DIR=bundled` forces the seeded copy, for testing a release
+    // `OPS_LOADOUT_DIR=bundled` forces the seeded copy, for testing a release
     // build on a machine that also has a checkout. Deliberately not saved: the
     // next ordinary launch goes back to the checkout.
-    if std::env::var("OPS_DESKTOP_DIR").is_ok_and(|v| v == "bundled") {
+    if std::env::var("OPS_LOADOUT_DIR").is_ok_and(|v| v == "bundled") {
         return seeded;
     }
 
     let candidates = [
-        std::env::var("OPS_DESKTOP_DIR").ok().map(PathBuf::from),
+        std::env::var("OPS_LOADOUT_DIR").ok().map(PathBuf::from),
         saved_repo(app),
         Some(compiled),
-        home.map(|h| h.join("Developer/ops/ops-desktop")),
+        home.map(|h| h.join("Developer/ops/ops-loadout")),
         seeded,
     ];
 
@@ -182,7 +182,7 @@ fn copy_over(source: &Path, target: &Path) -> std::io::Result<()> {
             }
             std::fs::copy(entry.path(), &to)?;
             // Tauri's resource copying keeps the mode bits today (verified in a
-            // built .app), but nothing promises it does, and the launcher execs
+            // built .app), but nothing promises it does, and Loadout execs
             // `lib/tasks.sh` and `platforms/**/*.sh` directly.
             #[cfg(unix)]
             if to.extension().is_some_and(|e| e == "sh") {
@@ -195,7 +195,7 @@ fn copy_over(source: &Path, target: &Path) -> std::io::Result<()> {
 }
 
 fn settings_file(handle: &AppHandle, store: &Store) -> Result<PathBuf, String> {
-    let repo = repo_of(handle, store).ok_or("no ops-desktop repo found")?;
+    let repo = repo_of(handle, store).ok_or("no ops-loadout repo found")?;
     Ok(repo.join("config/sidefx.local"))
 }
 
@@ -268,7 +268,7 @@ pub(crate) async fn get_settings(
     handle: AppHandle,
     store: State<'_, Store>,
 ) -> Result<serde_json::Value, String> {
-    let repo = repo_of(&handle, &store).ok_or("no ops-desktop repo found")?;
+    let repo = repo_of(&handle, &store).ok_or("no ops-loadout repo found")?;
     let path = settings_file(&handle, &store)?;
     let vars = parse_env_file(&std::fs::read_to_string(path).unwrap_or_default());
     let value = |key: &str| {

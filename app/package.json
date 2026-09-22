@@ -1,13 +1,13 @@
 {
-  "name": "launchbay",
+  "name": "loadout",
   "private": true,
-  "version": "0.3.3",
+  "version": "0.4.0",
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",
     "bundle-repo": "node scripts/bundle-repo.js",
     "build": "tauri build",
-    "install:mac": "tauri build --bundles app && rm -rf '/Applications/Launchbay.app' && ditto 'src-tauri/target/release/bundle/macos/Launchbay.app' '/Applications/Launchbay.app' && (pkill -x 'Launchbay' || true) && open '/Applications/Launchbay.app'",
+    "install:mac": "tauri build --bundles app && rm -rf '/Applications/Loadout.app' && ditto 'src-tauri/target/release/bundle/macos/Loadout.app' '/Applications/Loadout.app' && (pkill -x 'Loadout' || true) && open '/Applications/Loadout.app'",
     "install:win": "tauri build --bundles nsis"
   },
   "devDependencies": {

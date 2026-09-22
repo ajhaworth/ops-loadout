@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise real curl through the launcher's newline-delimited pipe contract."""
+"""Exercise real curl through Loadout's newline-delimited pipe contract."""
 import http.server
 import os
 import pathlib

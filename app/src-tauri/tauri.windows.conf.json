@@ -4,9 +4,9 @@
     "windows": [
       {
         "label": "main",
-        "url": "http://ops.localhost/index.html",
+        "url": "http://loadout.localhost/index.html",
         "visible": false,
-        "title": "Launchbay",
+        "title": "Loadout",
         "width": 920,
         "height": 680,
         "minWidth": 480,
@@ -17,8 +17,8 @@
       },
       {
         "label": "quick",
-        "url": "http://ops.localhost/quick.html",
-        "title": "Launchbay",
+        "url": "http://loadout.localhost/quick.html",
+        "title": "Loadout",
         "width": 340,
         "height": 400,
         "visible": false,

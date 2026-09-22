@@ -53,7 +53,7 @@ load_credentials() {
     [[ -n "${SIDEFX_CLIENT_ID:-}" && -n "${SIDEFX_CLIENT_SECRET:-}" ]] && return 0
 
     cat <<'MSG'
-SideFX API credentials are not set. In Launchbay, open Settings (gear icon, top right) and follow the steps there.
+SideFX API credentials are not set. In Loadout, open Settings (gear icon, top right) and follow the steps there.
 (From a terminal: write config/sidefx.local with SIDEFX_CLIENT_ID="..." and SIDEFX_CLIENT_SECRET="...", from https://www.sidefx.com/oauth2/applications/)
 MSG
     return 1
@@ -166,7 +166,7 @@ license_dialog() {
     osascript - "$app" <<'EOF' >/dev/null 2>&1 || true
 on run argv
 set msg to "Houdini is installed. It still needs the free Apprentice license, which only Houdini itself can activate:" & return & return & "1. Open Houdini Apprentice (button below)." & return & "2. If it asks for a license, click Use License Administrator; otherwise open Utilities > License Administrator." & return & "3. In the top-right menu, or under General, click Activate Apprentice. Logging in to SideFX is optional." & return & "4. Repeat step 3 every 30 days when Houdini asks again." & return & return & "SideFX Labs can be installed from its own tile once this is done."
-set r to display dialog msg with title "Launchbay" buttons {"Later", "Open Houdini Apprentice"} default button "Open Houdini Apprentice"
+set r to display dialog msg with title "Loadout" buttons {"Later", "Open Houdini Apprentice"} default button "Open Houdini Apprentice"
 if button returned of r is "Open Houdini Apprentice" then do shell script "open -a " & quoted form of (item 1 of argv)
 end run
 EOF

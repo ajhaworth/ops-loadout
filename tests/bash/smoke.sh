@@ -72,7 +72,7 @@ test_macos_installer_scripts() {
         fi
     fi
 
-    # Missing credentials must point at the launcher's Settings dialog, not
+    # Missing credentials must point at Loadout's Settings dialog, not
     # fail obscurely.
     if run_capture env SIDEFX_CREDENTIALS="$REPO_ROOT/config/nonexistent-sidefx.local" "$houdini" install; then
         fail "houdini.sh install should fail without credentials"
@@ -371,10 +371,10 @@ test_defaults_compare() {
     tmpdir="$(mktemp -d)"
     # cfprefsd can leave an empty plist on disk after `defaults delete`, so
     # remove the file directly too - otherwise a junk domain lingers forever.
-    trap 'rm -rf "$tmpdir"; defaults delete com.ops-desktop.smoke 2>/dev/null || true; rm -f "$HOME/Library/Preferences/com.ops-desktop.smoke.plist"' RETURN
+    trap 'rm -rf "$tmpdir"; defaults delete com.ops-loadout.smoke 2>/dev/null || true; rm -f "$HOME/Library/Preferences/com.ops-loadout.smoke.plist"' RETURN
 
-    defaults delete com.ops-desktop.smoke 2>/dev/null || true
-    rm -f "$HOME/Library/Preferences/com.ops-desktop.smoke.plist"
+    defaults delete com.ops-loadout.smoke 2>/dev/null || true
+    rm -f "$HOME/Library/Preferences/com.ops-loadout.smoke.plist"
 
     local output
     output="$(
@@ -395,37 +395,37 @@ TASK_MODE="status"
 TASK_ONLY=""
 
 TASK_ROWS=()
-defaults_set com.ops-desktop.smoke Foo bool true "Foo"
+defaults_set com.ops-loadout.smoke Foo bool true "Foo"
 [[ "$(row_field state)" == "pending" ]] || { echo "expected pending, got $(row_field state)"; exit 1; }
 [[ "$(row_field detail)" == "not set" ]] || { echo "expected 'not set', got $(row_field detail)"; exit 1; }
 
-defaults write com.ops-desktop.smoke Foo -bool true
+defaults write com.ops-loadout.smoke Foo -bool true
 
 TASK_ROWS=()
-defaults_set com.ops-desktop.smoke Foo bool true "Foo"
+defaults_set com.ops-loadout.smoke Foo bool true "Foo"
 [[ "$(row_field state)" == "applied" ]] || { echo "expected applied, got $(row_field state)"; exit 1; }
 
 TASK_ROWS=()
-defaults_set com.ops-desktop.smoke Foo bool false "Foo"
+defaults_set com.ops-loadout.smoke Foo bool false "Foo"
 [[ "$(row_field state)" == "pending" ]] || { echo "expected pending, got $(row_field state)"; exit 1; }
 [[ "$(row_field detail)" == "currently 1, want 0" ]] || { echo "expected 'currently 1, want 0', got $(row_field detail)"; exit 1; }
 
-defaults write com.ops-desktop.smoke Num -int 128
+defaults write com.ops-loadout.smoke Num -int 128
 
 TASK_ROWS=()
-defaults_set com.ops-desktop.smoke Num int 128 "Num"
+defaults_set com.ops-loadout.smoke Num int 128 "Num"
 [[ "$(row_field state)" == "applied" ]] || { echo "expected applied, got $(row_field state)"; exit 1; }
 
 TASK_ROWS=()
-defaults_set com.ops-desktop.smoke Num int 64 "Num"
+defaults_set com.ops-loadout.smoke Num int 64 "Num"
 [[ "$(row_field state)" == "pending" ]] || { echo "expected pending, got $(row_field state)"; exit 1; }
 
 # Real (non-dry-run) apply.
 TASK_MODE="apply"
 DRY_RUN="false"
 TASK_ONLY=""
-defaults_set com.ops-desktop.smoke Bar int 7 "Bar"
-applied_value="$(defaults read com.ops-desktop.smoke Bar)"
+defaults_set com.ops-loadout.smoke Bar int 7 "Bar"
+applied_value="$(defaults read com.ops-loadout.smoke Bar)"
 [[ "$applied_value" == "7" ]] || { echo "expected Bar=7, got $applied_value"; exit 1; }
 
 # defaults_hook: status mode, check command decides applied/pending.
