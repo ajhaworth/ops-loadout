@@ -65,6 +65,15 @@ test_macos_installer_scripts() {
     [[ -f "$REPO_ROOT/config/dcc/blender/portable/scripts/presets/keyconfig/dcc.py" ]] \
         || fail "config/dcc/blender keymap preset is missing"
 
+    [[ -f "$REPO_ROOT/config/dcc/houdini/desktop/ALX.desk" ]] \
+        || fail "config/dcc/houdini desktop preset is missing"
+
+    compgen -G "$REPO_ROOT/config/dcc/houdini/otls/*.hda" >/dev/null \
+        || fail "config/dcc/houdini otls are missing"
+
+    [[ -f "$REPO_ROOT/config/dcc/blender/assets/reference.blend" ]] \
+        || fail "config/dcc/blender asset library is missing"
+
     # Without Houdini, SideFX Labs cannot be installed or reported as present.
     if ! run_capture "$houdini" status; then
         if run_capture "$labs" status; then
