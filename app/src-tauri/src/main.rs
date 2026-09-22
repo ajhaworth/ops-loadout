@@ -365,7 +365,7 @@ fn main() {
             None,
         ))
         .manage(Store::default())
-        .register_uri_scheme_protocol("ops", serve_ui)
+        .register_uri_scheme_protocol("loadout", serve_ui)
         .setup(|app| {
             // The tray is the app's home; no Dock tile, no menubar of our own.
             #[cfg(target_os = "macos")]
