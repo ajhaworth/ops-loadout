@@ -31,7 +31,7 @@ for module in ['node_wrangler', *os.environ.get('OPS_BLENDER_ADDONS', '').split(
         setup_errors.append(module)
         print(f'Failed to enable {module}: {exc}', flush=True)
 
-# scene: metric shown in cm (Unreal), completely empty (no objects, no collections)
+# scene: metric shown in cm (Unreal), empty but for a linked scale-reference mannequin
 sc = bpy.context.scene
 sc.unit_settings.system, sc.unit_settings.scale_length = 'METRIC', 1.0
 sc.unit_settings.length_unit = 'CENTIMETERS'  # display only; 1 BU stays 1 m so glTF/USD/physics are untouched. FBX scale is a per-export arg, not a pref.
@@ -41,6 +41,12 @@ ts.snap_elements_base = ts.snap_elements = {'INCREMENT'}  # idle snap = world gr
 ts.use_snap_grid_absolute = True                 # absolute grid, not relative offsets: kit-bash placement
 ts.use_transform_correct_face_attributes = True  # keep UVs from stretching on vertex transforms
 bpy.data.batch_remove(list(bpy.data.objects) + list(bpy.data.collections))
+# linked (not appended) from the asset library, so rebuilding reference.blend updates it; path is resolved per machine
+with bpy.data.libraries.load(os.path.join(assets_dir, 'reference.blend'), link=True) as (src, dst):
+    dst.collections = ['Stylised Base Mesh Male']
+mannequin = bpy.data.objects.new('Stylised Base Mesh Male', None)
+mannequin.instance_type, mannequin.instance_collection = 'COLLECTION', dst.collections[0]
+sc.collection.objects.link(mannequin)
 
 # workspaces not needed for environment art
 bpy.data.batch_remove([ws for ws in bpy.data.workspaces if ws.name in ('Animation', 'Compositing', 'Scripting')])
@@ -55,6 +61,12 @@ def step():
             sp.overlay.show_stats = True   # poly/vert counts in viewport
             sp.clip_end = 10000            # large outdoor environments
             sh.light, sh.show_cavity, sh.cavity_type = 'MATCAP', True, 'BOTH'  # read surface form while modeling
+            if win.workspace.name == 'Layout':
+                sp.show_region_ui = True   # N panel open: exact transforms for placement
+                r3d = sp.region_3d         # framed on the mannequin
+                r3d.view_location, r3d.view_rotation, r3d.view_distance = (0.3279, -0.2473, 0.8698), (0.7374, 0.543, 0.2382, 0.3235), 5.5783
+        elif area.ui_type == 'ASSETS' and area.spaces[0].params:  # params exist only once the browser has drawn
+            area.spaces[0].params.catalog_id = '5b1e6f2a-6b1a-4e9e-9c1a-9b6f9a2b6c1e'  # "Reference", see assets/build.py
     for area in [a for a in win.screen.areas if a.ui_type == 'TIMELINE']:
         with bpy.context.temp_override(window=win, area=area):
             bpy.ops.screen.area_close()
