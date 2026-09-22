@@ -47,8 +47,12 @@ fn write_config(app: &AppHandle, config: &Config) {
             eprintln!("config dir {}: {e}", dir.display());
         }
     }
+    // Written aside and renamed into place: `std::fs::write` truncates first,
+    // and a `read_config` landing in that window reads `{}` - no profile, so
+    // the scan shows the whole catalog.
+    let tmp = path.with_extension("json.tmp");
     if let Ok(body) = serde_json::to_string(config) {
-        if let Err(e) = std::fs::write(&path, body) {
+        if let Err(e) = std::fs::write(&tmp, body).and_then(|_| std::fs::rename(&tmp, &path)) {
             eprintln!("config write {}: {e}", path.display());
         }
     }
@@ -59,8 +63,14 @@ fn saved_repo(app: &AppHandle) -> Option<PathBuf> {
 }
 
 fn save_repo(app: &AppHandle, repo: &Path) {
+    // `serve_ui` lands here on every request; rewriting an unchanged file on
+    // each one is what raced `saved_profile` reads.
     let mut config = read_config(app);
-    config.repo = Some(repo.to_string_lossy().to_string());
+    let repo = repo.to_string_lossy().to_string();
+    if config.repo.as_deref() == Some(repo.as_str()) {
+        return;
+    }
+    config.repo = Some(repo);
     write_config(app, &config);
 }
 
