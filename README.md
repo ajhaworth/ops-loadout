@@ -27,9 +27,10 @@ Each installs its own toolchain deps (Homebrew/Node/Rust on macOS; winget,
 Node, Rust and the VC++ Build Tools on Windows) before building the app, so a
 bare checkout is enough.
 
-A prebuilt macOS app is attached to each
+A macOS `.dmg` and a Windows installer are attached to the single
 [GitHub release](https://github.com/ajhaworth/ops-workstation/releases)
-(`.github/workflows/release.yml`, run on every `v*` tag). It is standalone -
+(`.github/workflows/release.yml`, run on every `v*` tag, which also deletes the
+older releases so only the latest is there). Both are standalone -
 no checkout needed. The release carries `config/`, `lib/` and `platforms/`
 inside the app and copies them out on first launch to a working copy at
 `~/Library/Application Support/dev.alx.launchbay/repo`, which is where its
