@@ -31,7 +31,7 @@ keyconfig_data = \
     "active":False,
       },
      ),
-    ("view3d.rotate", {"type": 'LEFTMOUSE', "value": 'PRESS', "alt": True}, None),
+    ("view3d.rotate", {"type": 'LEFTMOUSE', "value": 'PRESS', "oskey": True}, None),
     ("view3d.view_pan",
      {"type": 'WHEELLEFTMOUSE', "value": 'PRESS'},
      {"properties":
@@ -46,8 +46,8 @@ keyconfig_data = \
        ],
       },
      ),
-    ("view3d.move", {"type": 'MIDDLEMOUSE', "value": 'PRESS', "alt": True}, None),
-    ("view3d.zoom", {"type": 'RIGHTMOUSE', "value": 'PRESS', "alt": True}, None),
+    ("view3d.move", {"type": 'MIDDLEMOUSE', "value": 'PRESS', "oskey": True}, None),
+    ("view3d.zoom", {"type": 'RIGHTMOUSE', "value": 'PRESS', "oskey": True}, None),
     ("view3d.view_selected",
      {"type": 'F', "value": 'PRESS'},
      {"properties":
@@ -315,7 +315,7 @@ keyconfig_data = \
       },
      ),
     ("view3d.select",
-     {"type": 'LEFTMOUSE', "value": 'CLICK', "oskey": True},
+     {"type": 'LEFTMOUSE', "value": 'CLICK', "alt": True},
      {"properties":
       [("center", True),
        ("object", True),
@@ -331,7 +331,7 @@ keyconfig_data = \
       },
      ),
     ("view3d.select",
-     {"type": 'LEFTMOUSE', "value": 'CLICK', "shift": True, "oskey": True},
+     {"type": 'LEFTMOUSE', "value": 'CLICK', "shift": True, "alt": True},
      {"properties":
       [("extend", True),
        ("toggle", True),
@@ -349,7 +349,7 @@ keyconfig_data = \
       },
      ),
     ("view3d.select",
-     {"type": 'LEFTMOUSE', "value": 'CLICK', "shift": True, "alt": True},
+     {"type": 'LEFTMOUSE', "value": 'CLICK', "shift": True, "oskey": True},
      {"properties":
       [("toggle", True),
        ("enumerate", True),
@@ -366,7 +366,7 @@ keyconfig_data = \
       },
      ),
     ("view3d.select",
-     {"type": 'LEFTMOUSE', "value": 'CLICK', "shift": True, "ctrl": True, "alt": True},
+     {"type": 'LEFTMOUSE', "value": 'CLICK', "shift": True, "ctrl": True, "oskey": True},
      {"properties":
       [("toggle", True),
        ("center", True),
@@ -2496,7 +2496,7 @@ keyconfig_data = \
       },
      ),
     ("view3d.select_box",
-     {"type": 'LEFTMOUSE', "value": 'CLICK_DRAG', "oskey": True},
+     {"type": 'LEFTMOUSE', "value": 'CLICK_DRAG', "alt": True},
      {"properties":
       [("mode", 'SUB'),
        ],
@@ -2510,7 +2510,7 @@ keyconfig_data = \
       },
      ),
     ("view3d.select_box",
-     {"type": 'LEFTMOUSE', "value": 'CLICK_DRAG', "shift": True, "oskey": True},
+     {"type": 'LEFTMOUSE', "value": 'CLICK_DRAG', "shift": True, "alt": True},
      {"properties":
       [("mode", 'AND'),
        ],
@@ -2538,7 +2538,7 @@ keyconfig_data = \
       },
      ),
     ("view3d.select_box",
-     {"type": 'LEFTMOUSE', "value": 'CLICK_DRAG', "oskey": True},
+     {"type": 'LEFTMOUSE', "value": 'CLICK_DRAG', "alt": True},
      {"properties":
       [("mode", 'SUB'),
        ],
@@ -2552,7 +2552,7 @@ keyconfig_data = \
       },
      ),
     ("view3d.select_box",
-     {"type": 'LEFTMOUSE', "value": 'CLICK_DRAG', "shift": True, "oskey": True},
+     {"type": 'LEFTMOUSE', "value": 'CLICK_DRAG', "shift": True, "alt": True},
      {"properties":
       [("mode", 'AND'),
        ],
@@ -2587,7 +2587,7 @@ keyconfig_data = \
       },
      ),
     ("view3d.select_circle",
-     {"type": 'LEFTMOUSE', "value": 'PRESS', "oskey": True},
+     {"type": 'LEFTMOUSE', "value": 'PRESS', "alt": True},
      {"properties":
       [("wait_for_input", False),
        ("mode", 'SUB'),
@@ -2624,7 +2624,7 @@ keyconfig_data = \
       },
      ),
     ("view3d.select_circle",
-     {"type": 'LEFTMOUSE', "value": 'PRESS', "oskey": True},
+     {"type": 'LEFTMOUSE', "value": 'PRESS', "alt": True},
      {"properties":
       [("wait_for_input", False),
        ("mode", 'SUB'),
@@ -2654,7 +2654,7 @@ keyconfig_data = \
       },
      ),
     ("view3d.select_lasso",
-     {"type": 'LEFTMOUSE', "value": 'CLICK_DRAG', "oskey": True},
+     {"type": 'LEFTMOUSE', "value": 'CLICK_DRAG', "alt": True},
      {"properties":
       [("mode", 'SUB'),
        ],
@@ -2668,7 +2668,7 @@ keyconfig_data = \
       },
      ),
     ("view3d.select_lasso",
-     {"type": 'LEFTMOUSE', "value": 'CLICK_DRAG', "shift": True, "oskey": True},
+     {"type": 'LEFTMOUSE', "value": 'CLICK_DRAG', "shift": True, "alt": True},
      {"properties":
       [("mode", 'AND'),
        ],
@@ -2696,7 +2696,7 @@ keyconfig_data = \
       },
      ),
     ("view3d.select_lasso",
-     {"type": 'LEFTMOUSE', "value": 'CLICK_DRAG', "oskey": True},
+     {"type": 'LEFTMOUSE', "value": 'CLICK_DRAG', "alt": True},
      {"properties":
       [("mode", 'SUB'),
        ],
@@ -2710,7 +2710,7 @@ keyconfig_data = \
       },
      ),
     ("view3d.select_lasso",
-     {"type": 'LEFTMOUSE', "value": 'CLICK_DRAG', "shift": True, "oskey": True},
+     {"type": 'LEFTMOUSE', "value": 'CLICK_DRAG', "shift": True, "alt": True},
      {"properties":
       [("mode", 'AND'),
        ],
@@ -9426,7 +9426,7 @@ keyconfig_data = \
   {"space_type": 'EMPTY', "region_type": 'WINDOW', "modal": True},
   {"items":
    [("CANCEL", {"type": 'ESC', "value": 'PRESS', "any": True}, None),
-    ("PANNING", {"type": 'LEFTMOUSE', "value": 'PRESS', "alt": True}, None),
+    ("PANNING", {"type": 'LEFTMOUSE', "value": 'PRESS', "oskey": True}, None),
     ("CONFIRM", {"type": 'RET', "value": 'PRESS', "any": True}, None),
     ("CONFIRM", {"type": 'NUMPAD_ENTER', "value": 'PRESS', "any": True}, None),
     ("ADD_CUT_CLOSED", {"type": 'LEFTMOUSE', "value": 'DOUBLE_CLICK', "any": True}, None),
@@ -9448,8 +9448,8 @@ keyconfig_data = \
     ("ANGLE_SNAP_TOGGLE", {"type": 'A', "value": 'PRESS'}, None),
     ("CYCLE_ANGLE_SNAP_EDGE", {"type": 'R', "value": 'PRESS'}, None),
     ("CUT_THROUGH_TOGGLE", {"type": 'C', "value": 'PRESS'}, None),
-    ("PANNING", {"type": 'MIDDLEMOUSE', "value": 'PRESS', "alt": True}, None),
-    ("PANNING", {"type": 'RIGHTMOUSE', "value": 'PRESS', "alt": True}, None),
+    ("PANNING", {"type": 'MIDDLEMOUSE', "value": 'PRESS', "oskey": True}, None),
+    ("PANNING", {"type": 'RIGHTMOUSE', "value": 'PRESS', "oskey": True}, None),
     ("SHOW_DISTANCE_ANGLE_TOGGLE", {"type": 'D', "value": 'PRESS'}, None),
     ("DEPTH_TEST_TOGGLE", {"type": 'V', "value": 'PRESS'}, None),
     ],
@@ -9932,7 +9932,7 @@ keyconfig_data = \
       },
      ),
     ("mesh.loop_select",
-     {"type": 'LEFTMOUSE', "value": 'DOUBLE_CLICK', "oskey": True},
+     {"type": 'LEFTMOUSE', "value": 'DOUBLE_CLICK', "alt": True},
      {"properties":
       [("extend", False),
        ("deselect", True),
@@ -9950,7 +9950,7 @@ keyconfig_data = \
       },
      ),
     ("mesh.edgering_select",
-     {"type": 'LEFTMOUSE', "value": 'DOUBLE_CLICK', "alt": True},
+     {"type": 'LEFTMOUSE', "value": 'DOUBLE_CLICK', "oskey": True},
      {"properties":
       [("extend", False),
        ("deselect", False),
@@ -9959,7 +9959,7 @@ keyconfig_data = \
       },
      ),
     ("mesh.edgering_select",
-     {"type": 'LEFTMOUSE', "value": 'DOUBLE_CLICK', "shift": True, "alt": True},
+     {"type": 'LEFTMOUSE', "value": 'DOUBLE_CLICK', "shift": True, "oskey": True},
      {"properties":
       [("extend", True),
        ("deselect", False),
@@ -9977,7 +9977,7 @@ keyconfig_data = \
       },
      ),
     ("mesh.edgering_select",
-     {"type": 'LEFTMOUSE', "value": 'DOUBLE_CLICK', "ctrl": True, "alt": True},
+     {"type": 'LEFTMOUSE', "value": 'DOUBLE_CLICK', "ctrl": True, "oskey": True},
      {"properties":
       [("extend", False),
        ("deselect", True),
@@ -9986,7 +9986,7 @@ keyconfig_data = \
       },
      ),
     ("mesh.shortest_path_pick",
-     {"type": 'LEFTMOUSE', "value": 'PRESS', "shift": True, "oskey": True},
+     {"type": 'LEFTMOUSE', "value": 'PRESS', "shift": True, "alt": True},
      {"properties":
       [("use_fill", False),
        ],
@@ -10007,7 +10007,7 @@ keyconfig_data = \
       },
      ),
     ("mesh.shortest_path_pick",
-     {"type": 'LEFTMOUSE', "value": 'PRESS', "shift": True, "ctrl": True, "alt": True},
+     {"type": 'LEFTMOUSE', "value": 'PRESS', "shift": True, "ctrl": True, "oskey": True},
      {"properties":
       [("use_fill", True),
        ],
