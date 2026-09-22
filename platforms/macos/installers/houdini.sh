@@ -241,7 +241,7 @@ case "${1:-status}" in
     uninstall)                 do_uninstall ;;
     config)                    apply_config ;;
     *)
-        echo "usage: $(basename "$0") <status|install|update|reinstall|uninstall>" >&2
+        echo "usage: $(basename "$0") <status|install|update|reinstall|uninstall|config>" >&2
         exit 2
         ;;
 esac

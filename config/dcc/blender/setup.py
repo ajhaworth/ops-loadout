@@ -58,7 +58,6 @@ def step():
     for area in [a for a in win.screen.areas if a.ui_type == 'TIMELINE']:
         if win.workspace.name == 'Layout':
             area.ui_type = 'ASSETS'    # asset shelf for drag-and-drop kit placement, instead of a timeline we never use
-            area.spaces.active.params.asset_library_reference = 'Loadout'
         else:
             with bpy.context.temp_override(window=win, area=area):
                 bpy.ops.screen.area_close()
