@@ -2,7 +2,7 @@
 # Shared by the installer scripts: download with progress, mount a dmg
 # read-only and unmount it again. Not an installer token (leading `_`).
 #
-# The launcher reads newline-delimited output, not terminal progress bars.
+# Loadout reads newline-delimited output, not terminal progress bars.
 # Emit at most one line per 10% milestone, without a buffering text filter.
 # Usage: dl <url> <out-file>
 dl() (

@@ -2,7 +2,7 @@
 
 My Blender config, tracked in this repo.
 
-Install it with the launcher's Blender tile, or:
+Install it with Loadout's Blender tile, or:
 
 ```sh
 platforms/macos/installers/blender.sh install
@@ -30,7 +30,7 @@ Everything Blender saves lands in `portable/`, so it shows up in `git status`:
 | File → Defaults → Save Startup File | `portable/config/startup.blend` |
 | Preferences → Keymap → "+" add preset | `portable/scripts/presets/keyconfig/<name>.py` |
 | `bin/keymap-export` | `portable/scripts/presets/keyconfig/dcc.py` (user changes only, text diff) |
-| Blender tile → Keymap in the launcher | opens `keymap.html`, a keyboard view of `dcc.py` (reads it live, nothing to regenerate) |
+| Blender tile → Keymap in Loadout | opens `keymap.html`, a keyboard view of `dcc.py` (reads it live, nothing to regenerate) |
 
 `setup.py` reapplies the managed startup file/preferences (Industry Compatible keymap, no timeline, environment-art workspaces). Install, Update, and Reinstall run it automatically.
 

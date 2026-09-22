@@ -1,4 +1,4 @@
-// Launchbay - a grid of every app config/packages/** knows about.
+// Loadout - a grid of every app config/packages/** knows about.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod catalog;
@@ -27,7 +27,7 @@ use settings::list_profiles;
 use window::panel_origin;
 
 /// One row from `lib/tasks.sh status` / `bridge.ps1 tasks-status` - see
-/// CLAUDE.md "Setup Tasks (launcher)" for the JSON contract.
+/// CLAUDE.md "Setup Tasks (Loadout)" for the JSON contract.
 #[derive(Clone, Serialize, Deserialize)]
 struct Task {
     id: String,
@@ -49,7 +49,7 @@ pub(crate) fn repo_of(app: &AppHandle, store: &Store) -> Option<PathBuf> {
 fn cache_dir(app: &AppHandle) -> PathBuf {
     app.path()
         .app_cache_dir()
-        .unwrap_or_else(|_| std::env::temp_dir().join("launchbay"))
+        .unwrap_or_else(|_| std::env::temp_dir().join("loadout"))
 }
 
 fn resource_dir(app: &AppHandle) -> PathBuf {
@@ -85,7 +85,7 @@ fn profile_flags(app: &AppHandle, repo: &Path) -> Option<HashMap<String, String>
 }
 
 fn rescan(app: &AppHandle, store: &Store) -> Result<Vec<App>, String> {
-    let repo = repo_of(app, store).ok_or("no ops-desktop repo found")?;
+    let repo = repo_of(app, store).ok_or("no ops-loadout repo found")?;
     let mut apps = catalog::scan(&repo);
     if let Some(flags) = profile_flags(app, &repo) {
         apps = catalog::filter_by_profile(apps, &flags);
@@ -180,7 +180,7 @@ async fn open_url(handle: AppHandle, url: String) -> Result<(), String> {
 /// on it.
 #[tauri::command]
 async fn tasks_status(handle: AppHandle, store: State<'_, Store>, section: String) -> Result<Vec<Task>, String> {
-    let repo = repo_of(&handle, &store).ok_or("no ops-desktop repo found")?;
+    let repo = repo_of(&handle, &store).ok_or("no ops-loadout repo found")?;
     let resources = resource_dir(&handle);
     let profile = saved_profile(&handle);
     let cmd = platform::task_command("status", &section, None, &repo, &resources, profile.as_deref())?;
@@ -203,7 +203,7 @@ async fn tasks_status(handle: AppHandle, store: State<'_, Store>, section: Strin
 /// bookkeeping (`run_job`'s icon refresh / dock badge) - a task has no `App`.
 #[tauri::command]
 async fn run_task(handle: AppHandle, store: State<'_, Store>, id: String, section: String) -> Result<(), String> {
-    let repo = repo_of(&handle, &store).ok_or("no ops-desktop repo found")?;
+    let repo = repo_of(&handle, &store).ok_or("no ops-loadout repo found")?;
     let resources = resource_dir(&handle);
     let profile = saved_profile(&handle);
     let cmd = platform::task_command("apply", &section, Some(&id), &repo, &resources, profile.as_deref())?;
@@ -229,7 +229,7 @@ fn run_job(
     action: &'static str,
 ) -> Result<(), String> {
     let target = find_app(&store, &id).ok_or("unknown app")?;
-    let repo = repo_of(&handle, &store).ok_or("no ops-desktop repo found")?;
+    let repo = repo_of(&handle, &store).ok_or("no ops-loadout repo found")?;
     let resources = resource_dir(&handle);
     let cache = cache_dir(&handle);
     let cmd = platform::job_command(action, &target, &repo, &resources)?;
@@ -339,7 +339,7 @@ pub(crate) fn emit_line(handle: &AppHandle, id: &str, action: &str, line: &str) 
 fn install_askpass(dir: &Path) {
     use std::os::unix::fs::PermissionsExt;
     let script = dir.join("askpass.sh");
-    let body = "#!/bin/sh\nexec osascript -e 'display dialog \"Launchbay needs your password to finish this update.\" with title \"Launchbay\" default answer \"\" with hidden answer buttons {\"Cancel\", \"OK\"} default button \"OK\"' -e 'text returned of result'\n";
+    let body = "#!/bin/sh\nexec osascript -e 'display dialog \"Loadout needs your password to finish this update.\" with title \"Loadout\" default answer \"\" with hidden answer buttons {\"Cancel\", \"OK\"} default button \"OK\"' -e 'text returned of result'\n";
     let ok = std::fs::create_dir_all(dir).is_ok()
         && std::fs::write(&script, body).is_ok()
         && std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).is_ok();
@@ -396,14 +396,14 @@ fn main() {
             install_askpass(&cache_dir(app.handle()));
 
             let menu = MenuBuilder::new(app)
-                .text("open", "Open Launchbay")
+                .text("open", "Open Loadout")
                 .text("check-updates", "Check for Updates\u{2026}")
                 .separator()
                 .quit_with_text("Quit")
                 .build()?;
             TrayIconBuilder::with_id("tray")
                 .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("Launchbay")
+                .tooltip("Loadout")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
@@ -463,7 +463,7 @@ fn main() {
             window::hide_quick
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Launchbay");
+        .expect("error while running Loadout");
 }
 
 #[cfg(test)]
@@ -477,7 +477,7 @@ mod smoke {
         assert!(crate::catalog::is_repo(&repo), "{} is not the repo", repo.display());
 
         let mut apps = crate::catalog::scan(&repo);
-        crate::platform::hydrate(&mut apps, &std::env::temp_dir().join("launchbay-test"), &repo, &repo);
+        crate::platform::hydrate(&mut apps, &std::env::temp_dir().join("loadout-test"), &repo, &repo);
 
         let mut by_kind: std::collections::BTreeMap<&str, (usize, usize, usize, usize)> =
             Default::default();

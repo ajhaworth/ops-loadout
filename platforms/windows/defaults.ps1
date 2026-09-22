@@ -83,7 +83,7 @@ function Invoke-Defaults {
     Reset-RegistryResults
 
     # Invoke-DefaultsModules (lib\windows\registry.psm1) does the discovery,
-    # gating and invocation - the same loop bridge.ps1 uses for the launcher's
+    # gating and invocation - the same loop bridge.ps1 uses for Loadout's
     # Setup tab. -Narrate makes it print the per-module headers as it goes;
     # narrating from a second loop out here would put every header after the
     # output it belongs to.

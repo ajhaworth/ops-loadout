@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lib/tasks.sh - macOS status/apply feed for Launchbay's Setup tab
+# lib/tasks.sh - macOS status/apply feed for Loadout's Setup tab
 #
 # Usage:
 #   lib/tasks.sh status <section> [--profile name]
@@ -8,12 +8,12 @@
 # Sections: prereq, dotfiles, defaults
 #
 # status prints exactly one JSON array on stdout and nothing else - see
-# CLAUDE.md "Setup Tasks (launcher)" for the row shape and state values.
+# CLAUDE.md "Setup Tasks (Loadout)" for the row shape and state values.
 # apply streams plain text and exits non-zero on failure.
 #
 # This file is both sourced (by platforms/macos/defaults.sh, so
 # ./setup.sh defaults keeps working through defaults_set/defaults_hook) and
-# run directly by the launcher. The include guard below stops the second
+# run directly by Loadout. The include guard below stops the second
 # sourcing from re-triggering main() when defaults.sh sources this file back.
 
 if [[ -n "${_TASKS_SH_SOURCED:-}" ]]; then
@@ -201,9 +201,9 @@ defaults_set() {
         TASK_CHANGED=$((TASK_CHANGED + 1))
     else
         # Sandboxed apps keep their plist in ~/Library/Containers, which TCC
-        # gates per calling app - the launcher needs Full Disk Access.
+        # gates per calling app - Loadout needs Full Disk Access.
         if [[ "$write_err" == *"/Library/Containers/"* ]]; then
-            write_err="$write_err (grant Launchbay Full Disk Access in System Settings > Privacy & Security)"
+            write_err="$write_err (grant Loadout Full Disk Access in System Settings > Privacy & Security)"
         fi
         log_error "$label: $write_err"
         TASK_FAILED=$((TASK_FAILED + 1))
@@ -370,7 +370,7 @@ tasks_load_prereq_deps() {
 }
 
 # brew may be installed at /opt/homebrew/bin (Apple Silicon) or /usr/local/bin
-# (Intel) without either being on PATH when the launcher runs this - check
+# (Intel) without either being on PATH when Loadout runs this - check
 # both explicitly rather than relying on command_exists alone.
 tasks_brew_path() {
     if command_exists brew; then

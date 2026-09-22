@@ -7,7 +7,7 @@
 #
 # The four timeouts are powercfg calls rather than registry writes, so they go
 # through Invoke-TrackedStep - that is what gives them result rows (and a
-# needs_admin state) in the launcher's Setup tab.
+# needs_admin state) in Loadout's Setup tab.
 
 function Invoke-PowerCfg {
     param(

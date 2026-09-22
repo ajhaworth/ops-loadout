@@ -104,7 +104,7 @@ do_install() {
 
     # Config dir -> repo. Before the extensions, so they land in the repo's portable/extensions/.
     ln -sfn "$CFG/portable" "$PORTABLE"
-    # Unbuffered so the launcher sees lines as they happen; drop the per-chunk
+    # Unbuffered so Loadout sees lines as they happen; drop the per-chunk
     # PROGRESS spam and keep the STATUS lines (awk, not grep -v: an all-PROGRESS
     # run must not read as a failure under pipefail).
     b() { PYTHONUNBUFFERED=1 "$APP/Contents/MacOS/Blender" --online-mode "$@" 2>&1 | awk '!/^PROGRESS/ { print; fflush() }'; }

@@ -13,7 +13,7 @@ APP="/Applications/Moonlight Nightly.app"
 # Nightlies all report the same CFBundleShortVersionString, so the installed
 # commit is stamped here instead. Kept outside the bundle to leave its
 # signature seal intact.
-STAMP="$HOME/Library/Application Support/ops-desktop/moonlight-nightly.sha"
+STAMP="$HOME/Library/Application Support/ops-loadout/moonlight-nightly.sha"
 
 do_status() {
     [[ -d "$APP" ]] || return 1
