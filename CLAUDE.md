@@ -301,9 +301,26 @@ the closest stock preset — never justify a setting or a key by "that's how May
 or Max does it", justify it by what it does for environment work. Target engine
 is Unreal (scene displays centimeters, 1 BU stays 1 m).
 
-Adding the next DCC (Houdini) means `config/dcc/houdini/` plus its own installer
-beside `sidefxlabs.sh`, linking into `~/Library/Preferences/houdini/<X.Y>/` and
-resolving that `X.Y` the way `sidefxlabs.sh` does.
+**Houdini.** `platforms/macos/installers/houdini.sh` writes
+`~/Library/Preferences/houdini/<X.Y>/packages/loadout.json` pointing at
+`config/dcc/houdini`, putting it on `HOUDINI_PATH` so `desktop/` and `otls/`
+auto-load; new HDAs go straight into `otls/`. It also sets
+`general.desk.val := "ALX";` in that version's `houdini.pref`, replacing an
+existing line or appending one, so Houdini opens on the repo's desktop layout.
+Both are reapplied on every successful install and on Update's
+already-latest short-circuit, so a version bump or a config edit both take
+effect without a reinstall. Houdini's own "Save Current Desktop" writes to
+the user prefs `desktop/`, not the repo — copy that file back into
+`config/dcc/houdini/desktop/` to keep a layout change. A sample scene lives in
+`examples/`.
+
+**Asset library.** `config/dcc/blender/assets/` is registered by `setup.py`
+as Blender asset library "Loadout", and the Layout workspace's asset shelf
+defaults to it. `assets/build.py` (run via `bin/blender -b --factory-startup
+--python assets/build.py`) regenerates `reference.blend` from
+`assets/reference/*.fbx`, each FBX becoming an asset collection in the
+"Reference" catalog. Add assets by extending `build.py` or by dropping
+already-marked `.blend` files into `assets/`.
 
 ### Loadout (`app/`)
 
