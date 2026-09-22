@@ -317,7 +317,15 @@ fn run_streaming(handle: &AppHandle, id: &str, action: &str, cmd: platform::Cmd)
         let _ = pump.join();
     }
 
-    child.wait().map(|s| s.success()).unwrap_or(false)
+    // A script killed by `set -e` says nothing, so name the exit status rather
+    // than leaving its last progress line as the reason shown on the tile.
+    let status = child.wait().ok();
+    let ok = status.is_some_and(|s| s.success());
+    if !ok {
+        let code = status.and_then(|s| s.code()).map_or("killed".to_string(), |c| format!("exit {c}"));
+        emit_line(handle, id, action, &format!("{} failed ({code})", cmd.program));
+    }
+    ok
 }
 
 pub(crate) fn emit_line(handle: &AppHandle, id: &str, action: &str, line: &str) {

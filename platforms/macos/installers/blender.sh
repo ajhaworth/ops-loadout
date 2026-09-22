@@ -85,7 +85,8 @@ do_install() {
                 get -o "$zip" "${url:-$api/zipball}"
                 # zipballs unpack to owner-repo-sha/, not a valid module name; rename the top dir to the repo name
                 [ -n "$url" ] || (cd "$tmp" && unzip -q "$zip" && rm "$zip" && mv "$(ls -d */)" "$(basename "$ref")" && zip -qr "$zip" "$(basename "$ref")")
-                id=$(unzip -p "$zip" '*/blender_manifest.toml' 2>/dev/null | sed -n 's/^id *= *"\(.*\)".*/\1/p' | head -1)
+                # Release zips keep the manifest at the root, zipballs one dir down; no match (unzip 11) is not fatal.
+                id=$({ unzip -p "$zip" blender_manifest.toml '*/blender_manifest.toml' 2>/dev/null || true; } | sed -n 's/^id *= *"\(.*\)".*/\1/p' | head -1)
                 if [[ -n "$id" && -d "$CFG/portable/extensions/user_default/$id" ]]; then echo "$ref already installed ($id)"; continue; fi
                 b --command extension install-file -r user_default --enable "$zip" ;;
             *) echo "unknown kind: $kind"; exit 1 ;;
