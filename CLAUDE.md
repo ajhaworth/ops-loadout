@@ -38,7 +38,8 @@ scripts, not casks, so the allow-list stays explicit.
 macOS dmg on a macOS runner and the Windows installer on a Windows runner - and
 attaches both to a GitHub Release (`tauri-apps/tauri-action`).
 It is unsigned, so README tells downloaders to use Open Anyway or clear the
-quarantine flag. The app still needs the repo checkout for its UI and scripts.
+quarantine flag. The app bundles the repo content, so it runs without a
+checkout (see "A release ships the repo content" under Loadout).
 
 ### Package Lists
 
@@ -226,7 +227,7 @@ can answer it.
 `houdini.sh` resolves the latest production build through the SideFX download
 API, which needs `config/sidefx.local` (`SIDEFX_CLIENT_ID`,
 `SIDEFX_CLIENT_SECRET`; gitignored via `*.local`). Loadout's Settings
-dialog writes that file (`get_settings`/`set_settings` in `main.rs`); the
+dialog writes that file (`get_settings`/`set_settings` in `settings.rs`); the
 script only reads it and points at Settings when it is missing. The dmg holds
 `Houdini.pkg`, installed with `installer -pkg ... -target /`. The Apprentice
 license cannot be scripted: a post-install dialog explains the License
@@ -344,8 +345,7 @@ HTML/CSS/vanilla JS in `app/ui/` (no framework, no bundler; `frontendDist`
 points straight at `../ui`) over a Rust backend in `app/src-tauri/src/`:
 
 - `main.rs` — Tauri commands (`list_apps`, `refresh`, `install`/`update`/
-  `uninstall`/`reinstall`, `launch`, `tasks_status`, `run_task`,
-  `get_settings`/`set_settings`, ...), invoked from `main.js` as
+  `uninstall`/`reinstall`, `launch`, `tasks_status`, `run_task`, ...), invoked from `main.js` as
   `window.__TAURI__.core.invoke("<name>")`. Job output streams over
   `install-log`/`install-done` events.
 - `catalog.rs` — pure parser of `config/packages/**` into `App` structs; never
@@ -363,8 +363,13 @@ points straight at `../ui`) over a Rust backend in `app/src-tauri/src/`:
   launch|open|tasks-status|tasks-apply`), which is bundled as a Tauri
   resource so the built app can find it. Package/task logic lives in
   `lib/windows/*.psm1`, not in the bridge or in Rust — add features there.
+- `settings.rs` — `config.json`, repo discovery (`find_repo`), bundled-repo
+  seeding and the `get_settings`/`set_settings` commands.
+- `window.rs` — the `serve_ui` scheme handler and window commands
+  (`open_full`, `open_page`, `hide_quick`).
+- `update.rs` — tray self-update (see below).
 
-The UI is served off disk, not from the binary. `serve_ui` in `main.rs`
+The UI is served off disk, not from the binary. `serve_ui` in `window.rs`
 registers a `loadout://` scheme (`http://loadout.localhost` on Windows, hence
 `tauri.windows.conf.json` restating the window URLs) that reads
 `<repo>/app/ui/<path>` and falls back to the embedded `frontendDist` copy when
@@ -672,6 +677,10 @@ throws at runtime.
 bash tests/bash/smoke.sh             # Smoke tests
 (cd app/src-tauri && cargo test)     # Rust unit tests
 (cd app/src-tauri && cargo test -- --ignored --nocapture)  # + live repo scan
+(cd app/src-tauri && cargo test <name>)                    # one Rust test
+python3 tests/bash/blender_install.py      # blender.sh against fake apps
+python3 tests/bash/download_progress.py    # installer curl progress pipe
+python3 tests/bash/blender_install.py InstallTests.<test_name>  # one test
 ```
 
 ```powershell
@@ -694,8 +703,9 @@ pwsh tests\windows\smoke.ps1         # Smoke tests
 
 The smoke tests run on any platform: syntax, helper-function and
 config-consistency checks work everywhere, and the dry-run invocations are
-skipped off Windows. Both suites are flat scripts with no single-test
-selector; run one check by commenting out the rest. `smoke.ps1` also parses
+skipped off Windows. Both smoke suites are flat scripts with no single-test
+selector; run one check by commenting out the rest. The two Python files are
+`unittest` suites and never touch `/Applications`. `smoke.ps1` also parses
 `bridge.ps1` and asserts its verb set. The Rust side is covered only by
 `cargo test`.
 
@@ -771,7 +781,7 @@ setup.ps1 (Windows entry point — thin wrapper)
 
 app/ (Loadout, Tauri)
     ├── ui/ (static HTML/JS, no build step)
-    └── src-tauri/src/main.rs → catalog.rs (parse lists), platform/{macos,windows}.rs
+    └── src-tauri/src/main.rs → catalog.rs (parse lists), settings.rs, window.rs, platform/{macos,windows}.rs
         ├── macOS: brew / mas / platforms/macos/installers/*.sh / lib/tasks.sh
         └── Windows: bridge.ps1 → lib/windows/*.psm1
 ```
