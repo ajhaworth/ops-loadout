@@ -18,6 +18,14 @@ p.view.show_splash = False
 p.view.show_navigate_ui = False   # drop the zoom/pan/camera/persp buttons; the axis gizmo stays
 p.inputs.use_zoom_to_mouse = True
 p.edit.undo_steps = 128
+# backups: .blend1-.blend5 beside each file, autosave every 5 min into a folder that survives a reboot (macOS clears its temp dir)
+p.filepaths.save_version = 5
+p.filepaths.use_auto_save_temporary_files = True
+p.filepaths.auto_save_time = 5
+autosave_dir = os.path.expanduser('~/Library/Application Support/Blender/autosave')
+os.makedirs(autosave_dir, exist_ok=True)
+p.filepaths.temporary_directory = autosave_dir
+p.filepaths.use_file_compression = True
 p.system.use_online_access = True  # MCP add-on refuses to open its socket offline
 p.inputs.use_rotate_around_active = True   # orbit around the selected prop, not the view centre, when placing/inspecting assets
 p.inputs.use_mouse_depth_navigate = True   # orbit/pan pivot on the surface under the cursor: navigate big scenes without selecting first
