@@ -297,10 +297,15 @@ replace it rather than `rm -rf`-ing someone else's app.
 - **Loadout tab.** `portable/scripts/startup/dcc_claude.py` adds the viewport
   sidebar tab "Loadout" for the repo's own tools; any panel with
   `bl_category = 'Loadout'` joins it, so each tool keeps its own startup script.
-  Its first button opens Ghostty running `claude` at the .blend's git root and
-  tiles Blender 3/4 : Ghostty 1/4 via `osascript` + System Events, which needs
-  Blender allowed under Accessibility. Tiling runs non-blocking; a failure pops
-  up a warning while Ghostty still opens.
+  Its first button opens a fresh Ghostty (`open -na`, `--window-save-state=never`)
+  running `claude` at the .blend's git root and tiles Ghostty 1/4 : Blender 3/4
+  via `osascript` + System Events, which needs Blender allowed under
+  Accessibility. The script must address every window by process id
+  (`first application process whose unix id is n`): a saved process reference
+  collapses to `application process "ghostty"`, which hits whichever Ghostty is
+  already open. Tiling runs non-blocking - Blender's own window cannot answer
+  Accessibility queries while its main thread waits - and a failure pops up a
+  warning while Ghostty still opens.
 - **Keymap viewer.** `keymap.html`/`keymap.js` are served by Loadout at
   `loadout://localhost/dcc/blender/keymap.html` (`serve_ui` maps `dcc/*` to
   `config/dcc/*`) and opened from the Blender tile's Keymap menu item. They read
