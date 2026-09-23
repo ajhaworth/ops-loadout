@@ -18,6 +18,8 @@ p.view.show_splash = False
 p.view.show_navigate_ui = False   # drop the zoom/pan/camera/persp buttons; the axis gizmo stays
 p.inputs.use_zoom_to_mouse = True
 p.edit.undo_steps = 128
+p.system.gl_texture_limit = 'CLAMP_OFF'   # full-res textures in the viewport, to judge texel density and detail
+p.system.anisotropic_filter = 'FILTER_16'  # floors and roads stay sharp at grazing angles
 # backups: .blend1-.blend5 beside each file, autosave every 5 min into a folder that survives a reboot (macOS clears its temp dir)
 p.filepaths.save_version = 5
 p.filepaths.use_auto_save_temporary_files = True
