@@ -9,6 +9,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::AppHandle;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 
+/// Set across the relaunch so the new process brings the window back up.
+pub const REOPEN: &str = "LOADOUT_REOPEN_AFTER_UPDATE";
+
 const LATEST: &str = "https://api.github.com/repos/ajhaworth/ops-loadout/releases/latest";
 
 /// Checks, asks, installs and relaunches. Runs off the main thread, since the
@@ -162,6 +165,7 @@ async fn run(app: &AppHandle) {
             return say(app, &format!("Update failed: {e}"));
         }
         log(app, "Update installed, relaunching");
+        std::env::set_var(REOPEN, "1");
         // restart() never returns; the new binary comes up in its place.
         app.restart();
     }
@@ -169,6 +173,8 @@ async fn run(app: &AppHandle) {
     #[cfg(target_os = "windows")]
     {
         // ponytail: /P /R unverified on a real Windows box until the first release ships an exe.
+        // The installer and the app it relaunches inherit this environment.
+        std::env::set_var(REOPEN, "1");
         match Command::new(&file).args(["/P", "/R"]).spawn() {
             Ok(_) => app.exit(0),
             Err(e) => say(app, &format!("Update failed: {e}")),

@@ -431,6 +431,11 @@ fn main() {
                 })
                 .build(app)?;
 
+            if std::env::var_os(update::REOPEN).is_some() {
+                std::env::remove_var(update::REOPEN);
+                show_main(app.handle());
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| match event {
