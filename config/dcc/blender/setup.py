@@ -70,6 +70,9 @@ def step():
                 sp.show_region_ui = True   # N panel open: exact transforms for placement
                 r3d = sp.region_3d         # framed on the mannequin
                 r3d.view_location, r3d.view_rotation, r3d.view_distance = (0.3279, -0.2473, 0.8698), (0.7374, 0.543, 0.2382, 0.3235), 5.5783
+        elif area.type == 'OUTLINER':
+            area.spaces[0].show_restrict_column_select = True  # arrow toggle: lock set dressing and backdrops against misclicks
+            area.spaces[0].show_restrict_column_render = False  # camera toggle: scenes ship to Unreal, not Blender renders
         elif area.ui_type == 'ASSETS' and area.spaces[0].params:  # params exist only once the browser has drawn
             area.spaces[0].params.catalog_id = '5b1e6f2a-6b1a-4e9e-9c1a-9b6f9a2b6c1e'  # "Reference", see assets/build.py
     for area in [a for a in win.screen.areas if a.ui_type == 'TIMELINE']:
