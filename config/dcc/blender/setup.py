@@ -58,6 +58,7 @@ with bpy.data.libraries.load(os.path.join(assets_dir, 'reference.blend'), link=T
 mannequin = bpy.data.objects.new('Stylised Base Mesh Male', None)
 mannequin.instance_type, mannequin.instance_collection = 'COLLECTION', dst.collections[0]
 sc.collection.objects.link(mannequin)
+mannequin.hide_select = True  # scale reference: box selects and clicks pass through it (Outliner arrow unlocks)
 
 # workspaces not needed for environment art
 bpy.data.batch_remove([ws for ws in bpy.data.workspaces if ws.name in ('Animation', 'Compositing', 'Scripting')])
