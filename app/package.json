@@ -1,7 +1,7 @@
 {
   "name": "loadout",
   "private": true,
-  "version": "0.4.11",
+  "version": "0.4.12",
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",
