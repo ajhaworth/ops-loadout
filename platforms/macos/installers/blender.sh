@@ -15,6 +15,11 @@ CFG="$REPO/config/dcc/blender"
 PORTABLE="$APP/Contents/Resources/portable"
 BASE=https://ftp.nluug.nl/pub/graphics/blender/release   # download.blender.org sits behind a Cloudflare JS challenge and mirrors.dotsrc.org started 403ing listings (Sep 2026); official mirror
 
+# Inputs setup applies once rather than reading live through the portable symlink.
+# A successful setup records their hash; status reports "outdated" when they drift.
+STAMP="$CFG/.configured"
+config_hash() { { cat "$CFG/setup.py" "$CFG/extensions.txt" 2>/dev/null || true; } | shasum | cut -d' ' -f1; }
+
 get() { curl -fsSL --connect-timeout 30 --speed-limit 1024 --speed-time 60 "$@"; }
 
 # Ours only when the portable dir is our symlink: a cask Blender reads as not installed.
@@ -22,6 +27,7 @@ do_status() {
     [[ -d "$APP" ]] || return 1
     [[ "$(readlink "$PORTABLE" 2>/dev/null)" == "$CFG/portable" ]] || return 1
     printf '%s\n' "$APP"
+    [[ "$(cat "$STAMP" 2>/dev/null)" == "$(config_hash)" ]] || echo outdated
 }
 
 TMP=""
@@ -193,6 +199,7 @@ do_install() {
         echo "Blender $current retained, but $failures setup step(s) failed; see errors above." >&2
         return 1
     fi
+    config_hash > "$STAMP"
     echo "done: Blender $current configured"
 }
 

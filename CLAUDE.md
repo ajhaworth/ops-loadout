@@ -234,7 +234,11 @@ license cannot be scripted: a post-install dialog explains the License
 Administrator -> "Activate Apprentice" step and offers to open Houdini; no
 account is required. That dialog is shown only when `SUDO_ASKPASS` is set,
 which Loadout alone does, so it doubles as "a GUI is present".
-`outdated` is never set for this kind; Update simply installs the latest.
+`status` may print a second line, `outdated`, when the app's applied config has
+drifted from the repo (Blender: `setup.py`/`extensions.txt` hash vs the
+gitignored `config/dcc/blender/.configured` stamp written by a clean setup;
+Houdini: `apply_config check`). There is no version check, so a newer release
+is not flagged; Update installs the latest and reapplies config either way.
 `sidefxlabs.sh` takes Labs from GitHub releases (tags match Houdini
 `X.Y.ZZZ`) into `~/Library/Preferences/houdini/<X.Y>/packages/`
 and records the tag in `.ops-tag` for its own already-current check.

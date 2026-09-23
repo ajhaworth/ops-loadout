@@ -95,6 +95,12 @@ ditto() { if [ "$FAIL_COPY" = 1 ]; then return 1; fi; cp -R "$1" "$2"; }
                 self.assertEqual((app / 'original').exists(), not replace)
                 if offline:
                     self.assertIn('could not check for a newer Blender', result.stdout + result.stderr)
+                # A clean setup stamps the config; editing an input reads as outdated again.
+                status = lambda: subprocess.run(['/bin/bash', str(root / 'blender.sh'), 'status'],
+                                                capture_output=True, text=True).stdout
+                self.assertEqual('outdated' in status(), bool(fail_extension or fail_setup))
+                (cfg / 'extensions.txt').write_text('blender_org another\n')
+                self.assertIn('outdated', status())
             self.assertEqual(list((root / 'Applications').glob('.blender-install.*')), [])
 
     def test_finder_path_finds_native_claude_and_registers_absolute_uvx(self):
