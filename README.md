@@ -95,7 +95,7 @@ Full installation for personal macOS devices including all package categories, M
 
 ### Workstation (`--profile workstation`)
 
-Work Mac, driven from Loadout: Blender, Houdini, Fork and Ghostty (installer scripts) plus the core and shell CLI formulae, no casks, no MAS apps, no system preferences. Terminal dotfiles (zsh, bash, starship, Ghostty) apply, with the existing zshrc backed up and `~/.zshrc.local` for work-only lines; gitconfig is left alone.
+Work Mac, driven from Loadout: Blender, Houdini, Fork, Ghostty and Swish (installer scripts) plus the core and shell CLI formulae, no casks, no MAS apps, no system preferences. Terminal dotfiles (zsh, bash, starship, Ghostty) apply, with the existing zshrc backed up and `~/.zshrc.local` for work-only lines; gitconfig is left alone.
 
 ### Linux (`--profile linux`)
 
