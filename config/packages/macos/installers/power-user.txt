@@ -1,0 +1,5 @@
+# power-user.txt - Power user apps with no Homebrew cask in the work allow-list,
+# installed by platforms/macos/installers/<token>.sh
+# token | display-name | homepage
+
+swish | Swish | https://highlyopinionated.co/swish/
