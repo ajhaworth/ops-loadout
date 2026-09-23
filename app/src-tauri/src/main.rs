@@ -147,6 +147,11 @@ async fn reinstall(handle: AppHandle, store: State<'_, Store>, id: String) -> Re
 }
 
 #[tauri::command]
+async fn configure(handle: AppHandle, store: State<'_, Store>, id: String) -> Result<(), String> {
+    run_job(handle, store, id, "configure")
+}
+
+#[tauri::command]
 async fn reveal(handle: AppHandle, store: State<'_, Store>, id: String) -> Result<(), String> {
     let app = find_app(&store, &id).ok_or("unknown app")?;
     platform::reveal(&app, &resource_dir(&handle))
@@ -243,8 +248,10 @@ fn run_job(
             // refresh_icon shells out, so work on a clone with the lock released.
             let mut fresh = find_app(&store, &id);
             if let Some(app) = fresh.as_mut() {
-                // Whatever the job was, the app is no longer behind.
-                app.outdated = false;
+                // Whatever the job was, the app is no longer behind - except configure, which never updates.
+                if action != "configure" {
+                    app.outdated = false;
+                }
                 if action == "uninstall" {
                     app.installed = false;
                     app.launchable = false;
@@ -451,6 +458,7 @@ fn main() {
             uninstall,
             update,
             reinstall,
+            configure,
             reveal,
             open_homepage,
             open_url,
@@ -604,7 +612,7 @@ mod smoke {
         );
         // Installers take the action verbatim; the script is the program.
         let inst = app_of("installer", "houdini");
-        for action in ["install", "update", "reinstall", "uninstall"] {
+        for action in ["install", "update", "reinstall", "configure", "uninstall"] {
             let (program, args) = argv(action, &inst);
             assert!(
                 program.ends_with("platforms/macos/installers/houdini.sh"),

@@ -520,7 +520,7 @@ pub fn job_command(action: &str, app: &App, repo: &Path, _resources: &Path) -> R
         }
         // The script takes the action verbatim and handles its own sudo -A.
         "installer" => match action {
-            "install" | "update" | "reinstall" | "uninstall" => Ok(Cmd {
+            "install" | "update" | "reinstall" | "configure" | "uninstall" => Ok(Cmd {
                 program: installer_script(repo, &app.token).to_string_lossy().to_string(),
                 args: vec![action.to_string()],
                 env: vec![],

@@ -79,7 +79,7 @@ ditto() { if [ "$FAIL_COPY" = 1 ]; then return 1; fi; cp -R "$1" "$2"; }
             if finder_path:
                 self.assertIn(f'mcp add -s user blender -- {local_bin}/uvx --refresh-package', event_log)
                 self.assertNotIn('skip MCP registration', result.stdout)
-            replace = action == 'reinstall' or (not offline and tuple(map(int, latest.split('.'))) > tuple(map(int, current.split('.'))))
+            replace = action == 'reinstall' or action != 'configure' and (not offline and tuple(map(int, latest.split('.'))) > tuple(map(int, current.split('.'))))
             if fail_copy or invalid_image or fail_swap or (offline and (action == 'reinstall' or not current)):
                 self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertTrue((app / 'original').exists())
@@ -108,6 +108,9 @@ ditto() { if [ "$FAIL_COPY" = 1 ]; then return 1; fi; cp -R "$1" "$2"; }
 
     def test_empty_extension_list_still_reapplies_setup(self):
         self.run_install(action='update', no_extensions=True)
+
+    def test_configure_reapplies_setup_without_version_check(self):
+        self.run_install(action='configure', latest='5.2.10')
 
     def test_update_same_version_reapplies_setup_without_download(self):
         self.run_install(action='update')

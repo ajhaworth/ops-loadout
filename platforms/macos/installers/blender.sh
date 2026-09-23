@@ -53,6 +53,13 @@ do_install() {
     [[ -x "$APP/Contents/MacOS/Blender" ]] || current=""
     [[ -n "$current" ]] && echo "    installed: $current"
 
+    TMP="$(mktemp -d)"
+    trap cleanup EXIT
+
+    # configure: settings only, no release lookup or download.
+    if [[ "$action" == configure ]]; then
+        [[ -n "$current" ]] || { echo "Blender is not installed; install it first" >&2; return 1; }
+    else
     echo "==> Resolving latest Blender release"
     arch=$([[ "$(uname -m)" == arm64 ]] && echo arm64 || echo x64)
     version=""; series=""; dmg=""
@@ -70,9 +77,6 @@ do_install() {
         echo "could not resolve Blender release; cannot download Blender" >&2
         return 1
     fi
-
-    TMP="$(mktemp -d)"
-    trap cleanup EXIT
 
     if [[ "$action" == reinstall || -z "$current" ]] ||
        { [[ -n "$version" && "$version" != "$current" ]] &&
@@ -100,6 +104,7 @@ do_install() {
         current="$version"
     else
         echo "Keeping Blender $current; no application download needed."
+    fi
     fi
 
     # Config dir -> repo. Before the extensions, so they land in the repo's portable/extensions/.
@@ -160,8 +165,9 @@ do_install() {
 
     echo "==> Reapplying custom preferences, keymap, plugins and startup layout"
     # setup.py needs a real window to activate the keymap and visit workspaces.
-    # It saves the managed configuration and exits automatically.
-    if ! OPS_BLENDER_ADDONS="${addons[*]-}" b --python-exit-code 1 --python "$CFG/setup.py"; then
+    # It saves the managed configuration and exits automatically. Maximized, because startup.blend
+    # records the window it was saved from, and that is the window every later launch opens with.
+    if ! OPS_BLENDER_ADDONS="${addons[*]-}" b --window-maximized --python-exit-code 1 --python "$CFG/setup.py"; then
         echo "Blender custom configuration failed" >&2
         failures=$((failures + 1))
     fi
@@ -199,10 +205,10 @@ do_uninstall() {
 
 case "${1:-status}" in
     status)                    do_status ;;
-    install|update|reinstall)  do_install "$1" ;;
+    install|update|reinstall|configure)  do_install "$1" ;;
     uninstall)                 do_uninstall ;;
     *)
-        echo "usage: $(basename "$0") <status|install|update|reinstall|uninstall>" >&2
+        echo "usage: $(basename "$0") <status|install|update|reinstall|configure|uninstall>" >&2
         exit 2
         ;;
 esac
