@@ -671,12 +671,15 @@ function menuItems(app) {
     if (app.outdated) items.push(update);
     if (app.launchable) items.push({ label: "Open", run: () => call("launch", app) });
     // ponytail: hardcoded; add a page column to installers/*.txt when a second DCC needs one.
-    if (app.id === "installer:blender")
+    if (app.id === "installer:blender") {
       items.push({
         label: "Keymap",
         run: () =>
           invoke("open_page", { path: "dcc/blender/keymap.html" }).catch((e) => logLine(String(e))),
       });
+      // Re-runs setup.py and the extension checks without looking for a new Blender.
+      items.push({ label: "Reapply Settings", run: job("configure") });
+    }
     if (!app.outdated) items.push(update);
     if (app.kind !== "mas") items.push({ label: "Reinstall", run: job("reinstall") });
     if (app.launchable) items.push({ label: REVEAL, run: () => call("reveal", app) });
