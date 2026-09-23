@@ -6,3 +6,4 @@ portable/config/bookmarks.txt
 portable/scripts/addons/
 __pycache__/
 *.blend1
+.configured

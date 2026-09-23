@@ -41,14 +41,16 @@ do_status() {
     dir="$(installed_dir)" || return 1
     app="$(installed_app "$dir")" || return 1
     printf '%s\n' "$app"
+    apply_config check >/dev/null 2>&1 || echo outdated
 }
 
 # --- config: repo dir on HOUDINI_PATH, desktop set to ALX ------------------
 
 # Resolves X.Y the same way sidefxlabs.sh's require_houdini does, but from
 # our own installed_dir/installed_app rather than shelling to this script.
+# `apply_config check` writes nothing and fails when either setting is not applied.
 apply_config() {
-    local dir app full xy prefs pkgdir pref_file
+    local check="${1:-}" dir app full xy prefs pkgdir pref_file json desk
 
     dir="$(installed_dir)" || return 1
     app="$(installed_app "$dir")" || return 1
@@ -61,16 +63,22 @@ apply_config() {
 
     prefs="$HOME/Library/Preferences/houdini/$xy"
     pkgdir="$prefs/packages"
+    pref_file="$prefs/houdini.pref"
+    json="$(printf '{"path": "%s"}' "$REPO/config/dcc/houdini")"
+    desk='general.desk.val := "ALX";'
+    if [[ "$check" == check ]]; then
+        [[ "$(cat "$pkgdir/loadout.json" 2>/dev/null)" == "$json" ]] && grep -qxF "$desk" "$pref_file" 2>/dev/null
+        return
+    fi
     mkdir -p "$pkgdir"
-    printf '{"path": "%s"}\n' "$REPO/config/dcc/houdini" > "$pkgdir/loadout.json"
+    printf '%s\n' "$json" > "$pkgdir/loadout.json"
     echo "==> Wrote $pkgdir/loadout.json (HOUDINI_PATH -> $REPO/config/dcc/houdini)"
 
-    pref_file="$prefs/houdini.pref"
     mkdir -p "$prefs"
     if [[ -f "$pref_file" ]] && grep -q '^general\.desk\.val' "$pref_file"; then
-        sed -i '' 's|^general\.desk\.val.*|general.desk.val := "ALX";|' "$pref_file"
+        sed -i '' "s|^general\\.desk\\.val.*|$desk|" "$pref_file"
     else
-        printf 'general.desk.val := "ALX";\n' >> "$pref_file"
+        printf '%s\n' "$desk" >> "$pref_file"
     fi
     echo "==> Set general.desk.val := \"ALX\" in $pref_file"
 }

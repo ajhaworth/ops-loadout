@@ -99,17 +99,17 @@ fn installer_script(repo: &Path, token: &str) -> PathBuf {
     repo.join("platforms/macos/installers").join(format!("{token}.sh"))
 }
 
-/// The script prints where it installed to; a non-zero exit means "not here".
-fn installer_status(repo: &Path, token: &str) -> Option<PathBuf> {
+/// The script prints where it installed to, then `outdated` when its applied
+/// config has drifted from the repo; a non-zero exit means "not here".
+fn installer_status(repo: &Path, token: &str) -> Option<(PathBuf, bool)> {
     let out = Command::new(installer_script(repo, token)).arg("status").output().ok()?;
     if !out.status.success() {
         return None;
     }
-    String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .map(str::trim)
-        .find(|l| !l.is_empty())
-        .map(PathBuf::from)
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let mut lines = stdout.lines().map(str::trim).filter(|l| !l.is_empty());
+    let path = PathBuf::from(lines.next()?);
+    Some((path, lines.any(|l| l == "outdated")))
 }
 
 /// A resolved `.app` bundle: openable, revealable and worth an icon.
@@ -192,7 +192,8 @@ pub fn icon(bundle: &Path, id: &str, cache_dir: &Path) -> Option<String> {
 /// Re-read one app's icon after a successful install.
 pub fn refresh_icon(app: &mut App, cache_dir: &Path, repo: &Path, _resources: &Path) {
     if app.kind == "installer" {
-        if let Some(path) = installer_status(repo, &app.token) {
+        if let Some((path, outdated)) = installer_status(repo, &app.token) {
+            app.outdated = outdated;
             set_installer_target(app, &path, cache_dir);
         }
         return;
@@ -445,11 +446,12 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, _resources: &Pat
                     }
                 }
             }
-            // The script is the only source of truth here, and it reports no
-            // version, so `outdated` stays false.
+            // The script is the only source of truth here. It reports no
+            // version, so `outdated` means config drift, not a newer release.
             "installer" => {
-                if let Some(path) = installer_status(repo, &app.token) {
+                if let Some((path, outdated)) = installer_status(repo, &app.token) {
                     app.installed = true;
+                    app.outdated = outdated;
                     set_installer_target(app, &path, cache_dir);
                 }
             }
