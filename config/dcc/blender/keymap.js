@@ -50,6 +50,7 @@ function parsePy(text){
     if(s.startsWith('True', i)){ i += 4; return true; }
     if(s.startsWith('False', i)){ i += 5; return false; }
     if(s.startsWith('None', i)){ i += 4; return null; }
+    if(s.startsWith('set()', i)){ i += 5; return []; }  // empty set, e.g. ("delimit", set())
     const m = /^-?\d+(\.\d+)?([eE][-+]?\d+)?/.exec(s.slice(i));
     if(m){ i += m[0].length; return parseFloat(m[0]); }
     err('unexpected token');
