@@ -5,10 +5,10 @@ show_agent_labels_on_pane_borders = false
 agent_panel_scope = "all"
 
 [ui.toast]
-delivery = "system"   # macOS Notification Center
+delivery = "off"      # notifications handled by a separate app
 
 [ui.sound]
-enabled = true        # built-in done/request sounds (background workspaces only)
+enabled = false
 
 [theme]
 name = "catppuccin"
