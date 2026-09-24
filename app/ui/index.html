@@ -8,38 +8,62 @@
   </head>
   <body>
     <header data-tauri-drag-region>
-      <nav id="tabs"></nav>
-      <input id="search" type="search" placeholder="Search" autocomplete="off" spellcheck="false" />
-      <button id="update-all" title="Update all" hidden>&#8593;<span class="n"></span></button>
-      <button id="refresh" title="Rescan">&#8635;</button>
-      <button id="settings" title="Settings">&#9881;</button>
+      <div id="tabs"></div>
+      <label class="search">
+        <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.75"/><path d="M10.5 10.5 14 14"/></svg>
+        <input id="search" type="search" placeholder="Search apps" aria-label="Search apps" autocomplete="off" spellcheck="false" />
+      </label>
+      <button id="refresh" class="icon-btn" type="button" title="Rescan" aria-label="Rescan">
+        <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.25 8a5.25 5.25 0 1 1-1.54-3.71"/><path d="M13.5 2.25v3.5H10"/></svg>
+      </button>
+      <button id="settings" class="icon-btn" type="button" title="Settings" aria-label="Settings">
+        <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5h6.5M12.5 5h1M2.5 11h1M7 11h6.5"/><circle cx="10.75" cy="5" r="1.75"/><circle cx="5.25" cy="11" r="1.75"/></svg>
+      </button>
     </header>
     <main id="sections"></main>
     <div id="menu" hidden></div>
-    <dialog id="settings-dialog">
+    <dialog id="settings-dialog" aria-labelledby="settings-title">
       <form method="dialog">
-        <h2>Settings</h2>
-        <h3>SideFX (Houdini downloads)</h3>
-        <ol>
-          <li>Open sidefx.com &rarr; Services &rarr; Developers API &rarr; &ldquo;Manage applications authentication&rdquo;.
-            <button type="button" id="sidefx-open">Open sidefx.com</button></li>
-          <li>Register a new application: any name, client type Confidential, grant type Authorization code, redirect URL https://www.sidefx.com</li>
-          <li>Copy the Client ID and Client Secret into the fields below.</li>
-        </ol>
+        <h2 id="settings-title">Settings</h2>
+        <h3>General</h3>
+        <section class="group">
+          <div class="row">
+            <label class="row-text" for="profile">Profile
+              <span class="sub">Which apps, dotfiles and defaults are shown. Workstation shows only Loadout-installed apps and never uses Homebrew.</span>
+            </label>
+            <span class="select">
+              <select id="profile"></select>
+              <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6.25 8 9.75l3.5-3.5"/></svg>
+            </span>
+          </div>
+          <div class="row">
+            <label class="row-text" for="autostart">Start at login</label>
+            <input id="autostart" class="switch" type="checkbox" role="switch" />
+          </div>
+        </section>
+        <h3>Houdini downloads</h3>
+        <section class="group">
+          <div class="row">
+            <label class="row-text" for="sidefx-id">Client ID</label>
+            <input id="sidefx-id" type="text" placeholder="From sidefx.com" autocomplete="off" spellcheck="false" />
+          </div>
+          <div class="row">
+            <label class="row-text" for="sidefx-secret">Client Secret</label>
+            <input id="sidefx-secret" type="password" autocomplete="off" spellcheck="false" />
+          </div>
+        </section>
         <p class="note">Used only to download Houdini. Stored on this Mac in config/sidefx.local. The free Apprentice license is activated inside Houdini itself, no key needed.</p>
-        <label>Client ID
-          <input id="sidefx-id" type="text" autocomplete="off" spellcheck="false" />
-        </label>
-        <label>Client Secret
-          <input id="sidefx-secret" type="password" autocomplete="off" spellcheck="false" />
-        </label>
-        <h3>Startup</h3>
-        <label class="check"><input id="autostart" type="checkbox" /> Start at login</label>
-        <h3>Profile</h3>
-        <label>Profile
-          <select id="profile"></select>
-        </label>
-        <p class="note">Profile decides which apps, dotfiles and defaults are shown. Workstation shows only Loadout-installed apps and never uses Homebrew.</p>
+        <details class="howto">
+          <summary><svg class="chev" width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.25 4.5 9.75 8l-3.5 3.5"/></svg>How to get a client ID</summary>
+          <ol>
+            <li>On sidefx.com open Services &rarr; Developers API &rarr; &ldquo;Manage applications authentication&rdquo;.</li>
+            <li>Register a new application: any name, client type Confidential, grant type Authorization code, redirect URL https://www.sidefx.com</li>
+            <li>Copy the Client ID and Client Secret into the fields above.</li>
+          </ol>
+          <button type="button" id="sidefx-open" class="link">Open sidefx.com
+            <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 3.5h-3v9h9v-3M9.5 3.5h3v3M12.5 3.5 7.5 8.5"/></svg>
+          </button>
+        </details>
         <!-- Save first so Enter submits it; the row is reversed in CSS. -->
         <menu>
           <button value="save">Save</button>
@@ -47,8 +71,25 @@
         </menu>
       </form>
     </dialog>
-    <aside id="drawer" hidden><button id="copy" class="float" title="Copy log">Copy</button><pre id="log"></pre></aside>
-    <button id="log-toggle" class="float" title="Show log">&#9636;</button>
+    <aside id="drawer" hidden>
+      <div class="drawer-head">
+        <span>Log</span>
+        <button id="copy" class="icon-btn ghost" type="button" title="Copy log" aria-label="Copy log">
+          <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="5.5" width="7.5" height="7.5" rx="1.5"/><path d="M10.5 5.5V4a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v5.5a1 1 0 0 0 1 1h1.5"/></svg>
+        </button>
+        <button id="log-close" class="icon-btn ghost" type="button" title="Close log" aria-label="Close log">
+          <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7"/></svg>
+        </button>
+      </div>
+      <pre id="log"></pre>
+    </aside>
+    <footer id="status">
+      <span id="status-dot" class="dot"></span>
+      <span id="status-text"></span>
+      <button id="log-toggle" type="button" title="Show log">
+        <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2.25"/><path d="m5 6.5 1.75 1.5L5 9.5M8.5 10H11"/></svg>Log
+      </button>
+    </footer>
     <script src="main.js"></script>
   </body>
 </html>

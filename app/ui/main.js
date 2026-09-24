@@ -6,21 +6,46 @@ const sectionsEl = document.getElementById("sections");
 const searchEl = document.getElementById("search");
 const drawerEl = document.getElementById("drawer");
 const menuEl = document.getElementById("menu");
-const updateAllEl = document.getElementById("update-all");
 const tabsEl = document.getElementById("tabs");
 const logEl = document.getElementById("log");
 const settingsEl = document.getElementById("settings-dialog");
+const statusTextEl = document.getElementById("status-text");
+const statusDotEl = document.getElementById("status-dot");
 
 let apps = [];
+let scanning = false;
 const lastLog = new Map();
-// A job in flight, and the last failure per app. Both keep an uninstalled app
-// on the grid so its spinner or red badge has somewhere to live.
-const inflight = new Set();
+// A job in flight (id -> action), and the last failure per app. Both keep an
+// uninstalled app on the grid so its spinner or red badge has somewhere to live.
+const inflight = new Map();
 const failed = new Map();
 // id -> resolve, so a caller can wait for install-done rather than for the
 // invoke that merely starts the job.
 const pending = new Map();
 let updatingAll = false;
+let updateAllLabel = null; // "Updating i/n…" while updateAll runs
+
+// "update" -> "Updating", matching the "$ updating X" log line.
+const ing = (action) => action[0].toUpperCase() + action.slice(1).replace(/e$/, "") + "ing";
+
+// Inline stroke icons, 16-unit viewBox; style.css sets the stroke.
+const ICONS = {
+  chev: '<path d="M6.25 4.5 9.75 8l-3.5 3.5"/>',
+  plus: '<path d="M8 3.5v9M3.5 8h9"/>',
+  up: '<path d="M8 12.5v-9M4.5 7 8 3.5 11.5 7"/>',
+  check: '<path d="m4.5 8.25 2.25 2.25 4.75-5"/>',
+  lock: '<rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5.25a2.5 2.5 0 0 1 5 0V7"/>',
+};
+function svgEl(name, size, cls = "") {
+  const t = document.createElement("template");
+  t.innerHTML = `<svg class="${cls}" width="${size}" height="${size}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[name]}</svg>`;
+  return t.content.firstChild;
+}
+
+const KIND_LABELS = {
+  cask: "Homebrew cask", formula: "Homebrew formula", mas: "App Store",
+  installer: "Loadout installer", github: "GitHub release", comfynode: "ComfyUI node",
+};
 
 // Two top-level tabs: Apps is the grid, Updates is outdated packages plus the
 // setup tasks. Within Apps, a category sub-tab narrows the grid. Categories
@@ -131,38 +156,46 @@ function tileEl(app) {
   const tile = document.createElement("button");
   tile.className = "tile";
   tile.dataset.id = app.id;
-  tile.title = app.name;
+  tile.title = app.license ? `${app.name} · ${app.license}` : app.name;
 
   const icon = iconEl(app);
-  if (inflight.has(app.id)) tile.classList.add("busy");
+  const label = document.createElement("span");
+  label.className = "label";
+  label.textContent = app.name;
+  tile.append(icon, label);
+
+  const caption = (text) => {
+    const c = document.createElement("span");
+    c.className = "caption";
+    c.textContent = text;
+    tile.append(c);
+  };
 
   const why = failed.get(app.id);
-  if (why) {
+  if (inflight.has(app.id)) {
+    tile.classList.add("busy");
+    const spin = document.createElement("span");
+    spin.className = "spin";
+    icon.append(spin);
+    caption(`${ing(inflight.get(app.id))}…`);
+  } else if (why) {
     tile.classList.add("failed");
     tile.title = why;
     const badge = document.createElement("span");
     badge.className = "badge";
     badge.textContent = "!";
     icon.append(badge);
+    caption("Failed");
   } else if (app.outdated) {
     // A failure outranks an update: the user has to deal with it first.
     tile.title = "Update available";
     const badge = document.createElement("span");
     badge.className = "badge update";
+    badge.append(svgEl("up", 11));
     icon.append(badge);
+    caption("Update");
   }
 
-  const label = document.createElement("span");
-  label.className = "label";
-  label.textContent = app.name;
-
-  tile.append(icon, label);
-  if (app.license) {
-    const license = document.createElement("span");
-    license.className = "license";
-    license.textContent = app.license;
-    tile.append(license);
-  }
   // A <button> already activates on Enter and Space.
   tile.onclick = () => {
     if (inflight.has(app.id)) return;
@@ -179,65 +212,61 @@ function tileEl(app) {
   return tile;
 }
 
-/// The one tile that stands for everything this section could still install.
-function plusTile(missing) {
-  const tile = document.createElement("button");
-  tile.className = "tile add";
-  tile.title = `${missing.length} not installed`;
-
-  const icon = document.createElement("div");
-  icon.className = "icon";
-  const plus = document.createElement("span");
-  plus.className = "plus fallback";
-  icon.append(plus);
-
-  const label = document.createElement("span");
-  label.className = "label";
-  label.textContent = "Add";
-
-  tile.append(icon, label);
-  // Without this the window-level click handler closes the popover we open.
-  tile.onclick = (e) => {
-    e.stopPropagation();
-    showAddMenu(tile, missing);
-  };
-  return tile;
-}
-
-function sectionEl(title, list, open) {
+// A collapsible card: chevron, title, then whatever `extra` nodes follow it.
+function cardEl(key, title, open, extra = []) {
   const details = document.createElement("details");
+  details.className = "card";
   details.open = open;
   // A search forces sections open; that must not overwrite the saved state.
-  details.ontoggle = () => { if (!searchEl.value.trim()) setOpen(title, details.open); };
+  details.ontoggle = () => { if (!searchEl.value.trim()) setOpen(key, details.open); };
 
   const summary = document.createElement("summary");
-  summary.append(title);
-  const n = document.createElement("span");
-  n.className = "n";
-  n.textContent = `${list.filter((a) => a.installed).length}/${list.length}`;
-  summary.append(n);
-
-  const grid = document.createElement("div");
-  grid.className = "grid";
-  const busy = (a) => inflight.has(a.id) || failed.has(a.id);
-  list.filter((a) => a.installed || busy(a)).forEach((a) => grid.append(tileEl(a)));
-
-  const missing = list.filter((a) => !a.installed && !busy(a));
-  if (missing.length) grid.append(plusTile(missing));
-
-  details.append(summary, grid);
+  summary.append(svgEl("chev", 12, "chev"), title, ...extra);
+  details.append(summary);
   return details;
 }
 
-// Segmented control; `key` is the localStorage slot the choice persists in.
-function segEl(names, current, key, pick) {
+function sectionEl(title, list, open) {
+  const n = document.createElement("span");
+  n.className = "n";
+  n.textContent = `${list.filter((a) => a.installed).length} of ${list.length}`;
+
+  const busy = (a) => inflight.has(a.id) || failed.has(a.id);
+  const missing = list.filter((a) => !a.installed && !busy(a));
+  const extra = [n];
+  if (missing.length) {
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "more";
+    more.title = `${missing.length} not installed`;
+    more.append(svgEl("plus", 12), `${missing.length} more`);
+    more.onclick = (e) => {
+      // Not a toggle of the <details>, and the window-level click handler
+      // must not close the popover we open.
+      e.preventDefault();
+      e.stopPropagation();
+      showAddMenu(more, missing);
+    };
+    extra.push(more);
+  }
+  const details = cardEl(title, title, open, extra);
+
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  list.filter((a) => a.installed || busy(a)).forEach((a) => grid.append(tileEl(a)));
+  details.append(grid);
+  return details;
+}
+
+// Segmented control or chip row; `key` is the localStorage slot the choice persists in.
+function segEl(names, current, key, pick, cls = "seg") {
   const nav = document.createElement("nav");
-  nav.className = "seg";
+  nav.className = cls;
   nav.append(...names.map((name) => {
     const b = document.createElement("button");
     b.type = "button";
     b.textContent = name;
-    b.classList.toggle("on", name === current);
+    b.setAttribute("aria-pressed", name === current);
     b.onclick = () => {
       pick(name);
       try { localStorage.setItem(key, name); } catch { /* not persisted */ }
@@ -248,8 +277,17 @@ function segEl(names, current, key, pick) {
   return nav;
 }
 
-function renderTabs() {
-  tabsEl.replaceChildren(segEl(TABS, tab, "tab", (n) => (tab = n)));
+function renderTabs(updates) {
+  const nav = segEl(TABS, tab, "tab", (n) => (tab = n));
+  nav.setAttribute("aria-label", "Views");
+  if (updates) {
+    const badge = document.createElement("span");
+    badge.className = "count";
+    badge.textContent = updates;
+    badge.setAttribute("aria-label", `${updates} updates`);
+    nav.lastChild.append(badge);
+  }
+  tabsEl.replaceChildren(nav);
 }
 
 // The app grid, grouped by kind then category, for `shown`.
@@ -266,6 +304,8 @@ function appSectionEls(shown, q) {
       built.forEach((d) => d.classList.add("nested"));
       const outer = sectionEl(group.wrap, mine, isOpen(group.wrap, group.open) || !!q);
       outer.lastChild.replaceWith(...built);
+      // Each nested category offers its own "+ more"; the wrapper's would repeat them all.
+      outer.querySelector(":scope > summary .more")?.remove();
       out.push(outer);
     } else {
       out.push(...built);
@@ -277,7 +317,8 @@ function appSectionEls(shown, q) {
 const matchesApp = (a, q) => (a.name + " " + a.id + " " + a.category).toLowerCase().includes(q);
 
 function render() {
-  renderTabs();
+  const updates = apps.filter((a) => a.outdated).length;
+  renderTabs(updates);
   const q = searchEl.value.trim().toLowerCase();
   sectionsEl.replaceChildren();
 
@@ -288,26 +329,141 @@ function render() {
     // Only categories the profile leaves apps in; a saved one that emptied falls back to All.
     const cats = Object.keys(CATEGORIES).filter((c) => c === "All" || apps.some(CATEGORIES[c]));
     const cat = cats.includes(category) ? category : "All";
-    sectionsEl.append(segEl(cats, cat, "category", (n) => (category = n)));
+    sectionsEl.append(segEl(cats, cat, "category", (n) => (category = n), "chips"));
     sectionsEl.append(...appSectionEls(apps.filter(CATEGORIES[cat]), q));
   } else {
-    const outdated = apps.filter((a) => a.outdated);
-    if (outdated.length) sectionsEl.append(sectionEl("App updates", outdated, true));
-    sectionsEl.append(...setupEls(q));
+    sectionsEl.append(...updatesEls(), ...setupEls(q));
   }
 
-  if (!sectionsEl.querySelector("details, .setup-section")) {
+  if (!sectionsEl.querySelector("details, .hero")) {
     const p = document.createElement("p");
     p.className = "empty";
     p.textContent = apps.length ? "Nothing matches." : "No packages found.";
     sectionsEl.append(p);
   }
-  const updates = apps.filter((a) => a.outdated).length;
+  renderStatus();
+}
 
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+function labelRowEl(text, ...right) {
+  const row = document.createElement("div");
+  row.className = "label-row";
+  const h = document.createElement("h2");
+  h.textContent = text;
+  row.append(h, ...right);
+  return row;
+}
+
+// The Updates tab's app half: the summary card, then a row per outdated app.
+function updatesEls() {
+  const outdated = apps.filter((a) => a.outdated);
+  const setupN = setupSections().flatMap((s) => tasks.get(s.id)?.items || []).filter(runnable).length;
+  const total = outdated.length + setupN;
+
+  const hero = document.createElement("section");
+  hero.className = "hero";
+  const mark = document.createElement("span");
+  mark.className = "hero-mark";
+  mark.append(svgEl(total ? "up" : "check", 18));
+  const text = document.createElement("div");
+  text.className = "hero-text";
+  const h = document.createElement("h1");
+  h.textContent = total ? `${plural(total, "update")} ready` : "Everything is up to date";
+  text.append(h);
+  if (total) {
+    const sub = document.createElement("div");
+    sub.className = "hero-sub";
+    sub.textContent = `${plural(outdated.length, "app")} and ${plural(setupN, "setup task")}`;
+    text.append(sub);
+  }
+  hero.append(mark, text);
   // Stays put while a run is in progress even as the count drains.
-  updateAllEl.hidden = !updates && !updatingAll;
-  updateAllEl.lastChild.textContent = updates;
-  if (!updatingAll) updateAllEl.title = `Update all (${updates})`;
+  if (outdated.length || updatingAll) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "pill-btn primary";
+    btn.textContent = updateAllLabel || "Update All";
+    btn.title = updateAllLabel || `Update all (${outdated.length})`;
+    btn.disabled = updatingAll;
+    btn.onclick = updateAll;
+    hero.append(btn);
+  }
+  if (!outdated.length) return [hero];
+
+  const count = document.createElement("span");
+  count.className = "aside";
+  count.textContent = outdated.length;
+  const card = document.createElement("section");
+  card.className = "card";
+  card.append(...outdated.map(appRowEl));
+  return [hero, labelRowEl("Apps", count), card];
+}
+
+function appRowEl(app) {
+  const row = document.createElement("div");
+  row.className = "row-item app";
+  const icon = iconEl(app);
+  icon.classList.add("row-icon");
+
+  const main = document.createElement("div");
+  main.className = "row-main";
+  const title = document.createElement("div");
+  title.className = "row-title";
+  title.textContent = app.name;
+  const sub = document.createElement("div");
+  const why = failed.get(app.id);
+  sub.className = why ? "row-sub bad" : "row-sub";
+  sub.textContent = why || `${KIND_LABELS[app.kind] || app.kind} · ${app.category}`;
+  sub.title = sub.textContent;
+  main.append(title, sub);
+
+  const right = document.createElement("div");
+  right.className = "row-right";
+  if (inflight.has(app.id)) {
+    const spin = document.createElement("span");
+    spin.className = "row-spinner";
+    spin.setAttribute("role", "img");
+    spin.setAttribute("aria-label", `${ing(inflight.get(app.id))}…`);
+    right.append(spin);
+  } else {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "pill-btn";
+    btn.textContent = "Update";
+    btn.onclick = () => doJob(app, "update");
+    right.append(btn);
+  }
+  row.append(icon, main, right);
+  row.oncontextmenu = (e) => {
+    e.preventDefault();
+    showMenu(e, app);
+  };
+  return row;
+}
+
+// Footer: the job in flight, else the update count.
+function renderStatus() {
+  const updates = apps.filter((a) => a.outdated).length;
+  const [id, action] = inflight.entries().next().value || [];
+  let text = "";
+  let cls = "";
+  if (id) {
+    const all = [...tasks.values()].flatMap((b) => b.items || []);
+    const name = apps.find((a) => a.id === id)?.name || all.find((t) => t.id === id)?.name || id;
+    text = `${ing(action)} ${name}` + (inflight.size > 1 ? ` + ${inflight.size - 1} more` : "");
+    cls = "busy";
+  } else if (scanning) {
+    text = "Scanning…";
+  } else if (updates) {
+    text = `${plural(updates, "update")} available`;
+    cls = "updates";
+  } else if (apps.length) {
+    text = "Up to date";
+    cls = "ok";
+  }
+  statusTextEl.textContent = text;
+  statusDotEl.className = `dot ${cls}`;
 }
 
 function countStates(items) {
@@ -328,38 +484,44 @@ function summaryText(c) {
   ].filter(Boolean);
 }
 
-// Small tinted pills for a state breakdown; only nonzero states render.
-function countPills(items) {
-  return summaryText(countStates(items)).map((text) => {
+// Tinted pills for what still needs doing, or "All applied" when nothing does.
+function statePills(items) {
+  const c = countStates(items);
+  const pill = (kind, text) => {
     const span = document.createElement("span");
-    span.className = `pill pill-${text.split(" ")[1]}`;
+    span.className = `pill pill-${kind}`;
     span.textContent = text;
     return span;
-  });
+  };
+  const out = [];
+  if (c.failed) out.push(pill("failed", `${c.failed} failed`));
+  if (c.pending) out.push(pill("pending", `${c.pending} pending`));
+  if (!out.length && items.length && c.applied === items.length) out.push(pill("applied", "All applied"));
+  return out;
 }
-
-const GLYPHS = { applied: "\u2713", pending: "\u25cf", failed: "!", needs_admin: "\ud83d\udd12", unknown: "\u25cb" };
 
 function stateGlyph(state) {
   const span = document.createElement("span");
   span.className = `task-glyph state-${state}`;
-  span.textContent = GLYPHS[state] || GLYPHS.unknown;
+  if (state === "applied") span.append(svgEl("check", 12));
+  else if (state === "needs_admin") span.append(svgEl("lock", 11));
+  else if (state === "failed") span.textContent = "!";
+  // pending draws its dot in CSS; unknown is an empty ring.
   return span;
 }
 
 function taskRowEl(t) {
   const row = document.createElement("div");
-  row.className = "task";
+  row.className = "row-item";
   const state = failed.has(t.id) ? "failed" : t.state;
   const busy = inflight.has(t.id);
-  if (busy) row.classList.add("busy");
 
   row.append(stateGlyph(state));
 
   const main = document.createElement("div");
-  main.className = "task-main";
+  main.className = "row-main";
   const title = document.createElement("div");
-  title.className = "task-title";
+  title.className = "row-title";
   title.textContent = t.name;
   title.title = t.name;
   main.append(title);
@@ -367,7 +529,7 @@ function taskRowEl(t) {
   const detailText = failed.get(t.id) || t.detail;
   if (detailText) {
     const sub = document.createElement("div");
-    sub.className = "task-sub";
+    sub.className = failed.has(t.id) ? "row-sub bad" : "row-sub";
     sub.textContent = detailText;
     sub.title = detailText;
     main.append(sub);
@@ -375,26 +537,28 @@ function taskRowEl(t) {
   row.append(main);
 
   const right = document.createElement("div");
-  right.className = "task-right";
+  right.className = "row-right";
   if (busy) {
     const spin = document.createElement("span");
-    spin.className = "task-spinner";
+    spin.className = "row-spinner";
+    spin.setAttribute("role", "img");
+    spin.setAttribute("aria-label", "Applying…");
     right.append(spin);
   } else if (state === "applied") {
     const applied = document.createElement("span");
-    applied.className = "task-applied";
+    applied.className = "row-note";
     applied.textContent = "Applied";
     right.append(applied);
   } else if (state === "needs_admin") {
     const admin = document.createElement("span");
-    admin.className = "task-needs-admin";
+    admin.className = "row-note";
     admin.textContent = "Needs admin";
     admin.title = "Run Loadout as Administrator to apply this";
     right.append(admin);
   } else {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "task-apply pill-btn primary";
+    btn.className = "pill-btn accent";
     btn.textContent = "Apply";
     btn.onclick = () => doTask(t);
     right.append(btn);
@@ -404,50 +568,31 @@ function taskRowEl(t) {
   return row;
 }
 
-// One card per group. `name` is null for a section with a single group, in
-// which case the card has no header row.
-function groupEl(name, items) {
-  const card = document.createElement("div");
-  card.className = "card";
-  if (name) {
-    const header = document.createElement("div");
-    header.className = "card-header";
-    const title = document.createElement("span");
-    title.className = "card-title";
-    title.textContent = name;
-    header.append(title, ...countPills(items));
-    card.append(header);
-  }
-  items.forEach((t) => card.append(taskRowEl(t)));
-  return card;
-}
-
+// One collapsible card per section. A section with several groups (Finder,
+// Dock, ...) gets a sub-label per group inside it.
 function setupSectionEl(sec, q) {
   const bucket = tasks.get(sec.id);
-  const wrap = document.createElement("div");
-  wrap.className = "setup-section";
-
-  const label = document.createElement("div");
-  label.className = "setup-label";
-  const labelText = document.createElement("span");
-  labelText.textContent = sec.name;
-  label.append(labelText);
-
-  const labelRight = document.createElement("div");
-  labelRight.className = "setup-label-right";
+  const extra = [];
   if (bucket?.items) {
-    labelRight.append(...countPills(bucket.items));
-    const runBtn = document.createElement("button");
-    runBtn.type = "button";
-    runBtn.className = "pill-btn";
+    extra.push(...statePills(bucket.items));
     const runLabel = sectionRunning.get(sec.id);
-    runBtn.textContent = runLabel || "Run all";
-    runBtn.disabled = !!runLabel;
-    runBtn.onclick = () => runAll(sec.id);
-    labelRight.append(runBtn);
+    if (runLabel || bucket.items.some(runnable)) {
+      const runBtn = document.createElement("button");
+      runBtn.type = "button";
+      runBtn.className = "link-btn";
+      runBtn.textContent = runLabel || "Run all";
+      runBtn.disabled = !!runLabel;
+      runBtn.onclick = (e) => {
+        e.preventDefault(); // not a toggle of the card
+        runAll(sec.id);
+      };
+      extra.push(runBtn);
+    }
   }
-  label.append(labelRight);
-  wrap.append(label);
+  const title = document.createElement("span");
+  title.className = "grow";
+  title.textContent = sec.name;
+  const wrap = cardEl("setup:" + sec.id, title, isOpen("setup:" + sec.id, sec.open) || !!q, extra);
 
   const desc = document.createElement("p");
   desc.className = "setup-desc";
@@ -457,7 +602,7 @@ function setupSectionEl(sec, q) {
   if (!bucket || bucket.loading) {
     const p = document.createElement("p");
     p.className = "setup-desc";
-    p.textContent = "Checking\u2026";
+    p.textContent = "Checking…";
     wrap.append(p);
   } else if (bucket.error) {
     const p = document.createElement("p");
@@ -466,7 +611,7 @@ function setupSectionEl(sec, q) {
     wrap.append(p);
     const retry = document.createElement("button");
     retry.type = "button";
-    retry.className = "pill-btn";
+    retry.className = "pill-btn setup-retry";
     retry.textContent = "Retry";
     retry.onclick = () => loadSection(sec.id);
     wrap.append(retry);
@@ -475,18 +620,23 @@ function setupSectionEl(sec, q) {
       ? bucket.items.filter((t) => (t.name + " " + t.group + " " + t.detail).toLowerCase().includes(q))
       : bucket.items;
     const groups = [...new Set(items.map((t) => t.group))];
-    if (groups.length > 1) {
-      groups.forEach((g) => wrap.append(groupEl(g, items.filter((t) => t.group === g))));
-    } else {
-      wrap.append(groupEl(null, items));
+    for (const g of groups) {
+      const mine = items.filter((t) => t.group === g);
+      if (groups.length > 1) {
+        const label = document.createElement("div");
+        label.className = "sub-label";
+        label.append(g, ...statePills(mine));
+        wrap.append(label);
+      }
+      wrap.append(...mine.map(taskRowEl));
     }
   }
 
   return wrap;
 }
 
-// The Updates tab's task half: summary bar plus one block per section. With a
-// query, only sections that match are returned and the bar is left out.
+// The Updates tab's task half: a SETUP label with Run all, then one card per
+// section. With a query, only sections that match are returned, unlabelled.
 function setupEls(q) {
   const sections = setupSections();
   if (tasks.size === 0) sections.forEach((s) => loadSection(s.id));
@@ -497,24 +647,20 @@ function setupEls(q) {
     return sections.filter(hit).map((sec) => setupSectionEl(sec, q));
   }
 
-  const bar = document.createElement("div");
-  bar.className = "setup-bar";
-
   const all = sections.flatMap((s) => tasks.get(s.id)?.items || []);
   const summary = document.createElement("span");
-  summary.className = "setup-summary";
-  summary.textContent = summaryText(countStates(all)).join(" \u00b7 ");
-  bar.append(summary);
+  summary.className = "aside";
+  summary.textContent = summaryText(countStates(all)).join(" · ");
 
   const runEverythingBtn = document.createElement("button");
   runEverythingBtn.type = "button";
-  runEverythingBtn.className = "pill-btn primary";
-  runEverythingBtn.textContent = everythingLabel || "Run everything";
+  runEverythingBtn.className = "link-btn";
+  runEverythingBtn.textContent = everythingLabel || "Run all";
+  runEverythingBtn.title = "Apply every pending task in every section";
   runEverythingBtn.disabled = !!everythingLabel;
   runEverythingBtn.onclick = () => runEverything();
-  bar.append(runEverythingBtn);
 
-  return [bar, ...sections.map((sec) => setupSectionEl(sec, q))];
+  return [labelRowEl("Setup", summary, runEverythingBtn), ...sections.map((sec) => setupSectionEl(sec, q))];
 }
 
 async function loadSection(id) {
@@ -537,7 +683,7 @@ function refreshSetup() {
 function doTask(task) {
   if (inflight.has(task.id)) return Promise.resolve(false);
   failed.delete(task.id);
-  inflight.add(task.id);
+  inflight.set(task.id, "apply");
   render();
   logLine(`$ applying ${task.name}`);
 
@@ -585,12 +731,15 @@ async function runEverything() {
 }
 
 async function load(command) {
+  scanning = true;
+  renderStatus();
   try {
     apps = await invoke(command);
   } catch (e) {
     apps = [];
     logLine(String(e));
   }
+  scanning = false;
   render();
 }
 
@@ -601,6 +750,7 @@ function setDrawer(open) {
   logToggleEl.classList.toggle("on", open);
 }
 logToggleEl.onclick = () => setDrawer(drawerEl.hidden);
+document.getElementById("log-close").onclick = () => setDrawer(false);
 
 function logLine(line) {
   setDrawer(true);
@@ -620,7 +770,7 @@ async function call(command, app) {
 function doJob(app, action) {
   if (inflight.has(app.id)) return Promise.resolve(false); // one job per app
   failed.delete(app.id);
-  inflight.add(app.id);
+  inflight.set(app.id, action);
   render();
   logLine(`$ ${action.replace(/e$/, "")}ing ${app.name}`);
 
@@ -644,16 +794,15 @@ async function updateAll() {
   if (!queue.length) return;
 
   updatingAll = true;
-  updateAllEl.disabled = true;
   // Strictly serial: brew holds a lock, and mas is happier one at a time. A
   // failure resolves like any other result, so the rest still run.
   for (const [i, app] of queue.entries()) {
-    updateAllEl.title = `Updating ${i + 1}/${queue.length}\u2026`;
+    updateAllLabel = `Updating ${i + 1}/${queue.length}\u2026`;
     await doJob(app, "update");
   }
 
   updatingAll = false;
-  updateAllEl.disabled = false;
+  updateAllLabel = null;
   render();
 }
 
@@ -729,7 +878,7 @@ function showMenu(e, app) {
   showPopover(nodes, e.clientX, e.clientY);
 }
 
-function showAddMenu(tile, missing) {
+function showAddMenu(anchor, missing) {
   const rows = missing.map((app) => {
     const row = document.createElement("button");
     row.type = "button";
@@ -752,8 +901,11 @@ function showAddMenu(tile, missing) {
     return row;
   });
 
-  const at = tile.getBoundingClientRect();
-  showPopover(rows, at.left, at.bottom + 6, "list");
+  const head = document.createElement("div");
+  head.className = "menu-label";
+  head.textContent = "Not installed";
+  const at = anchor.getBoundingClientRect();
+  showPopover([head, ...rows], at.left, at.bottom + 6, "list");
 }
 
 function hideMenu() {
@@ -810,7 +962,6 @@ try {
   if (localStorage.getItem("category") in CATEGORIES) category = localStorage.getItem("category");
 } catch { /* default */ }
 searchEl.oninput = render;
-updateAllEl.onclick = updateAll;
 async function doRefresh() {
   await load("refresh");
   if (tasks.size) refreshSetup();
@@ -881,9 +1032,11 @@ async function handleSettingsClose() {
   return false;
 }
 document.getElementById("copy").onclick = async (e) => {
+  const btn = e.currentTarget;
   await navigator.clipboard.writeText(logEl.textContent);
-  e.target.textContent = "Copied";
-  setTimeout(() => (e.target.textContent = "Copy"), 1200);
+  btn.classList.add("copied");
+  btn.title = "Copied";
+  setTimeout(() => { btn.classList.remove("copied"); btn.title = "Copy log"; }, 1200);
 };
 
 // First launch: no saved profile and the picker has never been dismissed
