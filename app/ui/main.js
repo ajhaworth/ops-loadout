@@ -943,8 +943,8 @@ listen("install-done", async ({ payload }) => {
 
 addEventListener("click", hideMenu);
 addEventListener("keydown", (e) => e.key === "Escape" && hideMenu());
-// A borderless window has no close button, so the menu's Close Window
-// (performClose:) is a no-op; close from here, which the backend turns into hide.
+// Menu shortcuts don't reach the menu out of this borderless window, so the
+// page handles them. Close becomes hide in the backend.
 addEventListener("keydown", (e) => {
   if (e.metaKey && e.key === "w") {
     e.preventDefault();
@@ -952,6 +952,9 @@ addEventListener("keydown", (e) => {
   } else if (e.metaKey && e.key === "," && !settingsEl.open) {
     e.preventDefault();
     document.getElementById("settings").click();
+  } else if (e.metaKey && e.key === "q") {
+    e.preventDefault();
+    invoke("quit");
   }
 });
 sectionsEl.addEventListener("scroll", hideMenu);

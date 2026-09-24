@@ -473,7 +473,8 @@ fn main() {
             run_task,
             window::open_full,
             window::open_page,
-            window::hide_quick
+            window::hide_quick,
+            window::quit
         ])
         .run(tauri::generate_context!())
         .expect("error while running Loadout");
