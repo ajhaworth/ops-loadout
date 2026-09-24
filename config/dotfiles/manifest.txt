@@ -14,6 +14,7 @@ config/dotfiles/starship/starship.toml|~/.config/starship.toml||DOTFILES_SHELL
 
 # Ghostty terminal
 config/dotfiles/ghostty/config|~/.config/ghostty/config||DOTFILES_GHOSTTY
+config/dotfiles/herdr/config.toml|~/.config/herdr/config.toml||DOTFILES_HERDR
 
 # AeroSpace: tiles Blender, Houdini and the everyday apps, one workspace each
 config/dotfiles/aerospace/aerospace.toml|~/.aerospace.toml||DOTFILES_AEROSPACE
