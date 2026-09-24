@@ -11,6 +11,7 @@
     "dialog:default",
     "dialog:allow-ask",
     "core:window:allow-start-dragging",
+    "core:window:allow-close",
     "autostart:default"
   ]
 }
