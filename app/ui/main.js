@@ -949,6 +949,9 @@ addEventListener("keydown", (e) => {
   if (e.metaKey && e.key === "w") {
     e.preventDefault();
     window.__TAURI__.window.getCurrentWindow().close();
+  } else if (e.metaKey && e.key === "," && !settingsEl.open) {
+    e.preventDefault();
+    document.getElementById("settings").click();
   }
 });
 sectionsEl.addEventListener("scroll", hideMenu);
