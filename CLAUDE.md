@@ -239,12 +239,24 @@ launches), and `installed_dir` picks the newest build matching the
 `HOUDINI_VERSION` pin when one is set. A `versions` verb lists one edition
 `.app` path per installed build, newest first, so Loadout can show a per-build
 Open row when a pinned build coexists with a newer one. The dmg holds
-`Houdini.pkg`, installed with `installer -pkg ... -target /`. Apprentice/Indie
-licensing cannot be scripted: a post-install dialog (text depends on
-`HOUDINI_LICENSE`) explains the License Administrator step and offers to open
-Houdini; server mode instead points `hserver` at `HOUDINI_LICENSE_SERVER`
-directly, with no dialog. That dialog is shown only when `SUDO_ASKPASS` is
-set, which Loadout alone does, so it doubles as "a GUI is present".
+`Houdini.pkg`, installed with `installer -pkg ... -target /`. The `.pkg` runs
+as root and leaves that build's `~/Library/Preferences/houdini/<X.Y>`
+root-owned, so `do_install` `chown -R`s it back to the invoking user right
+after installing; `apply_config` also checks writability itself (a bare
+`config` run, or an install from before that fix, hits the same problem) and
+fails with the same `sudo chown -R $(id -un) ~/Library/Preferences/houdini`
+message rather than silently no-oping. Every write in `apply_config_xy` and
+`install_labs` is checked and only reports success once it lands - a failed
+loadout.json/desk write fails `apply_config`, while SideFX Labs failing is
+still just a warning. Apprentice/Indie licensing cannot be scripted: a
+post-install dialog (text depends on `HOUDINI_LICENSE`) explains the License
+Administrator step and offers to open Houdini; server mode instead points
+`hserver` at `HOUDINI_LICENSE_SERVER` directly, with no dialog - `hserver`
+ships inside the build itself
+(`<build>/Frameworks/Houdini.framework/Versions/<X.Y>/Resources/bin/hserver`),
+not under `/Library/Frameworks`. That dialog is shown only when
+`SUDO_ASKPASS` is set, which Loadout alone does, so it doubles as "a GUI is
+present".
 `status` may print a second line, `outdated`, when the app's applied config has
 drifted from the repo (Blender: `setup.py`/`extensions.txt` hash vs the
 gitignored `config/dcc/blender/.configured` stamp written by a clean setup;
