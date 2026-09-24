@@ -320,7 +320,7 @@ pub(crate) async fn set_settings(
     let license = houdini_license.trim();
     let server = houdini_license_server.trim();
     let version = houdini_version.trim();
-    if !matches!(license, "" | "apprentice" | "indie" | "server") {
+    if !matches!(license, "" | "apprentice" | "indie" | "server" | "server-core") {
         return Err("invalid Houdini license".into());
     }
     // The file is sourced by bash. Single quotes expand nothing, so only the

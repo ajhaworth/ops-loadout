@@ -996,7 +996,7 @@ const houdiniLicenseEl = document.getElementById("houdini-license");
 const houdiniServerRowEl = document.getElementById("houdini-server-row");
 
 function toggleHoudiniServerRow() {
-  houdiniServerRowEl.style.display = houdiniLicenseEl.value === "server" ? "" : "none";
+  houdiniServerRowEl.style.display = houdiniLicenseEl.value.startsWith("server") ? "" : "none";
 }
 houdiniLicenseEl.onchange = toggleHoudiniServerRow;
 

@@ -13,7 +13,7 @@ HOUDINI_DIR="${HOUDINI_DIR:-/Applications/Houdini}"
 API="https://www.sidefx.com/api/"
 TOKEN_URL="https://www.sidefx.com/oauth2/application_token"
 
-# HOUDINI_LICENSE (apprentice|indie|server), HOUDINI_LICENSE_SERVER and
+# HOUDINI_LICENSE (apprentice|indie|server|server-core), HOUDINI_LICENSE_SERVER and
 # HOUDINI_VERSION (a major.minor pin) live alongside the SideFX API
 # credentials in the same file; every verb needs to see them, not just
 # install, so source it once up front.
@@ -53,6 +53,12 @@ installed_app() {
             ;;
         server)
             for a in "$dir"/"Houdini FX"*.app "$dir"/"Houdini Core"*.app \
+                     "$dir"/"Houdini Apprentice"*.app; do
+                [[ -d "$a" ]] && { printf '%s\n' "$a"; return 0; }
+            done
+            ;;
+        server-core)
+            for a in "$dir"/"Houdini Core"*.app "$dir"/"Houdini FX"*.app \
                      "$dir"/"Houdini Apprentice"*.app; do
                 [[ -d "$a" ]] && { printf '%s\n' "$a"; return 0; }
             done
@@ -293,7 +299,7 @@ apply_license() {
     }
 
     case "$mode" in
-        server)
+        server|server-core)
             if [[ -z "${HOUDINI_LICENSE_SERVER:-}" ]]; then
                 echo "HOUDINI_LICENSE_SERVER is not set; cannot configure a license server." >&2
                 return 1
@@ -406,7 +412,7 @@ do_install() {
 
     echo "Houdini $version.$build installed."
     case "${HOUDINI_LICENSE:-apprentice}" in
-        server)
+        server|server-core)
             echo "Licensing: server mode - config will point hserver at HOUDINI_LICENSE_SERVER."
             ;;
         indie)
@@ -425,7 +431,7 @@ do_install() {
 # open Houdini. Server mode has nothing to click through, so no dialog.
 license_dialog() {
     local app="$1" mode="${HOUDINI_LICENSE:-apprentice}"
-    [[ "$mode" == server ]] && return 0
+    [[ "$mode" == server* ]] && return 0
 
     local msg
     if [[ "$mode" == indie ]]; then
