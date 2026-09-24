@@ -1,0 +1,15 @@
+onboarding = false
+
+[ui]
+show_agent_labels_on_pane_borders = false
+agent_panel_scope = "all"
+
+[ui.toast]
+delivery = "system"   # macOS Notification Center
+
+[ui.sound]
+enabled = true        # built-in done/request sounds (background workspaces only)
+
+[theme]
+name = "catppuccin"
+auto_switch = false
