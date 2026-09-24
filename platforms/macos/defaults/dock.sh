@@ -13,4 +13,6 @@ apply_dock() {
     defaults_set com.apple.dock orientation string bottom "Position on screen (left, bottom, right)"
     defaults_set com.apple.dock showhidden bool true "Make Dock icons of hidden applications translucent"
     defaults_set com.apple.dock mru-spaces bool false "Don't rearrange Spaces based on most recent use"
+    # AeroSpace (Blender + Claude Code tiling) and Stage Manager both hide and show window groups, and fight.
+    defaults_set com.apple.WindowManager GloballyEnabled bool false "Stage Manager off (AeroSpace manages windows)"
 }
