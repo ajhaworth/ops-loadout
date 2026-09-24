@@ -40,9 +40,8 @@ installed_dir() {
     printf '%s\n' "$d"
 }
 
-# ponytail: the Indie/Core bundle names below are guessed from SideFX's
-# Apprentice/FX naming and unverified against a real install; correct them
-# once confirmed.
+# Falls back to Apprentice/FX in every mode so something launches even if
+# the requested edition isn't installed.
 installed_app() {
     local dir="$1" a
     case "${HOUDINI_LICENSE:-apprentice}" in
@@ -110,19 +109,33 @@ apply_config_xy() {
         return
     fi
 
-    mkdir -p "$pkgdir"
-    printf '%s\n' "$json" > "$pkgdir/loadout.json"
+    # The .pkg installer runs as root and creates this X.Y's prefs dir
+    # root-owned; every later user write fails silently unless it's fixed
+    # (do_install chowns it after installing, but a bare `config` run or an
+    # install that ran before that fix needs the same message).
+    if [[ -d "$prefs" && ! -w "$prefs" ]]; then
+        echo "Houdini config: $prefs is not writable (root-owned by the .pkg installer)." >&2
+        echo "    fix: sudo chown -R \$(id -un) ~/Library/Preferences/houdini" >&2
+        return 1
+    fi
+
+    mkdir -p "$pkgdir" || { echo "Could not create $pkgdir" >&2; return 1; }
+    printf '%s\n' "$json" > "$pkgdir/loadout.json" \
+        || { echo "Could not write $pkgdir/loadout.json" >&2; return 1; }
     echo "==> Wrote $pkgdir/loadout.json (HOUDINI_PATH -> $REPO/config/dcc/houdini)"
 
-    mkdir -p "$prefs"
+    mkdir -p "$prefs" || { echo "Could not create $prefs" >&2; return 1; }
     if [[ -f "$pref_file" ]] && grep -q '^general\.desk\.val' "$pref_file"; then
-        sed -i '' "s|^general\\.desk\\.val.*|$desk|" "$pref_file"
+        sed -i '' "s|^general\\.desk\\.val.*|$desk|" "$pref_file" \
+            || { echo "Could not update $pref_file" >&2; return 1; }
     else
-        printf '%s\n' "$desk" >> "$pref_file"
+        printf '%s\n' "$desk" >> "$pref_file" \
+            || { echo "Could not write $pref_file" >&2; return 1; }
     fi
     echo "==> Set general.desk.val := \"ALX\" in $pref_file for Houdini $xy"
 
-    install_labs "$xy" "$action" || true
+    install_labs "$xy" "$action" \
+        || echo "==> SideFX Labs step failed for Houdini $xy; continuing" >&2
 }
 
 # Applies config to every installed Houdini build's X.Y (deduped), then
@@ -140,7 +153,7 @@ apply_config() {
         return
     fi
 
-    local dir version xy seen=() any=1
+    local dir version xy seen=() found=0 failed=0
     while IFS= read -r dir; do
         [[ -d "$dir" ]] || continue
         installed_app "$dir" >/dev/null 2>&1 || continue
@@ -148,12 +161,12 @@ apply_config() {
         xy="${version%.*}"
         case " ${seen[*]-} " in *" $xy "*) continue ;; esac
         seen+=("$xy")
-        apply_config_xy "$action" "$xy"
-        any=0
+        found=1
+        apply_config_xy "$action" "$xy" || failed=1
     done < <(printf '%s\n' "$HOUDINI_DIR"/Houdini[0-9]* | sort -V)
 
     apply_license || echo "Houdini license not applied; see above" >&2
-    return $any
+    [[ $found -eq 1 && $failed -eq 0 ]]
 }
 
 # --- SideFX API ------------------------------------------------------------
@@ -210,7 +223,7 @@ install_labs() {
     local tag current src
 
     tag="$(labs_latest_tag "$xy")" || {
-        echo "==> No SideFX Labs release for Houdini $xy yet; skipping" >&2
+        echo "==> SideFX Labs: no release for Houdini $xy yet; skipping" >&2
         return 0
     }
 
@@ -223,25 +236,39 @@ install_labs() {
     LABS_TMP="$(mktemp -d)"
     if ! curl -fsSL -o "$LABS_TMP/labs.zip" "$LABS_ZIPBALL/$tag" \
         || ! unzip -q "$LABS_TMP/labs.zip" -d "$LABS_TMP"; then
-        echo "    could not download SideFX Labs $tag; skipping" >&2
+        echo "    SideFX Labs $tag failed to download" >&2
         rm -rf "$LABS_TMP"; LABS_TMP=""
-        return 0
+        return 1
     fi
 
     # The zipball holds a single top-level sideeffects-SideFXLabs-<sha> dir.
     src="$(printf '%s\n' "$LABS_TMP"/sideeffects-SideFXLabs-* | head -1)"
     if [[ ! -d "$src" ]]; then
-        echo "    unexpected SideFX Labs zipball layout; skipping" >&2
+        echo "    SideFX Labs $tag: unexpected zipball layout" >&2
         rm -rf "$LABS_TMP"; LABS_TMP=""
-        return 0
+        return 1
     fi
 
-    mkdir -p "$pkgdir"
-    rm -rf "$dir"
-    mv "$src" "$dir"
-    jq --arg p "\$HOUDINI_PACKAGE_PATH/SideFXLabs$xy" \
-        '.env = [{"SIDEFXLABS": $p}]' "$dir/SideFXLabs.json" > "$json.tmp" && mv "$json.tmp" "$json"
-    printf '%s\n' "$tag" > "$tagfile"
+    if ! mkdir -p "$pkgdir" || ! rm -rf "$dir" || ! mv "$src" "$dir"; then
+        echo "    SideFX Labs $tag failed to install into $dir" >&2
+        rm -rf "$LABS_TMP"; LABS_TMP=""
+        return 1
+    fi
+
+    if ! jq --arg p "\$HOUDINI_PACKAGE_PATH/SideFXLabs$xy" \
+            '.env = [{"SIDEFXLABS": $p}]' "$dir/SideFXLabs.json" > "$json.tmp" \
+        || ! mv "$json.tmp" "$json"; then
+        echo "    SideFX Labs $tag failed writing $json" >&2
+        rm -rf "$LABS_TMP"; LABS_TMP=""
+        return 1
+    fi
+
+    if ! printf '%s\n' "$tag" > "$tagfile"; then
+        echo "    SideFX Labs $tag installed but could not record $tagfile" >&2
+        rm -rf "$LABS_TMP"; LABS_TMP=""
+        return 1
+    fi
+
     rm -rf "$LABS_TMP"; LABS_TMP=""
     echo "    SideFX Labs $tag installed for Houdini $xy"
 }
@@ -254,10 +281,12 @@ install_labs() {
 # not part of `apply_config check` - querying hserver can start the
 # licensing daemon, and check must stay offline and side-effect-free.
 apply_license() {
-    local mode="${HOUDINI_LICENSE:-apprentice}" dir full hserver
+    local mode="${HOUDINI_LICENSE:-apprentice}" dir full xy hserver
     dir="$(installed_dir)" || return 0
     full="${dir##*/Houdini}"
-    hserver="/Library/Frameworks/Houdini.framework/Versions/$full/Resources/bin/hserver"
+    xy="${full%.*}"
+    # hserver ships inside the versioned build, not under /Library/Frameworks.
+    hserver="$dir/Frameworks/Houdini.framework/Versions/$xy/Resources/bin/hserver"
     [[ -x "$hserver" ]] || {
         echo "==> hserver not found for Houdini $full; skipping license step" >&2
         return 0
@@ -366,6 +395,12 @@ do_install() {
     echo "==> Installing (password prompt)"
     sudo -A installer -pkg "$MOUNT/Houdini.pkg" -target /
 
+    # The .pkg runs as root and leaves this X.Y's prefs dir root-owned;
+    # reclaim it now so apply_config's writes below don't fail silently.
+    if [[ -d "$HOME/Library/Preferences/houdini" ]]; then
+        sudo -A chown -R "$(id -un)" "$HOME/Library/Preferences/houdini"
+    fi
+
     dmg_detach "$MOUNT"
     MOUNT=""
 
@@ -441,10 +476,11 @@ do_uninstall() {
         fi
     fi
 
+    # The Houdini framework lives inside this build dir (Frameworks/), not
+    # under /Library/Frameworks, so removing the build dir is enough.
     echo "==> Removing Houdini $version (password prompt)"
-    sudo -A rm -rf "$HOUDINI_DIR/Houdini$version" "/Library/Frameworks/Houdini.framework/Versions/$version"
+    sudo -A rm -rf "$HOUDINI_DIR/Houdini$version"
     echo "Removed $HOUDINI_DIR/Houdini$version"
-    echo "Removed /Library/Frameworks/Houdini.framework/Versions/$version"
     echo "Left ~/Library/Preferences/houdini alone."
 }
 
