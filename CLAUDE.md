@@ -18,7 +18,7 @@ work headlessly.
 Profiles (`config/profiles/*.conf`) control what gets installed. Profile variables are bash-style `KEY="value"` pairs parsed by both bash (source) and PowerShell (regex).
 
 - `personal.conf` - Full installation for personal macOS devices
-- `workstation.conf` - Work macOS device: Blender, Houdini, Fork, Ghostty, AeroSpace, Swish and core CLI tools, from Loadout
+- `workstation.conf` - Work macOS device: Blender, Houdini, Fork, Ghostty, AeroSpace, Swish, Vorssaint and core CLI tools, from Loadout
 - `linux.conf` - Full dev station setup for Linux (Debian/Ubuntu)
 - `windows.conf` - Gaming workstation setup for Windows
 
@@ -31,8 +31,8 @@ never sees a "command not found". `INSTALLERS_<CATEGORY>` gates
 casks. `workstation.conf` keeps Homebrew (core and shell formulae only, no
 casks, no MAS) and leaves `installers/3D.txt` (Blender, Houdini) and
 `installers/development.txt` (Fork, Ghostty, AeroSpace) and `installers/power-user.txt`
-(Swish) visible; `personal.conf` turns `INSTALLERS_POWER_USER` off since it
-gets Swish from the cask; the user installs those
+(Swish, Vorssaint) visible; `personal.conf` turns `INSTALLERS_POWER_USER` off since it
+gets both from their casks; the user installs those
 by hand from the Loadout tiles. Apps added for the work Mac go in as installer
 scripts, not casks, so the allow-list stays explicit.
 
