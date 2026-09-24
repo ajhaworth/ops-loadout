@@ -190,6 +190,28 @@ function Get-RegistryProperty {
     return [string]$prop.Value
 }
 
+# Shared walk over the three Uninstall registry roots that list installed
+# programs, yielding each key's properties (skipping ones that fail to read).
+# Get-InstalledProgram and Get-ProgramProps are the public surface - this is
+# not exported.
+function Get-UninstallEntries {
+    $roots = @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
+    )
+
+    foreach ($root in $roots) {
+        if (-not (Test-Path -LiteralPath $root)) { continue }
+
+        foreach ($key in @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue)) {
+            $props = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue
+            if ($null -eq $props) { continue }
+            $props
+        }
+    }
+}
+
 # Find an app in Add/Remove Programs. Patterns without wildcards are matched as
 # substrings, so "Vibepollo" finds "Vibepollo 1.18.4".
 function Get-InstalledProgram {
@@ -202,35 +224,23 @@ function Get-InstalledProgram {
         return $null
     }
 
-    $roots = @(
-        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
-        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
-        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
-    )
-
     $isWildcard = $NamePattern.Contains('*') -or $NamePattern.Contains('?')
 
-    foreach ($root in $roots) {
-        if (-not (Test-Path -LiteralPath $root)) { continue }
+    foreach ($props in Get-UninstallEntries) {
+        $name = Get-RegistryProperty -Properties $props -Name 'DisplayName'
+        if (-not $name) { continue }
 
-        $keys = @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue)
-        foreach ($key in $keys) {
-            $props = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue
-            $name = Get-RegistryProperty -Properties $props -Name 'DisplayName'
-            if (-not $name) { continue }
+        $hit = $false
+        if ($isWildcard) {
+            $hit = $name -like $NamePattern
+        } else {
+            $hit = $name.IndexOf($NamePattern, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+        }
 
-            $hit = $false
-            if ($isWildcard) {
-                $hit = $name -like $NamePattern
-            } else {
-                $hit = $name.IndexOf($NamePattern, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
-            }
-
-            if ($hit) {
-                return @{
-                    Name    = $name
-                    Version = (Get-RegistryProperty -Properties $props -Name 'DisplayVersion')
-                }
+        if ($hit) {
+            return @{
+                Name    = $name
+                Version = (Get-RegistryProperty -Properties $props -Name 'DisplayVersion')
             }
         }
     }
@@ -461,19 +471,8 @@ function Install-GitHubRelease {
 function Get-ProgramProps {
     param([string]$DisplayName)
 
-    $roots = @(
-        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
-        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
-        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
-    )
-
-    foreach ($root in $roots) {
-        if (-not (Test-Path -LiteralPath $root)) { continue }
-        foreach ($key in @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue)) {
-            $props = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue
-            if (-not $props) { continue }
-            if ([string]$props.DisplayName -eq $DisplayName) { return $props }
-        }
+    foreach ($props in Get-UninstallEntries) {
+        if ([string]$props.DisplayName -eq $DisplayName) { return $props }
     }
     return $null
 }

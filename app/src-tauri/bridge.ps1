@@ -352,28 +352,15 @@ function Invoke-DefaultsApply {
 
 # --- debloat -----------------------------------------------------------------
 
-# id -> @{ Name (row label); Group (Apply function's category) }
-$script:DebloatGroups = [ordered]@{
-    bloat     = 'AppX bloatware'
-    xbox      = 'Xbox services'
-    gamedvr   = 'Game DVR'
-    gamebar   = 'Game Bar protocols'
-    wol       = 'Wake-on-LAN'
-    suggested = 'Suggested apps'
-}
-
+# $script:DebloatGroups (id -> @{ Label; Fn }) comes from debloat.ps1, dot-sourced
+# into this same script scope by the tasks-status/tasks-apply cases below - see
+# the comment there for why dot-sourcing at that spot is what makes it visible
+# here.
 function Invoke-DebloatGroupById {
     param([string]$GroupId, [switch]$DryRun)
 
-    switch ($GroupId) {
-        'bloat'     { return Invoke-DebloatBloatGroup -DryRun:$DryRun }
-        'xbox'      { return Invoke-DebloatXboxGroup -DryRun:$DryRun }
-        'gamedvr'   { return Invoke-DebloatGameDvrGroup -DryRun:$DryRun }
-        'gamebar'   { return Invoke-DebloatGameBarGroup -DryRun:$DryRun }
-        'wol'       { return Invoke-DebloatWolGroup -DryRun:$DryRun }
-        'suggested' { return Invoke-DebloatSuggestedGroup -DryRun:$DryRun }
-        default     { return $null }
-    }
+    if (-not $script:DebloatGroups.Contains($GroupId)) { return $null }
+    return & $script:DebloatGroups[$GroupId].Fn -DryRun:$DryRun
 }
 
 function Get-DebloatStatusRows {
@@ -402,7 +389,7 @@ function Get-DebloatStatusRows {
         if ($status.Failed -gt 0) { $detail = "$($status.Failed) failed" }
 
         $rows += New-TaskRow -Id "debloat:$groupId" -Section 'debloat' -Group 'Debloat' `
-            -Name $script:DebloatGroups[$groupId] -State $state -Detail $detail
+            -Name $script:DebloatGroups[$groupId].Label -State $state -Detail $detail
     }
 
     return $rows

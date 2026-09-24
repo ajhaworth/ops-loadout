@@ -14,6 +14,8 @@
 
 param(
     [switch]$DryRun,
+    # Literals here must be constants (ValidateSet can't reference a
+    # variable) - keep this list in sync with $script:DebloatGroups below.
     [ValidateSet('', 'bloat', 'xbox', 'gamedvr', 'gamebar', 'wol', 'suggested')]
     [string]$Only = ''
 )
@@ -443,6 +445,20 @@ function Invoke-DebloatWolGroup {
     return @{ Pending = $pending; NeedsAdmin = $false; Failed = 0 }
 }
 
+# id -> @{ Label (Setup-tab row text); Fn (Invoke-Debloat*Group function name) }.
+# The single source of truth for the six Setup-tab debloat groups - bridge.ps1
+# dot-sources this file and reuses this table rather than keeping its own copy.
+# ValidateSet above can't reference this (it needs literal constants), so keep
+# the two lists in sync by hand.
+$script:DebloatGroups = [ordered]@{
+    bloat     = @{ Label = 'AppX bloatware';     Fn = 'Invoke-DebloatBloatGroup' }
+    xbox      = @{ Label = 'Xbox services';      Fn = 'Invoke-DebloatXboxGroup' }
+    gamedvr   = @{ Label = 'Game DVR';            Fn = 'Invoke-DebloatGameDvrGroup' }
+    gamebar   = @{ Label = 'Game Bar protocols';  Fn = 'Invoke-DebloatGameBarGroup' }
+    wol       = @{ Label = 'Wake-on-LAN';         Fn = 'Invoke-DebloatWolGroup' }
+    suggested = @{ Label = 'Suggested apps';      Fn = 'Invoke-DebloatSuggestedGroup' }
+}
+
 # --- Main ---
 #
 # Wrapped in a function, called only when this file is run directly (not
@@ -469,14 +485,7 @@ function Invoke-DebloatMain {
     $allApps = $BloatwareApps + $XboxApps
 
     if ($Only) {
-        $status = switch ($Only) {
-            'bloat'     { Invoke-DebloatBloatGroup -DryRun:$DryRun }
-            'xbox'      { Invoke-DebloatXboxGroup -DryRun:$DryRun }
-            'gamedvr'   { Invoke-DebloatGameDvrGroup -DryRun:$DryRun }
-            'gamebar'   { Invoke-DebloatGameBarGroup -DryRun:$DryRun }
-            'wol'       { Invoke-DebloatWolGroup -DryRun:$DryRun }
-            'suggested' { Invoke-DebloatSuggestedGroup -DryRun:$DryRun }
-        }
+        $status = & $script:DebloatGroups[$Only].Fn -DryRun:$DryRun
         if ($status.Failed -gt 0) { exit 1 }
         exit 0
     }

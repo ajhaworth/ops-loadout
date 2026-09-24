@@ -7,6 +7,11 @@ pub struct Cmd {
     pub env: Vec<(String, String)>,
 }
 
+/// Icon cache filename for an app id — shared by both backends' icon caches.
+pub(crate) fn cache_name(id: &str) -> String {
+    format!("{}.png", id.replace(['/', ':', ' '], "_"))
+}
+
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]

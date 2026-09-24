@@ -1,7 +1,7 @@
 //! macOS backend: brew/mas status, icon extraction, launch, install.
 
 use crate::catalog::App;
-use crate::platform::Cmd;
+use crate::platform::{cache_name, Cmd};
 use base64::Engine;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -156,10 +156,6 @@ fn icns_in(bundle: &Path) -> Option<PathBuf> {
             .map(|e| e.path())
             .find(|p| p.extension().is_some_and(|e| e == "icns"))
     })
-}
-
-fn cache_name(id: &str) -> String {
-    format!("{}.png", id.replace(['/', ':', ' '], "_"))
 }
 
 /// 128px PNG data URL for an installed bundle, cached on disk.
@@ -351,38 +347,66 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, _resources: &Pat
     // it.
     let (cask_tokens, formula_tokens, mas_tokens) = (tokens("cask"), tokens("formula"), tokens("mas"));
 
-    // Casks: `installed` is the version string, null when absent.
-    let cask_info = brew_info("--cask", &cask_tokens);
-    let installed_casks: Vec<String> = if cask_info.is_none() && !cask_tokens.is_empty() {
-        lines_of("brew", &["list", "--cask", "-1"])
-    } else {
-        Vec::new()
-    };
+    // These four lookups are independent (each reads only the token lists
+    // above), so run them concurrently rather than paying their sequential
+    // process-spawn latency one at a time.
+    let (
+        (cask_info, installed_casks),
+        (formula_info, installed_formulae),
+        (installed_mas, outdated_mas),
+        (outdated_casks, outdated_formulae),
+    ) = std::thread::scope(|scope| {
+        // Casks: `installed` is the version string, null when absent.
+        let cask = scope.spawn(|| {
+            let cask_info = brew_info("--cask", &cask_tokens);
+            let installed_casks: Vec<String> = if cask_info.is_none() && !cask_tokens.is_empty() {
+                lines_of("brew", &["list", "--cask", "-1"])
+            } else {
+                Vec::new()
+            };
+            (cask_info, installed_casks)
+        });
 
-    // Formulae: `installed` is an array of installed kegs.
-    let formula_info = brew_info("--formula", &formula_tokens);
-    let installed_formulae: Vec<String> = if formula_info.is_none() && !formula_tokens.is_empty() {
-        lines_of("brew", &["list", "--formula", "-1"])
-    } else {
-        Vec::new()
-    };
+        // Formulae: `installed` is an array of installed kegs.
+        let formula = scope.spawn(|| {
+            let formula_info = brew_info("--formula", &formula_tokens);
+            let installed_formulae: Vec<String> =
+                if formula_info.is_none() && !formula_tokens.is_empty() {
+                    lines_of("brew", &["list", "--formula", "-1"])
+                } else {
+                    Vec::new()
+                };
+            (formula_info, installed_formulae)
+        });
 
-    let ids = |lines: Vec<String>| -> Vec<String> {
-        lines.iter().filter_map(|l| l.split_whitespace().next().map(str::to_string)).collect()
-    };
-    // `mas list` is "<id>  <name>  (<version>)", `mas outdated` the same with
-    // "(<old> -> <new>)".
-    let (installed_mas, outdated_mas) = if mas_tokens.is_empty() {
-        (Vec::new(), Vec::new())
-    } else {
-        (ids(lines_of("mas", &["list"])), ids(lines_of("mas", &["outdated"])))
-    };
+        // `mas list` is "<id>  <name>  (<version>)", `mas outdated` the same
+        // with "(<old> -> <new>)".
+        let mas = scope.spawn(|| {
+            let ids = |lines: Vec<String>| -> Vec<String> {
+                lines.iter().filter_map(|l| l.split_whitespace().next().map(str::to_string)).collect()
+            };
+            if mas_tokens.is_empty() {
+                (Vec::new(), Vec::new())
+            } else {
+                (ids(lines_of("mas", &["list"])), ids(lines_of("mas", &["outdated"])))
+            }
+        });
 
-    let (outdated_casks, outdated_formulae) = if cask_tokens.is_empty() && formula_tokens.is_empty() {
-        (Vec::new(), Vec::new())
-    } else {
-        brew_outdated()
-    };
+        let outdated = scope.spawn(|| {
+            if cask_tokens.is_empty() && formula_tokens.is_empty() {
+                (Vec::new(), Vec::new())
+            } else {
+                brew_outdated()
+            }
+        });
+
+        (
+            cask.join().unwrap(),
+            formula.join().unwrap(),
+            mas.join().unwrap(),
+            outdated.join().unwrap(),
+        )
+    });
 
     let find = |info: &Option<Value>, key: &str, token: &str| -> Option<Value> {
         info.as_ref()?

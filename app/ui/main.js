@@ -318,8 +318,8 @@ function appSectionEls(shown, q) {
 const matchesApp = (a, q) => (a.name + " " + a.id + " " + a.category).toLowerCase().includes(q);
 
 function render() {
-  const updates = apps.filter((a) => a.outdated).length;
-  renderTabs(updates);
+  const outdated = apps.filter((a) => a.outdated);
+  renderTabs(outdated.length);
   const q = searchEl.value.trim().toLowerCase();
   sectionsEl.replaceChildren();
 
@@ -333,7 +333,7 @@ function render() {
     sectionsEl.append(segEl(cats, cat, "category", (n) => (category = n), "chips"));
     sectionsEl.append(...appSectionEls(apps.filter(CATEGORIES[cat]), q));
   } else {
-    sectionsEl.append(...updatesEls(), ...setupEls(q));
+    sectionsEl.append(...updatesEls(outdated), ...setupEls(q));
   }
 
   if (!sectionsEl.querySelector("details, .hero")) {
@@ -357,8 +357,7 @@ function labelRowEl(text, ...right) {
 }
 
 // The Updates tab's app half: the summary card, then a row per outdated app.
-function updatesEls() {
-  const outdated = apps.filter((a) => a.outdated);
+function updatesEls(outdated) {
   const setupN = setupSections().flatMap((s) => tasks.get(s.id)?.items || []).filter(runnable).length;
   const total = outdated.length + setupN;
 
@@ -680,25 +679,34 @@ function refreshSetup() {
   setupSections().forEach((s) => loadSection(s.id));
 }
 
-/// Same shape as doJob, but for a Setup task rather than a package.
-function doTask(task) {
-  if (inflight.has(task.id)) return Promise.resolve(false);
-  failed.delete(task.id);
-  inflight.set(task.id, "apply");
+// Shared bookkeeping for a package job or a Setup task: inflight guard,
+// clearing any earlier failure, and resolving `pending` once the job
+// finishes (not once it starts).
+function startJob(id, kind, line, call) {
+  if (inflight.has(id)) return Promise.resolve(false);
+  failed.delete(id);
+  inflight.set(id, kind);
   render();
-  logLine(`$ applying ${task.name}`);
+  logLine(line);
 
   return new Promise((resolve) => {
-    pending.set(task.id, resolve);
-    invoke("run_task", { id: task.id, section: task.section }).catch((e) => {
-      pending.delete(task.id);
-      inflight.delete(task.id);
-      failed.set(task.id, String(e));
+    pending.set(id, resolve);
+    call().catch((e) => {
+      // Rejected before the job started, so no install-done is coming.
+      pending.delete(id);
+      inflight.delete(id);
+      failed.set(id, String(e));
       logLine(String(e));
       render();
       resolve(false);
     });
   });
+}
+
+/// Same shape as doJob, but for a Setup task rather than a package.
+function doTask(task) {
+  return startJob(task.id, "apply", `$ applying ${task.name}`, () =>
+    invoke("run_task", { id: task.id, section: task.section }));
 }
 
 function runnable(t) {
@@ -769,24 +777,8 @@ async function call(command, app) {
 
 /// Resolves true/false when the job finishes, not when it starts.
 function doJob(app, action) {
-  if (inflight.has(app.id)) return Promise.resolve(false); // one job per app
-  failed.delete(app.id);
-  inflight.set(app.id, action);
-  render();
-  logLine(`$ ${action.replace(/e$/, "")}ing ${app.name}`);
-
-  return new Promise((resolve) => {
-    pending.set(app.id, resolve);
-    invoke(action, { id: app.id }).catch((e) => {
-      // Rejected before the job started, so no install-done is coming.
-      pending.delete(app.id);
-      inflight.delete(app.id);
-      failed.set(app.id, String(e));
-      logLine(String(e));
-      render();
-      resolve(false);
-    });
-  });
+  return startJob(app.id, action, `$ ${action.replace(/e$/, "")}ing ${app.name}`, () =>
+    invoke(action, { id: app.id }));
 }
 
 async function updateAll() {

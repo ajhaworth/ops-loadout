@@ -20,7 +20,7 @@ BASE=https://ftp.nluug.nl/pub/graphics/blender/release   # download.blender.org 
 STAMP="$CFG/.configured"
 config_hash() { { cat "$CFG/setup.py" "$CFG/extensions.txt" 2>/dev/null || true; } | shasum | cut -d' ' -f1; }
 
-get() { curl -fsSL --connect-timeout 30 --speed-limit 1024 --speed-time 60 "$@"; }
+get() { curl -fsSL "${CURL_STALL[@]}" "$@"; }
 
 # Ours only when the portable dir is our symlink: a cask Blender reads as not installed.
 do_status() {

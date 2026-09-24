@@ -285,23 +285,7 @@ tasks_dotfiles() {
         return 1
     fi
 
-    while IFS='|' read -r source destination backup condition || [[ -n "$source" ]]; do
-        [[ -z "$source" ]] && continue
-        [[ "$source" =~ ^[[:space:]]*# ]] && continue
-
-        source="$(tasks_trim "$source")"
-        destination="$(tasks_trim "$destination")"
-        condition="$(tasks_trim "${condition:-}")"
-        # The manifest backup column is reserved for future behavior and is ignored today.
-        : "${backup:-}"
-
-        if [[ -n "$condition" ]]; then
-            local condition_value="${!condition:-true}"
-            if [[ "$condition_value" != "true" ]]; then
-                continue
-            fi
-        fi
-
+    while IFS='|' read -r source destination; do
         resolve_manifest_paths "$REPO_ROOT" "$source" "$destination"
 
         local id="dotfiles:$destination"
@@ -355,7 +339,7 @@ tasks_dotfiles() {
         fi
 
         create_symlink "$MANIFEST_ABS_SOURCE" "$destination"
-    done < "$manifest"
+    done < <(manifest_entries "$manifest")
 }
 
 # ============================================================================

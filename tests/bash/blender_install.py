@@ -48,7 +48,8 @@ class InstallTests(unittest.TestCase):
             script = script.replace('REPO="$(cd "$(dirname "$0")/../../.." && pwd)"', f'REPO="{root}"')
             script = script.replace('/Applications', str(root / 'Applications'))
             (root / 'blender.sh').write_text(script)
-            helpers = '''dl() { echo download >> "$TEST_EVENTS"; touch "$2"; }
+            helpers = '''CURL_STALL=(--fake-stall)
+dl() { echo download >> "$TEST_EVENTS"; touch "$2"; }
 dmg_attach() { printf '%s\\n' "$TEST_MOUNT"; }
 dmg_detach() { :; }
 curl() {
