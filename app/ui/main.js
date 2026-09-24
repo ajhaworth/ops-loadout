@@ -127,8 +127,9 @@ function iconEl(app) {
 
   const host = app.homepage ? new URL(app.homepage).hostname : null;
   const sources = [];
-  // An extracted icon is drawn as-is; a favicon is square and gets the shape.
-  if (app.icon) sources.push({ src: app.icon, cls: "extracted" });
+  // An extracted icon is drawn as-is; a favicon is square and gets the shape,
+  // as does App Store artwork served as jpg (opaque, so full-bleed square).
+  if (app.icon) sources.push({ src: app.icon, cls: app.icon.endsWith(".jpg") ? "fallback" : "extracted" });
   if (host) sources.push({ src: `https://www.google.com/s2/favicons?domain=${host}&sz=128`, cls: "fallback" });
 
   if (!sources.length) {
