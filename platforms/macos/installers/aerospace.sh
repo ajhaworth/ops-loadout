@@ -60,10 +60,13 @@ do_install() {
     ditto "$dir/AeroSpace.app" "$APP"
     mkdir -p "$(dirname "$CLI")"
     install -m 0755 "$dir/bin/aerospace" "$CLI"
+    # Stage Manager hides and shows window groups too, and fights AeroSpace. dock.sh sets this as well, but profiles
+    # without system defaults (workstation) only get it here.
+    defaults write com.apple.WindowManager GloballyEnabled -bool false
     open -a "$APP"
 
-    echo "AeroSpace $tag installed. Allow it under Privacy & Security > Accessibility when asked,"
-    echo "and apply the AeroSpace dotfile (Updates tab) so only Blender and Claude Code tile."
+    echo "AeroSpace $tag installed and Stage Manager turned off. Allow AeroSpace under"
+    echo "Privacy & Security > Accessibility when asked, and apply the AeroSpace dotfiles (Updates tab)."
 }
 
 do_uninstall() {

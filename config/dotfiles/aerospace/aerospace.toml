@@ -1,13 +1,33 @@
-# AeroSpace tiles Blender's main window, the Claude Code Ghostty that Blender's Loadout tab opens
-# (config/dcc/blender/portable/scripts/startup/dcc_claude.py) and other Ghostty windows. Every other window floats,
-# so the rest of the Mac behaves as it would without a tiler. Gaps are 0 by default, so a lone window fills the screen.
+# AeroSpace gives each everyday app its own workspace, where its windows tile to fill the screen like a macOS full-screen
+# Space: Blender (plus the Claude Code Ghostty its Loadout tab opens, see
+# config/dcc/blender/portable/scripts/startup/dcc_claude.py), Houdini, Ghostty, Zen, Mail, Messages, Calendar, Agenda,
+# Digest, ChatGPT, Claude, Finder and Loadout. Opening or clicking an app switches to its workspace. Every other window floats.
 # No key bindings: AeroSpace's sample Option chords would take keys Blender's keymap uses.
 config-version = 2
 start-at-login = true
 
+# The centered floating windows (Digest, Messages, Loadout; see their rules) snap back to center whenever their
+# workspace is shown, so a window dragged aside never stays there.
+exec-on-workspace-change = ['/bin/bash', '-c', '''
+    c() { osascript -l JavaScript ~/.config/aerospace/center.js "$@"; }
+    case "$AEROSPACE_FOCUSED_WORKSPACE" in
+        Digest) c dev.alx.Digest ;;
+        Messages) c com.apple.MobileSMS 760 ;;
+        Loadout) c dev.alx.loadout Loadout ;;
+    esac
+''']
+
+# The margin macOS's own window tiling leaves, around and between tiled windows.
+[gaps]
+inner.horizontal = 8
+inner.vertical = 8
+outer.left = 8
+outer.bottom = 8
+outer.top = 8
+outer.right = 8
+
 # Blender's main window is titled "<file> - Blender <version>"; Preferences and File View float with the rest.
-# It gets workspace "Blender" to itself, which acts as its full screen: switching to any other app shows workspace 1
-# (where everything else floats), switching back to Blender shows it again.
+# It gets workspace "Blender" to itself, which acts as its full screen.
 [[on-window-detected]]
 if.app-id = 'org.blenderfoundation.blender'
 if.window-title-regex-substring = ' - Blender \d'
@@ -20,10 +40,67 @@ run = ['layout tiling', 'move-node-to-workspace --focus-follows-window Blender']
 if = 'test %{app-bundle-id} = com.mitchellh.ghostty && test %{workspace} = Blender'
 run = 'layout tiling'
 
-# Every other Ghostty window tiles on its own workspace, "Ghostty". AeroSpace follows macOS focus there by itself.
+# Every other Ghostty window tiles on its own workspace, "Ghostty". AeroSpace follows macOS focus there by itself,
+# as it does for the workspaces below.
 [[on-window-detected]]
 if = 'test %{app-bundle-id} = com.mitchellh.ghostty'
 run = ['layout tiling', 'move-node-to-workspace Ghostty']
+
+# Houdini's main window only, as with Blender ("<file>.hip - Houdini <edition> <version>"); floating panes stay floating.
+# ponytail: title pattern unverified (no Houdini on the Mac this was written on); check it on first launch.
+[[on-window-detected]]
+if.app-name-regex-substring = '^Houdini'
+if.window-title-regex-substring = ' - Houdini \w+ \d'
+run = ['layout tiling', 'move-node-to-workspace Houdini']
+
+# Loadout's main window ("Loadout"), not its tray popup ("Loadout Tray"). Its max width would leave it tiled against the
+# left edge, so it floats, centered at full height by center.js. Focus follows so the workspace is showing when
+# center.js moves it: AeroSpace puts a window on a hidden workspace back where it was when that workspace reappears.
+[[on-window-detected]]
+if = 'test %{app-bundle-id} = dev.alx.loadout && test %{window-title} = Loadout'
+run = ['layout floating', 'move-node-to-workspace --focus-follows-window Loadout',
+       'exec-and-forget osascript -l JavaScript ~/.config/aerospace/center.js dev.alx.loadout Loadout']
+
+# Digest has a max width too: same treatment as Loadout.
+[[on-window-detected]]
+if.app-id = 'dev.alx.Digest'
+run = ['layout floating', 'move-node-to-workspace --focus-follows-window Digest',
+       'exec-and-forget osascript -l JavaScript ~/.config/aerospace/center.js dev.alx.Digest']
+
+# One workspace per app. Every window of the app tiles there, so a second window (a compose window, Get Info) splits it.
+[[on-window-detected]]
+if.app-id = 'app.zen-browser.zen'
+run = ['layout tiling', 'move-node-to-workspace Zen']
+
+[[on-window-detected]]
+if.app-id = 'com.apple.mail'
+run = ['layout tiling', 'move-node-to-workspace Mail']
+
+# Messages reads best narrow, so it gets Digest's width, centered the same way.
+[[on-window-detected]]
+if.app-id = 'com.apple.MobileSMS'
+run = ['layout floating', 'move-node-to-workspace --focus-follows-window Messages',
+       'exec-and-forget osascript -l JavaScript ~/.config/aerospace/center.js com.apple.MobileSMS 760']
+
+[[on-window-detected]]
+if.app-id = 'com.apple.iCal'
+run = ['layout tiling', 'move-node-to-workspace Calendar']
+
+[[on-window-detected]]
+if.app-id = 'dev.alx.Agenda'
+run = ['layout tiling', 'move-node-to-workspace Agenda']
+
+[[on-window-detected]]
+if.app-id = 'com.openai.codex'
+run = ['layout tiling', 'move-node-to-workspace ChatGPT']
+
+[[on-window-detected]]
+if.app-id = 'com.anthropic.claudefordesktop'
+run = ['layout tiling', 'move-node-to-workspace Claude']
+
+[[on-window-detected]]
+if.app-id = 'com.apple.finder'
+run = ['layout tiling', 'move-node-to-workspace Finder']
 
 [[on-window-detected]]
 if = 'true'

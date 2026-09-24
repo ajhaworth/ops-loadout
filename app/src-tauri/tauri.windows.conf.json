@@ -18,7 +18,7 @@
       {
         "label": "quick",
         "url": "http://loadout.localhost/quick.html",
-        "title": "Loadout",
+        "title": "Loadout Tray",
         "width": 340,
         "height": 400,
         "visible": false,
