@@ -315,7 +315,7 @@ replace it rather than `rm -rf`-ing someone else's app.
   like a full-screen Space: Blender and Houdini (main window only, by title
   ` - Blender <digit>` / ` - Houdini <edition> <digit>`; the Houdini pattern is
   unverified), Ghostty, Zen, Mail, Messages, Calendar, Agenda, Digest, ChatGPT, Claude,
-  Slack, Safari, Fork, Finder and
+  Slack, Safari, Obsidian, Pulse, Spotify, Fork, Finder and
   Loadout. Everything else floats. Opening or clicking an app switches to its
   workspace because AeroSpace follows macOS focus, so rules need no
   `--focus-follows-window`. Every window of a matched app tiles, so a second one

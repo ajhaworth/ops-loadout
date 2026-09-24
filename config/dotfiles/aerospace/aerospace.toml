@@ -1,7 +1,7 @@
 # AeroSpace gives each everyday app its own workspace, where its windows tile to fill the screen like a macOS full-screen
 # Space: Blender (plus the Claude Code Ghostty its Loadout tab opens, see
 # config/dcc/blender/portable/scripts/startup/dcc_claude.py), Houdini, Ghostty, Zen, Mail, Messages, Calendar, Agenda,
-# Digest, ChatGPT, Claude, Slack, Safari, Fork, Finder and Loadout. Opening or clicking an app switches to its workspace. Every other window floats.
+# Digest, ChatGPT, Claude, Slack, Safari, Obsidian, Pulse, Spotify, Fork, Finder and Loadout. Opening or clicking an app switches to its workspace. Every other window floats.
 # No key bindings: AeroSpace's sample Option chords would take keys Blender's keymap uses.
 config-version = 2
 start-at-login = true
@@ -105,6 +105,18 @@ run = ['layout tiling', 'move-node-to-workspace Slack']
 [[on-window-detected]]
 if.app-id = 'com.apple.Safari'
 run = ['layout tiling', 'move-node-to-workspace Safari']
+
+[[on-window-detected]]
+if.app-id = 'md.obsidian'
+run = ['layout tiling', 'move-node-to-workspace Obsidian']
+
+[[on-window-detected]]
+if.app-id = 'dev.alx.Pulse'
+run = ['layout tiling', 'move-node-to-workspace Pulse']
+
+[[on-window-detected]]
+if.app-id = 'com.spotify.client'
+run = ['layout tiling', 'move-node-to-workspace Spotify']
 
 [[on-window-detected]]
 if.app-id = 'com.DanPristupov.Fork'
