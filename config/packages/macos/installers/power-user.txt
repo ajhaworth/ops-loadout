@@ -3,3 +3,4 @@
 # token | display-name | homepage
 
 swish | Swish | https://highlyopinionated.co/swish/
+vorssaint | Vorssaint | https://github.com/vorssaint/vorssaint-utils
