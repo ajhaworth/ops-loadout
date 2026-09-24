@@ -943,6 +943,14 @@ listen("install-done", async ({ payload }) => {
 
 addEventListener("click", hideMenu);
 addEventListener("keydown", (e) => e.key === "Escape" && hideMenu());
+// A borderless window has no close button, so the menu's Close Window
+// (performClose:) is a no-op; close from here, which the backend turns into hide.
+addEventListener("keydown", (e) => {
+  if (e.metaKey && e.key === "w") {
+    e.preventDefault();
+    window.__TAURI__.window.getCurrentWindow().close();
+  }
+});
 sectionsEl.addEventListener("scroll", hideMenu);
 // Nothing here wants the webview's own context menu.
 // Text fields keep the native menu so a secret can be right-click pasted.
