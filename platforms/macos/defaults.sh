@@ -29,11 +29,14 @@ setup_defaults() {
 
     local defaults_dir="$SCRIPT_DIR/platforms/macos/defaults"
 
-    # Close System Settings/Preferences to prevent overriding changes
-    # Note: Renamed from "System Preferences" to "System Settings" in macOS Ventura (13+)
+    # Close System Settings to prevent overriding changes. Only when it is
+    # running, and no "System Preferences" fallback: quit often exits non-zero
+    # because the app is gone before it replies, and the fallback then messaged
+    # the dead app, popping "System Settings is not open anymore".
     if [[ "$status_mode" != "true" ]] && [[ "$single_item" != "true" ]] && ! is_dry_run; then
-        osascript -e 'tell application "System Settings" to quit' 2>/dev/null || \
-        osascript -e 'tell application "System Preferences" to quit' 2>/dev/null || true
+        if pgrep -xq "System Settings"; then
+            osascript -e 'quit app "System Settings"' >/dev/null 2>&1 || true
+        fi
     fi
 
     TASK_CHANGED=0
