@@ -121,9 +121,30 @@ fn find_app(store: &Store, id: &str) -> Option<App> {
 }
 
 #[tauri::command]
-async fn launch(handle: AppHandle, store: State<'_, Store>, id: String) -> Result<(), String> {
-    let app = find_app(&store, &id).ok_or("unknown app")?;
+async fn launch(
+    handle: AppHandle,
+    store: State<'_, Store>,
+    id: String,
+    target: Option<String>,
+) -> Result<(), String> {
+    let mut app = find_app(&store, &id).ok_or("unknown app")?;
+    if let Some(target) = target {
+        let repo = repo_of(&handle, &store).ok_or("no ops-loadout repo found")?;
+        if !platform::launch_targets(&app, &repo, &resource_dir(&handle)).contains(&target) {
+            return Err("unknown launch target".into());
+        }
+        app.target = Some(target);
+    }
     platform::launch(&app, &resource_dir(&handle))
+}
+
+/// The alternate builds an installer app can open (currently only multiple
+/// Houdini versions on macOS) - see `launch`'s `target` argument.
+#[tauri::command]
+async fn launch_targets(handle: AppHandle, store: State<'_, Store>, id: String) -> Result<Vec<String>, String> {
+    let app = find_app(&store, &id).ok_or("unknown app")?;
+    let repo = repo_of(&handle, &store).ok_or("no ops-loadout repo found")?;
+    Ok(platform::launch_targets(&app, &repo, &resource_dir(&handle)))
 }
 
 #[tauri::command]
@@ -459,6 +480,7 @@ fn main() {
             list_apps,
             refresh,
             launch,
+            launch_targets,
             install,
             uninstall,
             update,

@@ -1,15 +1,24 @@
 #!/usr/bin/env bash
-# Houdini installer: status | install | update | reinstall | uninstall
-# Uses the SideFX Web API to resolve the latest production daily build.
+# Houdini installer: status | versions | install | update | reinstall | uninstall | config
+# Uses the SideFX Web API to resolve the latest production daily build, and
+# also installs/updates SideFX Labs per Houdini X.Y (folded in from the old
+# sidefxlabs.sh, since Labs is just another Houdini package tied to a build).
 
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 
 REPO="$(cd "$(dirname "$0")/../../.." && pwd)"
 CREDS="${SIDEFX_CREDENTIALS:-$REPO/config/sidefx.local}"
-HOUDINI_DIR="/Applications/Houdini"
+HOUDINI_DIR="${HOUDINI_DIR:-/Applications/Houdini}"
 API="https://www.sidefx.com/api/"
 TOKEN_URL="https://www.sidefx.com/oauth2/application_token"
+
+# HOUDINI_LICENSE (apprentice|indie|server), HOUDINI_LICENSE_SERVER and
+# HOUDINI_VERSION (a major.minor pin) live alongside the SideFX API
+# credentials in the same file; every verb needs to see them, not just
+# install, so source it once up front.
+# shellcheck disable=SC1090
+[[ -f "$CREDS" ]] && source "$CREDS"
 
 case "$(uname -m)" in
     arm64) PLATFORM="macosx_arm64" ;;
@@ -18,21 +27,43 @@ esac
 
 # --- installed state (network-free) ----------------------------------------
 
+# Newest installed build dir, or the newest build matching the HOUDINI_VERSION
+# major.minor pin when one is set.
 installed_dir() {
-    local d
-    d="$(printf '%s\n' "$HOUDINI_DIR"/Houdini[0-9]* | sort -V | tail -1)"
+    local d pin="${HOUDINI_VERSION:-}"
+    if [[ -n "$pin" ]]; then
+        d="$(printf '%s\n' "$HOUDINI_DIR"/Houdini"$pin".* | sort -V | tail -1)"
+    else
+        d="$(printf '%s\n' "$HOUDINI_DIR"/Houdini[0-9]* | sort -V | tail -1)"
+    fi
     [[ -d "$d" ]] || return 1
     printf '%s\n' "$d"
 }
 
+# ponytail: the Indie/Core bundle names below are guessed from SideFX's
+# Apprentice/FX naming and unverified against a real install; correct them
+# once confirmed.
 installed_app() {
-    local a
-    for a in "$1"/"Houdini Apprentice"*.app "$1"/"Houdini FX"*.app; do
-        if [[ -d "$a" ]]; then
-            printf '%s\n' "$a"
-            return 0
-        fi
-    done
+    local dir="$1" a
+    case "${HOUDINI_LICENSE:-apprentice}" in
+        indie)
+            for a in "$dir"/"Houdini Indie"*.app "$dir"/"Houdini FX"*.app \
+                     "$dir"/"Houdini Apprentice"*.app; do
+                [[ -d "$a" ]] && { printf '%s\n' "$a"; return 0; }
+            done
+            ;;
+        server)
+            for a in "$dir"/"Houdini FX"*.app "$dir"/"Houdini Core"*.app \
+                     "$dir"/"Houdini Apprentice"*.app; do
+                [[ -d "$a" ]] && { printf '%s\n' "$a"; return 0; }
+            done
+            ;;
+        *)
+            for a in "$dir"/"Houdini Apprentice"*.app "$dir"/"Houdini FX"*.app; do
+                [[ -d "$a" ]] && { printf '%s\n' "$a"; return 0; }
+            done
+            ;;
+    esac
     return 1
 }
 
@@ -44,32 +75,41 @@ do_status() {
     apply_config check >/dev/null 2>&1 || echo outdated
 }
 
-# --- config: repo dir on HOUDINI_PATH, desktop set to ALX ------------------
+# One edition .app path per installed build, newest first. Loadout lists one
+# Open row per build. Offline, like status.
+do_versions() {
+    local dir app found=1
+    while IFS= read -r dir; do
+        [[ -d "$dir" ]] || continue
+        app="$(installed_app "$dir")" || continue
+        printf '%s\n' "$app"
+        found=0
+    done < <(printf '%s\n' "$HOUDINI_DIR"/Houdini[0-9]* | sort -Vr)
+    return $found
+}
 
-# Resolves X.Y the same way sidefxlabs.sh's require_houdini does, but from
-# our own installed_dir/installed_app rather than shelling to this script.
-# `apply_config check` writes nothing and fails when either setting is not applied.
-apply_config() {
-    local check="${1:-}" dir app full xy prefs pkgdir pref_file json desk
+# --- config: repo dir on HOUDINI_PATH, desktop set to ALX, SideFX Labs -----
 
-    dir="$(installed_dir)" || return 1
-    app="$(installed_app "$dir")" || return 1
-    full="$(sed -n 's|.*/Houdini\([0-9][0-9.]*\)/.*|\1|p' <<<"$app")"
-    [[ -n "$full" ]] || {
-        echo "Could not read the Houdini version from: $app" >&2
-        return 1
-    }
-    xy="${full%.*}"
-
-    prefs="$HOME/Library/Preferences/houdini/$xy"
-    pkgdir="$prefs/packages"
-    pref_file="$prefs/houdini.pref"
+# Applies loadout.json + desk pref + SideFX Labs for one Houdini X.Y.
+# action="check": writes nothing, fails when anything doesn't match (also
+# used by do_status's "outdated" line). Any other action performs the writes
+# and installs/updates Labs for that X.Y, passing the action through.
+apply_config_xy() {
+    local action="$1" xy="$2"
+    local prefs="$HOME/Library/Preferences/houdini/$xy"
+    local pkgdir="$prefs/packages"
+    local pref_file="$prefs/houdini.pref"
+    local json desk
     json="$(printf '{"path": "%s"}' "$REPO/config/dcc/houdini")"
     desk='general.desk.val := "ALX";'
-    if [[ "$check" == check ]]; then
-        [[ "$(cat "$pkgdir/loadout.json" 2>/dev/null)" == "$json" ]] && grep -qxF "$desk" "$pref_file" 2>/dev/null
+
+    if [[ "$action" == check ]]; then
+        [[ "$(cat "$pkgdir/loadout.json" 2>/dev/null)" == "$json" ]] \
+            && grep -qxF "$desk" "$pref_file" 2>/dev/null \
+            && [[ -d "$pkgdir/SideFXLabs$xy" && -f "$pkgdir/SideFXLabs$xy.json" ]]
         return
     fi
+
     mkdir -p "$pkgdir"
     printf '%s\n' "$json" > "$pkgdir/loadout.json"
     echo "==> Wrote $pkgdir/loadout.json (HOUDINI_PATH -> $REPO/config/dcc/houdini)"
@@ -80,16 +120,45 @@ apply_config() {
     else
         printf '%s\n' "$desk" >> "$pref_file"
     fi
-    echo "==> Set general.desk.val := \"ALX\" in $pref_file"
+    echo "==> Set general.desk.val := \"ALX\" in $pref_file for Houdini $xy"
+
+    install_labs "$xy" "$action" || true
+}
+
+# Applies config to every installed Houdini build's X.Y (deduped), then
+# points hserver at the license server for the status build. `apply_config
+# check` targets only the status build (installed_dir) and writes nothing.
+apply_config() {
+    local action="${1:-config}"
+
+    if [[ "$action" == check ]]; then
+        local dir xy
+        dir="$(installed_dir)" || return 1
+        installed_app "$dir" >/dev/null || return 1
+        xy="${dir##*/Houdini}"; xy="${xy%.*}"
+        apply_config_xy check "$xy"
+        return
+    fi
+
+    local dir version xy seen=() any=1
+    while IFS= read -r dir; do
+        [[ -d "$dir" ]] || continue
+        installed_app "$dir" >/dev/null 2>&1 || continue
+        version="${dir##*/Houdini}"
+        xy="${version%.*}"
+        case " ${seen[*]-} " in *" $xy "*) continue ;; esac
+        seen+=("$xy")
+        apply_config_xy "$action" "$xy"
+        any=0
+    done < <(printf '%s\n' "$HOUDINI_DIR"/Houdini[0-9]* | sort -V)
+
+    apply_license || echo "Houdini license not applied; see above" >&2
+    return $any
 }
 
 # --- SideFX API ------------------------------------------------------------
 
 load_credentials() {
-    if [[ -f "$CREDS" ]]; then
-        # shellcheck disable=SC1090
-        source "$CREDS"
-    fi
     [[ -n "${SIDEFX_CLIENT_ID:-}" && -n "${SIDEFX_CLIENT_SECRET:-}" ]] && return 0
 
     cat <<'MSG'
@@ -113,16 +182,118 @@ get_token() {
     }
 }
 
+# --- SideFX Labs (folded in from the old sidefxlabs.sh) --------------------
+
+LABS_RELEASES="https://api.github.com/repos/sideeffects/SideFXLabs/releases?per_page=100"
+LABS_ZIPBALL="https://api.github.com/repos/sideeffects/SideFXLabs/zipball"
+
+labs_latest_tag() {
+    local xy="$1" tag
+    tag="$(curl -fsS "$LABS_RELEASES" | jq -r --arg xy "$xy." '
+        [ .[].tag_name
+          | select(startswith($xy))
+          | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$")) ]
+        | max_by(split(".")[2] | tonumber) // empty')"
+    [[ -n "$tag" ]] || return 1
+    printf '%s\n' "$tag"
+}
+
+# Installs/updates SideFX Labs for one Houdini X.Y. Never fails the run: a
+# missing release for a new X.Y or a network error is a warning, since Labs
+# failing must not sink the rest of `config`.
+install_labs() {
+    local xy="$1" action="$2"
+    local pkgdir="$HOME/Library/Preferences/houdini/$xy/packages"
+    local dir="$pkgdir/SideFXLabs$xy"
+    local json="$pkgdir/SideFXLabs$xy.json"
+    local tagfile="$dir/.ops-tag"
+    local tag current src
+
+    tag="$(labs_latest_tag "$xy")" || {
+        echo "==> No SideFX Labs release for Houdini $xy yet; skipping" >&2
+        return 0
+    }
+
+    if [[ -f "$tagfile" ]]; then
+        current="$(cat "$tagfile")"
+        [[ "$action" != reinstall && "$current" == "$tag" ]] && return 0
+    fi
+
+    echo "==> Installing SideFX Labs $tag for Houdini $xy"
+    LABS_TMP="$(mktemp -d)"
+    if ! curl -fsSL -o "$LABS_TMP/labs.zip" "$LABS_ZIPBALL/$tag" \
+        || ! unzip -q "$LABS_TMP/labs.zip" -d "$LABS_TMP"; then
+        echo "    could not download SideFX Labs $tag; skipping" >&2
+        rm -rf "$LABS_TMP"; LABS_TMP=""
+        return 0
+    fi
+
+    # The zipball holds a single top-level sideeffects-SideFXLabs-<sha> dir.
+    src="$(printf '%s\n' "$LABS_TMP"/sideeffects-SideFXLabs-* | head -1)"
+    if [[ ! -d "$src" ]]; then
+        echo "    unexpected SideFX Labs zipball layout; skipping" >&2
+        rm -rf "$LABS_TMP"; LABS_TMP=""
+        return 0
+    fi
+
+    mkdir -p "$pkgdir"
+    rm -rf "$dir"
+    mv "$src" "$dir"
+    jq --arg p "\$HOUDINI_PACKAGE_PATH/SideFXLabs$xy" \
+        '.env = [{"SIDEFXLABS": $p}]' "$dir/SideFXLabs.json" > "$json.tmp" && mv "$json.tmp" "$json"
+    printf '%s\n' "$tag" > "$tagfile"
+    rm -rf "$LABS_TMP"; LABS_TMP=""
+    echo "    SideFX Labs $tag installed for Houdini $xy"
+}
+
+# --- license -----------------------------------------------------------
+
+# ponytail: switching away from server mode does not clear hserver's server
+# list; clear it by hand in License Administrator, or add an `hserver` clear
+# call here once verified against a real install. License is deliberately
+# not part of `apply_config check` - querying hserver can start the
+# licensing daemon, and check must stay offline and side-effect-free.
+apply_license() {
+    local mode="${HOUDINI_LICENSE:-apprentice}" dir full hserver
+    dir="$(installed_dir)" || return 0
+    full="${dir##*/Houdini}"
+    hserver="/Library/Frameworks/Houdini.framework/Versions/$full/Resources/bin/hserver"
+    [[ -x "$hserver" ]] || {
+        echo "==> hserver not found for Houdini $full; skipping license step" >&2
+        return 0
+    }
+
+    case "$mode" in
+        server)
+            if [[ -z "${HOUDINI_LICENSE_SERVER:-}" ]]; then
+                echo "HOUDINI_LICENSE_SERVER is not set; cannot configure a license server." >&2
+                return 1
+            fi
+            "$hserver" -S "$HOUDINI_LICENSE_SERVER"
+            echo "License: server -> $HOUDINI_LICENSE_SERVER"
+            ;;
+        indie)
+            echo "License: indie - activate/log in via License Administrator"
+            ;;
+        *)
+            echo "License: apprentice - activate/log in via License Administrator"
+            ;;
+    esac
+}
+
 # --- install ---------------------------------------------------------------
 
 MOUNT=""
 TMP=""
+LABS_TMP=""
 
 cleanup() {
     dmg_detach "$MOUNT"
     [[ -n "$TMP" ]] && rm -rf "$TMP"
+    [[ -n "$LABS_TMP" ]] && rm -rf "$LABS_TMP"
     return 0
 }
+trap cleanup EXIT
 
 do_install() {
     local action="$1"
@@ -130,16 +301,20 @@ do_install() {
 
     load_credentials
 
-    echo "==> Resolving latest production build"
+    echo "==> Resolving latest production build${HOUDINI_VERSION:+ ($HOUDINI_VERSION)}"
     get_token
     latest="$(api_call '["download.get_daily_builds_list", ["houdini"], {"platform":"'"$PLATFORM"'","only_production":true}]' \
-        | jq -r '[.[] | select(.status == "good")]
+        | jq -r --arg pin "${HOUDINI_VERSION:-}" '[.[] | select(.status == "good") | select($pin == "" or .version == $pin)]
                  | max_by((.version | split(".") | map(tonumber)) + [(.build | tonumber)])
                  | "\(.version) \(.build)"')"
-    [[ -n "$latest" && "$latest" != "null null" ]] || {
-        echo "No good production build found for $PLATFORM." >&2
+    if [[ -z "$latest" || "$latest" == "null null" ]]; then
+        if [[ -n "${HOUDINI_VERSION:-}" ]]; then
+            echo "No production build of Houdini $HOUDINI_VERSION for $PLATFORM." >&2
+        else
+            echo "No good production build found for $PLATFORM." >&2
+        fi
         return 1
-    }
+    fi
     read -r version build <<<"$latest"
     echo "    latest: $version.$build ($PLATFORM)"
 
@@ -148,13 +323,12 @@ do_install() {
         echo "    installed: $current"
         if [[ "$action" != "reinstall" && "$current" == "$version.$build" ]]; then
             echo "Houdini $current is already the latest production build."
-            apply_config || echo "Houdini config not applied; see above" >&2
+            apply_config "$action" || echo "Houdini config not applied; see above" >&2
             return 0
         fi
     fi
 
     TMP="$(mktemp -d)"
-    trap cleanup EXIT
 
     local info
     info="$(api_call '["download.get_daily_build_download", ["houdini", "'"$version"'", "'"$build"'", "'"$PLATFORM"'"], {}]')"
@@ -196,20 +370,39 @@ do_install() {
     MOUNT=""
 
     echo "Houdini $version.$build installed."
-    echo "Licensing: open \"Houdini Apprentice\", then in License Administrator choose \"Activate Apprentice\" (SideFX login optional; renews every 30 days)."
-    apply_config || echo "Houdini config not applied; see above" >&2
+    case "${HOUDINI_LICENSE:-apprentice}" in
+        server)
+            echo "Licensing: server mode - config will point hserver at HOUDINI_LICENSE_SERVER."
+            ;;
+        indie)
+            echo "Licensing: open \"Houdini Indie\", then in License Administrator log in with your SideFX account (Indie license)."
+            ;;
+        *)
+            echo "Licensing: open \"Houdini Apprentice\", then in License Administrator choose \"Activate Apprentice\" (SideFX login optional; renews every 30 days)."
+            ;;
+    esac
+    apply_config "$action" || echo "Houdini config not applied; see above" >&2
     [[ -n "${SUDO_ASKPASS:-}" ]] && license_dialog "$(installed_app "$HOUDINI_DIR/Houdini$version.$build")"
     return 0
 }
 
-# Apprentice licensing cannot be scripted, so explain it and offer to open Houdini.
+# Apprentice/Indie licensing cannot be scripted, so explain it and offer to
+# open Houdini. Server mode has nothing to click through, so no dialog.
 license_dialog() {
-    local app="$1"
-    osascript - "$app" <<'EOF' >/dev/null 2>&1 || true
+    local app="$1" mode="${HOUDINI_LICENSE:-apprentice}"
+    [[ "$mode" == server ]] && return 0
+
+    local msg
+    if [[ "$mode" == indie ]]; then
+        msg=$'Houdini is installed. It still needs an Indie license, which only Houdini itself can activate:\n\n1. Open Houdini Indie (button below).\n2. If it asks for a license, click Use License Administrator; otherwise open Utilities > License Administrator.\n3. Log in with your SideFX account (Indie license).'
+    else
+        msg=$'Houdini is installed. It still needs the free Apprentice license, which only Houdini itself can activate:\n\n1. Open Houdini Apprentice (button below).\n2. If it asks for a license, click Use License Administrator; otherwise open Utilities > License Administrator.\n3. In the top-right menu, or under General, click Activate Apprentice. Logging in to SideFX is optional.\n4. Repeat step 3 every 30 days when Houdini asks again.'
+    fi
+
+    osascript - "$app" "$msg" <<'EOF' >/dev/null 2>&1 || true
 on run argv
-set msg to "Houdini is installed. It still needs the free Apprentice license, which only Houdini itself can activate:" & return & return & "1. Open Houdini Apprentice (button below)." & return & "2. If it asks for a license, click Use License Administrator; otherwise open Utilities > License Administrator." & return & "3. In the top-right menu, or under General, click Activate Apprentice. Logging in to SideFX is optional." & return & "4. Repeat step 3 every 30 days when Houdini asks again." & return & return & "SideFX Labs can be installed from its own tile once this is done."
-set r to display dialog msg with title "Loadout" buttons {"Later", "Open Houdini Apprentice"} default button "Open Houdini Apprentice"
-if button returned of r is "Open Houdini Apprentice" then do shell script "open -a " & quoted form of (item 1 of argv)
+set r to display dialog (item 2 of argv) with title "Loadout" buttons {"Later", "Open Houdini"} default button "Open Houdini"
+if button returned of r is "Open Houdini" then do shell script "open -a " & quoted form of (item 1 of argv)
 end run
 EOF
 }
@@ -217,22 +410,34 @@ EOF
 # ponytail: older Houdini versions are left in place on update; delete them by hand.
 
 do_uninstall() {
-    local dir version app full xy loadout_json
+    local dir version xy other d loadout_json labs_dir labs_json
     if ! dir="$(installed_dir)"; then
         echo "Houdini is not installed."
         return 1
     fi
     version="${dir##*/Houdini}"
+    xy="${version%.*}"
 
-    if app="$(installed_app "$dir")"; then
-        full="$(sed -n 's|.*/Houdini\([0-9][0-9.]*\)/.*|\1|p' <<<"$app")"
-        if [[ -n "$full" ]]; then
-            xy="${full%.*}"
-            loadout_json="$HOME/Library/Preferences/houdini/$xy/packages/loadout.json"
-            if [[ -f "$loadout_json" ]]; then
-                rm -f "$loadout_json"
-                echo "Removed $loadout_json"
-            fi
+    # Only drop this X.Y's shared config/Labs when no other installed build
+    # (e.g. a pinned older version) still shares it.
+    other=0
+    for d in "$HOUDINI_DIR"/Houdini"$xy".*; do
+        [[ -d "$d" && "$d" != "$dir" ]] && other=1
+    done
+
+    if [[ "$other" -eq 0 ]]; then
+        loadout_json="$HOME/Library/Preferences/houdini/$xy/packages/loadout.json"
+        if [[ -f "$loadout_json" ]]; then
+            rm -f "$loadout_json"
+            echo "Removed $loadout_json"
+        fi
+
+        labs_dir="$HOME/Library/Preferences/houdini/$xy/packages/SideFXLabs$xy"
+        labs_json="$HOME/Library/Preferences/houdini/$xy/packages/SideFXLabs$xy.json"
+        if [[ -d "$labs_dir" || -f "$labs_json" ]]; then
+            rm -rf "$labs_dir" "$labs_json"
+            echo "Removed $labs_dir"
+            echo "Removed $labs_json"
         fi
     fi
 
@@ -245,11 +450,12 @@ do_uninstall() {
 
 case "${1:-status}" in
     status)                    do_status ;;
+    versions)                  do_versions ;;
     install|update|reinstall)  do_install "$1" ;;
     uninstall)                 do_uninstall ;;
-    config)                    apply_config ;;
+    config|configure)          apply_config ;;
     *)
-        echo "usage: $(basename "$0") <status|install|update|reinstall|uninstall|config>" >&2
+        echo "usage: $(basename "$0") <status|versions|install|update|reinstall|uninstall|config>" >&2
         exit 2
         ;;
 esac

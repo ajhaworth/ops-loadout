@@ -551,6 +551,26 @@ pub fn launch(app: &App, _resources: &Path) -> Result<(), String> {
     run(Command::new("open").arg("-a").arg(target), "open -a")
 }
 
+/// `<token>.sh versions`: one installed build path per line, newest first.
+/// Empty when the script has no `versions` verb, finds nothing, or fails.
+pub fn launch_targets(app: &App, repo: &Path, _resources: &Path) -> Vec<String> {
+    if app.kind != "installer" {
+        return Vec::new();
+    }
+    let Ok(out) = Command::new(installer_script(repo, &app.token)).arg("versions").output() else {
+        return Vec::new();
+    };
+    if !out.status.success() {
+        return Vec::new();
+    }
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
 fn brew_env() -> Vec<(String, String)> {
     // HOMEBREW_NO_COLOR, not HOMEBREW_COLOR=0: brew reads HOMEBREW_COLOR by
     // presence, so setting it to "0" forces colour on and fills the log drawer

@@ -228,22 +228,36 @@ can answer it.
 
 `houdini.sh` resolves the latest production build through the SideFX download
 API, which needs `config/sidefx.local` (`SIDEFX_CLIENT_ID`,
-`SIDEFX_CLIENT_SECRET`; gitignored via `*.local`). Loadout's Settings
-dialog writes that file (`get_settings`/`set_settings` in `settings.rs`); the
-script only reads it and points at Settings when it is missing. The dmg holds
-`Houdini.pkg`, installed with `installer -pkg ... -target /`. The Apprentice
-license cannot be scripted: a post-install dialog explains the License
-Administrator -> "Activate Apprentice" step and offers to open Houdini; no
-account is required. That dialog is shown only when `SUDO_ASKPASS` is set,
-which Loadout alone does, so it doubles as "a GUI is present".
+`SIDEFX_CLIENT_SECRET`; gitignored via `*.local`). The same file carries
+`HOUDINI_LICENSE` (apprentice|indie|server, default apprentice),
+`HOUDINI_LICENSE_SERVER` and a `HOUDINI_VERSION` major.minor pin - all written
+by Loadout's Settings dialog (`get_settings`/`set_settings` in `settings.rs`);
+the script only reads it and points at Settings when the API credentials are
+missing. `installed_app` picks the edition by `HOUDINI_LICENSE` (Apprentice,
+Indie, or FX/Core for server, falling back to Apprentice/FX so something
+launches), and `installed_dir` picks the newest build matching the
+`HOUDINI_VERSION` pin when one is set. A `versions` verb lists one edition
+`.app` path per installed build, newest first, so Loadout can show a per-build
+Open row when a pinned build coexists with a newer one. The dmg holds
+`Houdini.pkg`, installed with `installer -pkg ... -target /`. Apprentice/Indie
+licensing cannot be scripted: a post-install dialog (text depends on
+`HOUDINI_LICENSE`) explains the License Administrator step and offers to open
+Houdini; server mode instead points `hserver` at `HOUDINI_LICENSE_SERVER`
+directly, with no dialog. That dialog is shown only when `SUDO_ASKPASS` is
+set, which Loadout alone does, so it doubles as "a GUI is present".
 `status` may print a second line, `outdated`, when the app's applied config has
 drifted from the repo (Blender: `setup.py`/`extensions.txt` hash vs the
 gitignored `config/dcc/blender/.configured` stamp written by a clean setup;
 Houdini: `apply_config check`). There is no version check, so a newer release
-is not flagged; Update installs the latest and reapplies config either way.
-`sidefxlabs.sh` takes Labs from GitHub releases (tags match Houdini
-`X.Y.ZZZ`) into `~/Library/Preferences/houdini/<X.Y>/packages/`
-and records the tag in `.ops-tag` for its own already-current check.
+is not flagged unless pinned; Update installs the latest (or pinned) build and
+reapplies config either way. `apply_config` (the `config` verb, and what
+install/update call) applies to every installed build's X.Y, not just the
+pinned/status one. SideFX Labs installs from `houdini.sh` itself, one release
+per Houdini X.Y (tags match Houdini `X.Y.ZZZ`) into
+`~/Library/Preferences/houdini/<X.Y>/packages/`, recording the tag in
+`.ops-tag` for its own already-current check - folded in from the standalone
+`sidefxlabs.sh`, since Labs rides along with every installed Houdini X.Y
+rather than being its own tile.
 
 ### DCC Configs (`config/dcc/`)
 

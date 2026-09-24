@@ -270,8 +270,9 @@ pub(crate) fn list_profiles(repo: &Path) -> Vec<String> {
     names
 }
 
-/// The SideFX credentials `platforms/macos/installers/houdini.sh` reads, plus
-/// the saved profile and the profiles available for this platform.
+/// The SideFX credentials and Houdini options
+/// `platforms/macos/installers/houdini.sh` reads, plus the saved profile and
+/// the profiles available for this platform.
 /// Missing file or missing key reads as empty, so the dialog just opens blank.
 #[tauri::command]
 pub(crate) async fn get_settings(
@@ -290,6 +291,9 @@ pub(crate) async fn get_settings(
     Ok(serde_json::json!({
         "sidefx_client_id": value("SIDEFX_CLIENT_ID"),
         "sidefx_client_secret": value("SIDEFX_CLIENT_SECRET"),
+        "houdini_license": value("HOUDINI_LICENSE"),
+        "houdini_license_server": value("HOUDINI_LICENSE_SERVER"),
+        "houdini_version": value("HOUDINI_VERSION"),
         "profile": saved_profile(&handle).unwrap_or_default(),
         "profiles": list_profiles(&repo),
     }))
@@ -301,6 +305,9 @@ pub(crate) async fn set_settings(
     store: State<'_, Store>,
     sidefx_client_id: String,
     sidefx_client_secret: String,
+    houdini_license: String,
+    houdini_license_server: String,
+    houdini_version: String,
     profile: String,
 ) -> Result<(), String> {
     let mut config = read_config(&handle);
@@ -310,13 +317,20 @@ pub(crate) async fn set_settings(
     let path = settings_file(&handle, &store)?;
     let id = sidefx_client_id.trim();
     let secret = sidefx_client_secret.trim();
+    let license = houdini_license.trim();
+    let server = houdini_license_server.trim();
+    let version = houdini_version.trim();
+    if !matches!(license, "" | "apprentice" | "indie" | "server") {
+        return Err("invalid Houdini license".into());
+    }
     // The file is sourced by bash. Single quotes expand nothing, so only the
-    // quote itself and a newline could break out of the value.
-    if [id, secret].iter().any(|v| v.contains('\'') || v.contains('\n')) {
-        return Err("credentials cannot contain a single quote or a newline".into());
+    // quote itself and a newline could break out of a value.
+    let values = [id, secret, license, server, version];
+    if values.iter().any(|v| v.contains('\'') || v.contains('\n')) {
+        return Err("settings cannot contain a single quote or a newline".into());
     }
 
-    if id.is_empty() && secret.is_empty() {
+    if values.iter().all(|v| v.is_empty()) {
         return match std::fs::remove_file(&path) {
             Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
             _ => Ok(()),
@@ -324,9 +338,13 @@ pub(crate) async fn set_settings(
     }
 
     let body = format!(
-        "# SideFX web API credentials for platforms/macos/installers/houdini.sh (gitignored)\n\
+        "# SideFX web API credentials and Houdini options for \
+         platforms/macos/installers/houdini.sh (gitignored)\n\
          SIDEFX_CLIENT_ID='{id}'\n\
-         SIDEFX_CLIENT_SECRET='{secret}'\n"
+         SIDEFX_CLIENT_SECRET='{secret}'\n\
+         HOUDINI_LICENSE='{license}'\n\
+         HOUDINI_LICENSE_SERVER='{server}'\n\
+         HOUDINI_VERSION='{version}'\n"
     );
     // Created 0600, never briefly world-readable; an existing file keeps its
     // own mode, so narrow that one too.

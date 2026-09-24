@@ -3,4 +3,3 @@
 
 blender | Blender | https://www.blender.org/
 houdini | Houdini | https://www.sidefx.com/
-sidefxlabs | SideFX Labs | https://github.com/sideeffects/SideFXLabs

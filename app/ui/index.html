@@ -41,7 +41,7 @@
             <input id="autostart" class="switch" type="checkbox" role="switch" />
           </div>
         </section>
-        <h3>Houdini downloads</h3>
+        <h3>Houdini</h3>
         <section class="group">
           <div class="row">
             <label class="row-text" for="sidefx-id">Client ID</label>
@@ -51,8 +51,27 @@
             <label class="row-text" for="sidefx-secret">Client Secret</label>
             <input id="sidefx-secret" type="password" autocomplete="off" spellcheck="false" />
           </div>
+          <div class="row">
+            <label class="row-text" for="houdini-license">License</label>
+            <span class="select">
+              <select id="houdini-license">
+                <option value="apprentice">Apprentice</option>
+                <option value="indie">Indie</option>
+                <option value="server">License server</option>
+              </select>
+              <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6.25 8 9.75l3.5-3.5"/></svg>
+            </span>
+          </div>
+          <div class="row" id="houdini-server-row">
+            <label class="row-text" for="houdini-server">Server</label>
+            <input id="houdini-server" type="text" placeholder="host or host1;host2" autocomplete="off" spellcheck="false" />
+          </div>
+          <div class="row">
+            <label class="row-text" for="houdini-version">Version</label>
+            <input id="houdini-version" type="text" placeholder="Latest" pattern="\d+\.\d+" autocomplete="off" spellcheck="false" />
+          </div>
         </section>
-        <p class="note">Used only to download Houdini. Stored on this Mac in config/sidefx.local. The free Apprentice license is activated inside Houdini itself, no key needed.</p>
+        <p class="note">Client ID/Secret only download Houdini, from sidefx.com. Apprentice and Indie are activated or logged into inside Houdini's License Administrator; License server sets hserver on Save. Version pins Install/Update to that major.minor, blank for latest.</p>
         <details class="howto">
           <summary><svg class="chev" width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.25 4.5 9.75 8l-3.5 3.5"/></svg>How to get a client ID</summary>
           <ol>

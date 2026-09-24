@@ -30,7 +30,6 @@ run_capture() {
 
 test_macos_installer_scripts() {
     local houdini="$REPO_ROOT/platforms/macos/installers/houdini.sh"
-    local labs="$REPO_ROOT/platforms/macos/installers/sidefxlabs.sh"
     local compositor="$REPO_ROOT/platforms/macos/installers/compositor.sh"
     local moonlight="$REPO_ROOT/platforms/macos/installers/moonlight-nightly.sh"
     local blender="$REPO_ROOT/platforms/macos/installers/blender.sh"
@@ -38,7 +37,6 @@ test_macos_installer_scripts() {
     local ghostty="$REPO_ROOT/platforms/macos/installers/ghostty.sh"
 
     [[ -x "$houdini" ]] || fail "houdini.sh is not executable"
-    [[ -x "$labs" ]] || fail "sidefxlabs.sh is not executable"
     [[ -x "$compositor" ]] || fail "compositor.sh is not executable"
     [[ -x "$moonlight" ]] || fail "moonlight-nightly.sh is not executable"
     [[ -x "$blender" ]] || fail "blender.sh is not executable"
@@ -46,7 +44,6 @@ test_macos_installer_scripts() {
     [[ -x "$ghostty" ]] || fail "ghostty.sh is not executable"
 
     bash -n "$houdini" || fail "houdini.sh has a syntax error"
-    bash -n "$labs" || fail "sidefxlabs.sh has a syntax error"
     bash -n "$compositor" || fail "compositor.sh has a syntax error"
     bash -n "$moonlight" || fail "moonlight-nightly.sh has a syntax error"
     bash -n "$blender" || fail "blender.sh has a syntax error"
@@ -74,13 +71,6 @@ test_macos_installer_scripts() {
     [[ -f "$REPO_ROOT/config/dcc/blender/assets/reference.blend" ]] \
         || fail "config/dcc/blender asset library is missing"
 
-    # Without Houdini, SideFX Labs cannot be installed or reported as present.
-    if ! run_capture "$houdini" status; then
-        if run_capture "$labs" status; then
-            fail "sidefxlabs.sh status should fail when Houdini is absent"
-        fi
-    fi
-
     # Missing credentials must point at Loadout's Settings dialog, not
     # fail obscurely.
     if run_capture env SIDEFX_CREDENTIALS="$REPO_ROOT/config/nonexistent-sidefx.local" "$houdini" install; then
@@ -88,6 +78,42 @@ test_macos_installer_scripts() {
     fi
 
     assert_contains "$RUN_OUTPUT" "Settings"
+}
+
+test_houdini_multi_version_status() {
+    local houdini="$REPO_ROOT/platforms/macos/installers/houdini.sh"
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    local houdini_dir="$tmpdir/Houdini"
+    mkdir -p "$houdini_dir/Houdini20.5.370/Houdini Apprentice 20.5.370.app"
+    mkdir -p "$houdini_dir/Houdini20.5.370/Houdini FX 20.5.370.app"
+    mkdir -p "$houdini_dir/Houdini21.0.440/Houdini Apprentice 21.0.440.app"
+    mkdir -p "$houdini_dir/Houdini21.0.440/Houdini FX 21.0.440.app"
+
+    local creds="$tmpdir/sidefx.local"
+    : > "$creds"
+    local home_dir="$tmpdir/home"
+    mkdir -p "$home_dir"
+
+    run_capture env HOME="$home_dir" HOUDINI_DIR="$houdini_dir" SIDEFX_CREDENTIALS="$creds" "$houdini" versions \
+        || fail "houdini.sh versions failed with fake installs present"
+    assert_contains "$RUN_OUTPUT" "Houdini21.0.440/Houdini Apprentice"
+    assert_contains "$RUN_OUTPUT" "Houdini20.5.370/Houdini Apprentice"
+    [[ "$RUN_OUTPUT" == "$houdini_dir/Houdini21.0.440/Houdini Apprentice 21.0.440.app"* ]] \
+        || fail "houdini.sh versions should list the newest build first"
+
+    run_capture env HOME="$home_dir" HOUDINI_DIR="$houdini_dir" SIDEFX_CREDENTIALS="$creds" "$houdini" status
+    assert_contains "$RUN_OUTPUT" "Houdini21.0.440/Houdini Apprentice"
+
+    printf 'HOUDINI_VERSION="20.5"\n' >> "$creds"
+    run_capture env HOME="$home_dir" HOUDINI_DIR="$houdini_dir" SIDEFX_CREDENTIALS="$creds" "$houdini" status
+    assert_contains "$RUN_OUTPUT" "Houdini20.5.370/Houdini Apprentice"
+
+    printf 'HOUDINI_LICENSE="server"\n' >> "$creds"
+    run_capture env HOME="$home_dir" HOUDINI_DIR="$houdini_dir" SIDEFX_CREDENTIALS="$creds" "$houdini" status
+    assert_contains "$RUN_OUTPUT" "Houdini20.5.370/Houdini FX"
 }
 
 test_mismatched_profile_rejected() {
@@ -475,6 +501,7 @@ test_symlink_safety
 test_linux_package_failures_continue
 test_unsupported_linux_rejected
 test_macos_installer_scripts
+test_houdini_multi_version_status
 test_tasks_status_json
 test_json_str_escaping
 test_defaults_compare

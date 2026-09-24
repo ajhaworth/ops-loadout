@@ -801,7 +801,7 @@ async function updateAll() {
 
 const REVEAL = navigator.userAgent.includes("Windows") ? "Show in Explorer" : "Reveal in Finder";
 
-function menuItems(app) {
+function menuItems(app, launchTargets = []) {
   const job = (action) => () => doJob(app, action);
   const items = [];
 
@@ -821,6 +821,16 @@ function menuItems(app) {
       });
       // Re-runs setup.py and the extension checks without looking for a new Blender.
       items.push({ label: "Reapply Settings", run: job("configure") });
+    }
+    // Only worth a submenu once two builds coexist; one build is the plain Open above.
+    if (app.id === "installer:houdini" && launchTargets.length >= 2) {
+      for (const target of launchTargets) {
+        const version = target.match(/Houdini(\d+\.\d+\.\d+)/)?.[1] || target;
+        items.push({
+          label: `Open ${version}`,
+          run: () => invoke("launch", { id: app.id, target }).catch((e) => logLine(String(e))),
+        });
+      }
     }
     if (!app.outdated) items.push(update);
     if (app.kind !== "mas") items.push({ label: "Reinstall", run: job("reinstall") });
@@ -852,8 +862,11 @@ function showPopover(children, x, y, cls = "") {
   menuEl.style.top = `${Math.max(8, Math.min(y, innerHeight - menuEl.offsetHeight - 8))}px`;
 }
 
-function showMenu(e, app) {
-  const nodes = menuItems(app).map((item) => {
+async function showMenu(e, app) {
+  const launchTargets = app.id === "installer:houdini"
+    ? await invoke("launch_targets", { id: app.id }).catch(() => [])
+    : [];
+  const nodes = menuItems(app, launchTargets).map((item) => {
     if (item.sep) return document.createElement("hr");
     const button = document.createElement("button");
     button.type = "button";
@@ -978,6 +991,14 @@ document.getElementById("refresh").onclick = doRefresh;
 // The profile value in effect when the dialog was last opened, so onclose can
 // tell whether the user actually changed it.
 let profileAtOpen = "";
+let houdiniAtOpen = "";
+const houdiniLicenseEl = document.getElementById("houdini-license");
+const houdiniServerRowEl = document.getElementById("houdini-server-row");
+
+function toggleHoudiniServerRow() {
+  houdiniServerRowEl.style.display = houdiniLicenseEl.value === "server" ? "" : "none";
+}
+houdiniLicenseEl.onchange = toggleHoudiniServerRow;
 
 // Shared by the toolbar button and the first-launch prompt. Accepts an
 // already-fetched settings object to avoid a redundant invoke on startup.
@@ -985,6 +1006,11 @@ async function openSettingsDialog(settings) {
   settings ??= await invoke("get_settings");
   document.getElementById("sidefx-id").value = settings.sidefx_client_id;
   document.getElementById("sidefx-secret").value = settings.sidefx_client_secret;
+  houdiniLicenseEl.value = settings.houdini_license || "apprentice";
+  document.getElementById("houdini-server").value = settings.houdini_license_server;
+  document.getElementById("houdini-version").value = settings.houdini_version;
+  toggleHoudiniServerRow();
+  houdiniAtOpen = JSON.stringify([settings.houdini_license, settings.houdini_license_server, settings.houdini_version]);
   const profileEl = document.getElementById("profile");
   profileEl.replaceChildren(new Option("None (everything enabled)", ""));
   settings.profiles.forEach((p) => profileEl.append(new Option(p, p)));
@@ -1017,9 +1043,15 @@ async function handleSettingsClose() {
   if (settingsEl.returnValue !== "save") return false;
   try {
     const profile = document.getElementById("profile").value;
+    const houdiniLicense = houdiniLicenseEl.value;
+    const houdiniLicenseServer = document.getElementById("houdini-server").value;
+    const houdiniVersion = document.getElementById("houdini-version").value;
     await invoke("set_settings", {
       sidefxClientId: document.getElementById("sidefx-id").value,
       sidefxClientSecret: document.getElementById("sidefx-secret").value,
+      houdiniLicense,
+      houdiniLicenseServer,
+      houdiniVersion,
       profile,
     });
     // Separate from set_settings, so a failure here still saves the rest.
@@ -1030,6 +1062,13 @@ async function handleSettingsClose() {
       logLine(String(e));
     }
     logLine("Settings saved");
+    // Reapply Houdini's config when a license/server/version field changed
+    // and it is actually installed - hserver and the version pin live there.
+    const houdiniChanged =
+      JSON.stringify([houdiniLicense, houdiniLicenseServer, houdiniVersion]) !== houdiniAtOpen;
+    if (houdiniChanged && apps.some((a) => a.id === "installer:houdini" && a.installed)) {
+      doJob({ id: "installer:houdini", name: "Houdini" }, "configure");
+    }
     // A profile change re-filters the catalog; otherwise just re-check tasks.
     if (profile !== profileAtOpen) { await doRefresh(); return true; }
     if (tasks.size) refreshSetup();
