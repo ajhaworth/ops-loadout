@@ -463,6 +463,63 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, _resources: &Pat
         let _ = std::fs::create_dir_all(cache_dir);
         let _ = std::fs::write(&license_cache, Value::Object(licenses).to_string());
     }
+
+    mas_artwork(apps, cache_dir);
+}
+
+/// `trackId -> artworkUrl512` from an iTunes lookup response.
+fn artwork_urls(lookup: &Value) -> serde_json::Map<String, Value> {
+    let results = lookup.get("results").and_then(Value::as_array);
+    results
+        .into_iter()
+        .flatten()
+        .filter_map(|r| {
+            let id = r.get("trackId")?.as_u64()?.to_string();
+            Some((id, r.get("artworkUrl512")?.clone()))
+        })
+        .collect()
+}
+
+/// App Store artwork for MAS apps with no local bundle to extract an icon from,
+/// so the "+ more" menu shows the real icon instead of a monogram. One batched
+/// iTunes lookup, cached on disk with misses too (Apple's own apps, like Pages,
+/// are absent from the API), so a routine hydrate stays off the network.
+fn mas_artwork(apps: &mut [App], cache_dir: &Path) {
+    let cache_file = cache_dir.join("mas-artwork.json");
+    let mut cache: serde_json::Map<String, Value> = std::fs::read_to_string(&cache_file)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+
+    let wanted = |a: &App| a.kind == "mas" && a.icon.is_none();
+    let missing: Vec<String> = apps
+        .iter()
+        .filter(|a| wanted(a) && !cache.contains_key(&a.token))
+        .map(|a| a.token.clone())
+        .collect();
+    if !missing.is_empty() {
+        let lookup = Command::new("curl")
+            .args(["-sSf", "--max-time", "5"])
+            .arg(format!("https://itunes.apple.com/lookup?id={}", missing.join(",")))
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .and_then(|o| serde_json::from_slice::<Value>(&o.stdout).ok());
+        // A failed lookup caches nothing, so the next hydrate asks again.
+        if let Some(lookup) = lookup {
+            let found = artwork_urls(&lookup);
+            for id in missing {
+                let url = found.get(&id).cloned().unwrap_or(Value::Null);
+                cache.insert(id, url);
+            }
+            let _ = std::fs::create_dir_all(cache_dir);
+            let _ = std::fs::write(&cache_file, Value::Object(cache.clone()).to_string());
+        }
+    }
+
+    for app in apps.iter_mut().filter(|a| wanted(a)) {
+        app.icon = cache.get(&app.token).and_then(Value::as_str).map(str::to_string);
+    }
 }
 
 pub fn launch(app: &App, _resources: &Path) -> Result<(), String> {
@@ -602,8 +659,20 @@ pub fn open_url(url: &str, _resources: &Path) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::github_slug;
+    use super::{artwork_urls, github_slug};
     use serde_json::json;
+
+    #[test]
+    fn artwork_urls_keys_by_track_id() {
+        let lookup = json!({"results": [
+            {"trackId": 585829637, "artworkUrl512": "https://x.mzstatic.com/a.png"},
+            {"trackId": 1, "artworkUrl100": "https://x.mzstatic.com/small.png"},
+        ]});
+        let urls = artwork_urls(&lookup);
+        assert_eq!(urls.get("585829637"), Some(&json!("https://x.mzstatic.com/a.png")));
+        assert_eq!(urls.len(), 1);
+        assert!(artwork_urls(&json!({})).is_empty());
+    }
 
     #[test]
     fn slug_from_homepage_or_url() {
