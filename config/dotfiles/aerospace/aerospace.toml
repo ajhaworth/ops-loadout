@@ -1,0 +1,30 @@
+# AeroSpace tiles Blender's main window, the Claude Code Ghostty that Blender's Loadout tab opens
+# (config/dcc/blender/portable/scripts/startup/dcc_claude.py) and other Ghostty windows. Every other window floats,
+# so the rest of the Mac behaves as it would without a tiler. Gaps are 0 by default, so a lone window fills the screen.
+# No key bindings: AeroSpace's sample Option chords would take keys Blender's keymap uses.
+config-version = 2
+start-at-login = true
+
+# Blender's main window is titled "<file> - Blender <version>"; Preferences and File View float with the rest.
+# It gets workspace "Blender" to itself, which acts as its full screen: switching to any other app shows workspace 1
+# (where everything else floats), switching back to Blender shows it again.
+[[on-window-detected]]
+if.app-id = 'org.blenderfoundation.blender'
+if.window-title-regex-substring = ' - Blender \d'
+run = ['layout tiling', 'move-node-to-workspace --focus-follows-window Blender']
+
+# A Ghostty window opened on Blender's workspace stays there, tiled: that is the Claude Code window from Blender's
+# Loadout tab, which the launcher then moves left and sizes. Keyed on the workspace, not the title, because Ghostty
+# sets its title only after AeroSpace detects the window.
+[[on-window-detected]]
+if = 'test %{app-bundle-id} = com.mitchellh.ghostty && test %{workspace} = Blender'
+run = 'layout tiling'
+
+# Every other Ghostty window tiles on its own workspace, "Ghostty". AeroSpace follows macOS focus there by itself.
+[[on-window-detected]]
+if = 'test %{app-bundle-id} = com.mitchellh.ghostty'
+run = ['layout tiling', 'move-node-to-workspace Ghostty']
+
+[[on-window-detected]]
+if = 'true'
+run = 'layout floating'

@@ -1,9 +1,12 @@
 # Viewport sidebar tab "Loadout" for this repo's own tools. Any panel with bl_category 'Loadout' joins it, so a new tool
 # adds its own panel in its own startup script. First tool: open Claude Code in Ghostty at the project root and tile
 # Ghostty 1/4 left, Blender 3/4 right. Claude reaches the scene through the blender MCP that install.sh registers.
+# With AeroSpace running (config/dotfiles/aerospace), the two windows tile there and fill the screen; without it,
+# System Events positions them over the desktop.
 import os
 import shlex
 import subprocess
+import sys
 
 import bpy
 
@@ -51,6 +54,75 @@ end run
 '''
 
 
+# Run under Blender's own Python in a subprocess, so Blender never waits. Even "is AeroSpace running?" must happen
+# here: every aerospace call makes AeroSpace query all apps' windows, and Blender cannot answer while its main thread
+# waits on that call, so both stall until the Accessibility timeout (a long beachball). Without AeroSpace it hands off
+# to TILE. Window ids come from AeroSpace; the new Claude window is the Ghostty id not there before the launch.
+AERO_TILE = '''
+import os, re, shutil, subprocess, sys, time
+tile, bid, launch = sys.argv[1:]
+
+# Blender started from Finder has no Homebrew or ~/.local/bin on PATH.
+clis = (shutil.which('aerospace'), '/opt/homebrew/bin/aerospace', os.path.expanduser('~/.local/bin/aerospace'))
+aero = next((c for c in clis if c and os.access(c, os.X_OK)
+             and subprocess.run([c, 'list-workspaces', '--focused'], capture_output=True).returncode == 0), None)
+if not aero:
+    sys.exit(subprocess.run(['osascript', '-e', tile, launch, bid]).returncode)
+js = 'ObjC.import("AppKit"); $.NSScreen.mainScreen.visibleFrame.size.width'
+width = str(round(float(subprocess.run(['osascript', '-l', 'JavaScript', '-e', js],
+                                       capture_output=True, text=True, check=True).stdout) * 0.25))
+
+def a(*args, check=True):
+    return subprocess.run([aero, *args], capture_output=True, text=True, check=check).stdout
+
+def windows(*filters):
+    fmt = '%{window-id}|%{window-layout}|%{workspace}|%{window-title}'
+    return [l.split('|', 3) for l in a('list-windows', '--monitor', 'all', *filters, '--format', fmt).splitlines()]
+
+def blender():
+    return next((w for w in windows('--pid', bid) if re.search(r' - Blender \\d', w[3])), None)
+
+# AeroSpace can briefly lose track of windows (e.g. while it re-detects them), so retry before giving up, and open
+# Claude Code untiled rather than not at all.
+for _ in range(20):
+    b = blender()
+    if b:
+        break
+    time.sleep(0.1)
+else:
+    subprocess.run(launch, shell=True)
+    sys.exit('AeroSpace cannot see the Blender window (it only manages the current macOS Space); opened untiled.')
+if b[1] == 'macos_native_fullscreen':
+    a('macos-native-fullscreen', '--window-id', b[0], 'off')
+    for _ in range(50):
+        time.sleep(0.1)
+        b = blender() or b
+        if b[1] != 'macos_native_fullscreen':
+            break
+if b[1] == 'floating':
+    a('layout', '--window-id', b[0], 'tiling')
+
+ghostty = lambda: {w[0]: w for w in windows('--app-bundle-id', 'com.mitchellh.ghostty')}
+old = ghostty()
+subprocess.run(launch, shell=True, check=True)
+for _ in range(100):
+    new = [w for i, w in ghostty().items() if i not in old]
+    if new:
+        break
+    time.sleep(0.1)
+else:
+    sys.exit('Ghostty window did not appear')
+g = new[0]
+if g[2] != b[2]:
+    a('move-node-to-workspace', '--window-id', g[0], b[2])
+a('layout', '--window-id', g[0], 'tiling', check=False)   # fails harmlessly when it already is
+a('layout', '--window-id', b[0], 'h_tiles')
+a('move', '--window-id', g[0], 'left', check=False)       # fails harmlessly when it is already leftmost
+a('resize', '--window-id', g[0], 'width', width)
+a('focus', '--window-id', g[0])
+'''
+
+
 def _project_root():
     if not bpy.data.filepath:
         return os.path.expanduser('~')
@@ -88,7 +160,8 @@ class DCC_OT_claude_terminal(bpy.types.Operator):
         # Login shell: Blender started from Finder has no ~/.local/bin on PATH. exec zsh keeps the window after exit.
         launch = shlex.join(['open', '-na', GHOSTTY, '--args', '--window-save-state=never',
                              f'--working-directory={_project_root()}', '-e', '/bin/zsh', '-lic', 'claude; exec zsh -l'])
-        proc = subprocess.Popen(['osascript', '-e', TILE, launch, str(os.getpid())], stderr=subprocess.PIPE, text=True)
+        proc = subprocess.Popen([sys.executable, '-c', AERO_TILE, TILE, str(os.getpid()), launch],
+                                stderr=subprocess.PIPE, text=True)
         bpy.app.timers.register(lambda: _watch(proc), first_interval=0.5)
         return {'FINISHED'}
 

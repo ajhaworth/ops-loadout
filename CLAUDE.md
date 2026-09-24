@@ -18,7 +18,7 @@ work headlessly.
 Profiles (`config/profiles/*.conf`) control what gets installed. Profile variables are bash-style `KEY="value"` pairs parsed by both bash (source) and PowerShell (regex).
 
 - `personal.conf` - Full installation for personal macOS devices
-- `workstation.conf` - Work macOS device: Blender, Houdini, Fork, Ghostty, Swish and core CLI tools, from Loadout
+- `workstation.conf` - Work macOS device: Blender, Houdini, Fork, Ghostty, AeroSpace, Swish and core CLI tools, from Loadout
 - `linux.conf` - Full dev station setup for Linux (Debian/Ubuntu)
 - `windows.conf` - Gaming workstation setup for Windows
 
@@ -30,7 +30,7 @@ never sees a "command not found". `INSTALLERS_<CATEGORY>` gates
 `config/packages/macos/installers/<category>.txt` the same way `CASKS_*` gates
 casks. `workstation.conf` keeps Homebrew (core and shell formulae only, no
 casks, no MAS) and leaves `installers/3D.txt` (Blender, Houdini) and
-`installers/development.txt` (Fork, Ghostty) and `installers/power-user.txt`
+`installers/development.txt` (Fork, Ghostty, AeroSpace) and `installers/power-user.txt`
 (Swish) visible; `personal.conf` turns `INSTALLERS_POWER_USER` off since it
 gets Swish from the cask; the user installs those
 by hand from the Loadout tiles. Apps added for the work Mac go in as installer
@@ -300,14 +300,34 @@ replace it rather than `rm -rf`-ing someone else's app.
   sidebar tab "Loadout" for the repo's own tools; any panel with
   `bl_category = 'Loadout'` joins it, so each tool keeps its own startup script.
   Its first button opens a fresh Ghostty (`open -na`, `--window-save-state=never`)
-  running `claude` at the .blend's git root and tiles Ghostty 1/4 : Blender 3/4
-  via `osascript` + System Events, which needs Blender allowed under
-  Accessibility. The script must address every window by process id
+  running `claude` at the .blend's git root and tiles Ghostty 1/4 : Blender 3/4.
+  With AeroSpace running it tiles there (`AERO_TILE`, see below); otherwise it
+  falls back to `osascript` + System Events, which needs Blender allowed under
+  Accessibility. The fallback must address every window by process id
   (`first application process whose unix id is n`): a saved process reference
   collapses to `application process "ghostty"`, which hits whichever Ghostty is
   already open. Tiling runs non-blocking - Blender's own window cannot answer
   Accessibility queries while its main thread waits - and a failure pops up a
   warning while Ghostty still opens.
+- **AeroSpace = Blender's full screen.** `config/dotfiles/aerospace/aerospace.toml`
+  (-> `~/.aerospace.toml`, `DOTFILES_AEROSPACE`) tiles only Blender's main window
+  (title ` - Blender <digit>`) and Ghostty, and floats everything else. A Ghostty
+  window tiles on workspace "Ghostty" unless it opens while workspace "Blender"
+  is focused - that is the Claude window, keyed on `%{workspace}` because
+  Ghostty sets its title only after AeroSpace detects it. Blender's window moves to
+  its own AeroSpace workspace "Blender", where alone it fills the screen, and
+  switching apps swaps workspaces like a full-screen Space. The menu bar stays:
+  on a notched display the strip beside the notch is off-limits to normal windows
+  (macOS clamps them to y=32) even with the menu bar auto-hidden.
+  No key bindings - AeroSpace's sample Option chords steal Blender keys. The
+  launcher's `AERO_TILE` finds the new Claude window as the Ghostty window id
+  that was not there before, takes Blender out of macOS native full screen if
+  needed (AeroSpace cannot tile across Spaces, and only sees the current one),
+  then tiles, `move left`s and `resize width`s it to 1/4 of the screen.
+  `list-windows` filters need `--monitor all`: `--all` rejects them. Native
+  full screen was tried first and dropped: nothing public can script Split View.
+  AeroSpace is not notarized; `installers/aerospace.sh` curls the release zip
+  (no quarantine) and puts the CLI in `~/.local/bin`.
 - **Keymap viewer.** `keymap.html`/`keymap.js` are served by Loadout at
   `loadout://localhost/dcc/blender/keymap.html` (`serve_ui` maps `dcc/*` to
   `config/dcc/*`) and opened from the Blender tile's Keymap menu item. They read

@@ -15,5 +15,8 @@ config/dotfiles/starship/starship.toml|~/.config/starship.toml||DOTFILES_SHELL
 # Ghostty terminal
 config/dotfiles/ghostty/config|~/.config/ghostty/config||DOTFILES_GHOSTTY
 
+# AeroSpace: tiles Blender and its Claude Code Ghostty only
+config/dotfiles/aerospace/aerospace.toml|~/.aerospace.toml||DOTFILES_AEROSPACE
+
 # Git configuration
 config/dotfiles/git/config|~/.gitconfig||DOTFILES_GIT

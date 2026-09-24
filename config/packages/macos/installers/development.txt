@@ -3,3 +3,4 @@
 
 fork    | Fork    | https://git-fork.com
 ghostty | Ghostty | https://ghostty.org
+aerospace | AeroSpace | https://github.com/nikitabobko/AeroSpace
