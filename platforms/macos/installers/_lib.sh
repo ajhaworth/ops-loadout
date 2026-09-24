@@ -2,6 +2,10 @@
 # Shared by the installer scripts: download with progress, mount a dmg
 # read-only and unmount it again. Not an installer token (leading `_`).
 #
+# Abort a stalled transfer rather than hang forever: 30s to connect, then
+# killed if it drops below 1KB/s for a full minute.
+CURL_STALL=(--connect-timeout 30 --speed-limit 1024 --speed-time 60)
+
 # Loadout reads newline-delimited output, not terminal progress bars.
 # Emit at most one line per 10% milestone, without a buffering text filter.
 # Usage: dl <url> <out-file>
@@ -9,7 +13,7 @@ dl() (
     set -o pipefail
     local line percent milestone last=-1 next_bytes=$((SECONDS + 2)) bytes
     echo "  downloading $(basename "$2")"
-    curl -fL -# --connect-timeout 30 --speed-limit 1024 --speed-time 60 -o "$2" "$1" 2>&1 \
+    curl -fL -# "${CURL_STALL[@]}" -o "$2" "$1" 2>&1 \
         | while IFS= read -r -d $'\r' line || [[ -n "$line" ]]; do
             if [[ "$line" == *"curl:"* ]]; then
                 printf '%s\n' "$line"
@@ -46,4 +50,85 @@ dmg_attach() {
 dmg_detach() {
     [[ -n "${1:-}" ]] || return 0
     diskutil eject "$1" >/dev/null 2>&1 || hdiutil detach "$1" -quiet >/dev/null 2>&1 || true
+}
+
+# Shared body for the "copy $NAME.app out of a dmg into /Applications"
+# installers (fork, ghostty, compositor, swish, vorssaint).
+#
+# The caller sets, before calling this:
+#   NAME         - display name, and the app/dmg name inside the download
+#   APP          - install path, e.g. /Applications/$NAME.app
+#   QUIT_FIRST   - optional; "1" pkills $NAME before replacing/removing it
+#   resolve_latest - function that sets globals URL and VERSION, or returns
+#                    1 (after echoing its own error to stderr) on failure
+#
+# Usage: dmg_app_main "$@"
+dmg_app_main() {
+    do_status() {
+        [[ -d "$APP" ]] || return 1
+        printf '%s\n' "$APP"
+    }
+
+    MOUNT=""
+    TMP=""
+    cleanup() {
+        dmg_detach "$MOUNT"
+        [[ -n "$TMP" ]] && rm -rf "$TMP"
+        return 0
+    }
+
+    do_install() {
+        local action="$1" current
+
+        echo "==> Resolving latest $NAME release"
+        resolve_latest || return 1
+        echo "    latest: $VERSION"
+
+        if [[ -d "$APP" ]]; then
+            current="$(defaults read "$APP/Contents/Info.plist" CFBundleShortVersionString 2>/dev/null || echo '?')"
+            echo "    installed: $current"
+            if [[ "$action" != "reinstall" && "$current" == "${VERSION#v}" ]]; then
+                echo "$NAME $current is already the latest release."
+                return 0
+            fi
+        fi
+
+        TMP="$(mktemp -d)"
+        trap cleanup EXIT
+
+        echo "==> Downloading $URL"
+        dl "$URL" "$TMP/$NAME.dmg"
+
+        echo "==> Mounting"
+        MOUNT="$(dmg_attach "$TMP/$NAME.dmg")"
+        [[ -d "$MOUNT/$NAME.app" ]] || {
+            echo "No $NAME.app on the mounted image. Contents:" >&2
+            ls -1 "${MOUNT:-$TMP}" >&2
+            return 1
+        }
+
+        echo "==> Installing into $APP"
+        [[ "${QUIT_FIRST:-0}" == "1" ]] && pkill -x "$NAME" || true
+        rm -rf "$APP"
+        ditto "$MOUNT/$NAME.app" "$APP"
+
+        echo "$NAME $VERSION installed."
+    }
+
+    do_uninstall() {
+        [[ -d "$APP" ]] || { echo "$NAME is not installed."; return 1; }
+        [[ "${QUIT_FIRST:-0}" == "1" ]] && pkill -x "$NAME" || true
+        rm -rf "$APP"
+        echo "Removed $APP"
+    }
+
+    case "${1:-status}" in
+        status)                    do_status ;;
+        install|update|reinstall)  do_install "$1" ;;
+        uninstall)                 do_uninstall ;;
+        *)
+            echo "usage: $(basename "$0") <status|install|update|reinstall|uninstall>" >&2
+            exit 2
+            ;;
+    esac
 }

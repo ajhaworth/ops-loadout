@@ -137,13 +137,9 @@ function Apply-Comfyui {
         return
     }
 
-    $appData = $env:APPDATA
-    if (-not $appData) {
-        $appData = [Environment]::GetFolderPath('ApplicationData')
-    }
-    $configDir = Join-Path $appData 'Comfy Desktop'
+    $configDir = Get-ComfyDesktopConfigDir
 
-    if (-not (Test-Path -LiteralPath $configDir)) {
+    if (-not $configDir -or -not (Test-Path -LiteralPath $configDir)) {
         Write-Skip "Comfy Desktop config not found - launch it once, then re-run"
         return
     }

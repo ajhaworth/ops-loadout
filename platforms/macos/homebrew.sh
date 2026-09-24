@@ -131,10 +131,10 @@ install_brew_packages() {
     log_info "Installing ${#packages[@]} packages..."
 
     local install_cmd="brew install"
-    local list_cmd="brew list --formula"
+    local is_installed_cmd=is_formula_installed
     if [[ "$is_cask" == "--cask" ]]; then
         install_cmd="brew install --cask"
-        list_cmd="brew list --cask"
+        is_installed_cmd=is_cask_installed
     fi
 
     if is_dry_run; then
@@ -146,7 +146,7 @@ install_brew_packages() {
 
     # Install packages (continue on error)
     for pkg in "${packages[@]}"; do
-        if $list_cmd "$pkg" &>/dev/null; then
+        if $is_installed_cmd "$pkg" &>/dev/null; then
             log_substep "Already installed: $pkg"
         else
             log_substep "Installing: $pkg"
@@ -255,54 +255,35 @@ INSTALLED_FORMULAE=""
 INSTALLED_CASKS=""
 INSTALLED_MAS=""
 
-# Get list of installed formulae (cached)
-get_installed_formulae() {
-    if [[ -z "$INSTALLED_FORMULAE" ]]; then
-        if command -v brew &>/dev/null; then
-            INSTALLED_FORMULAE=$(brew list --formula 2>/dev/null || echo "")
-        fi
-    fi
-    echo "$INSTALLED_FORMULAE"
-}
-
-# Get list of installed casks (cached)
-get_installed_casks() {
-    if [[ -z "$INSTALLED_CASKS" ]]; then
-        if command -v brew &>/dev/null; then
-            INSTALLED_CASKS=$(brew list --cask 2>/dev/null || echo "")
-        fi
-    fi
-    echo "$INSTALLED_CASKS"
-}
-
-# Get list of installed MAS apps (cached)
-get_installed_mas() {
-    if [[ -z "$INSTALLED_MAS" ]]; then
-        if command -v mas &>/dev/null; then
-            INSTALLED_MAS=$(mas list 2>/dev/null | awk '{print $1}' || echo "")
-        fi
-    fi
-    echo "$INSTALLED_MAS"
-}
-
 # Check if a formula is installed (handles versioned packages like python@3.14).
-# No grep -q: it exits on first match, the upstream echo gets SIGPIPE, and pipefail
-# reports the pipeline as failed. Draining stdin keeps the exit status honest.
+# The cache assignment has to happen right here, not behind a
+# `get_installed_formulae | grep` pipe: the left side of a pipe runs in a
+# subshell, so an assignment there is lost and the cache never persists. The
+# herestring below keeps grep out of that pipe entirely.
 is_formula_installed() {
     local formula="${1##*/}"  # tap-qualified names list as bare names
-    get_installed_formulae | grep -E "^${formula}(@|$)" >/dev/null
+    if [[ -z "$INSTALLED_FORMULAE" ]] && command -v brew &>/dev/null; then
+        INSTALLED_FORMULAE=$(brew list --formula 2>/dev/null || true)
+    fi
+    grep -E "^${formula}(@|$)" <<<"$INSTALLED_FORMULAE" >/dev/null
 }
 
 # Check if a cask is installed
 is_cask_installed() {
     local cask="$1"
-    get_installed_casks | grep -E "^${cask}$" >/dev/null
+    if [[ -z "$INSTALLED_CASKS" ]] && command -v brew &>/dev/null; then
+        INSTALLED_CASKS=$(brew list --cask 2>/dev/null || true)
+    fi
+    grep -E "^${cask}$" <<<"$INSTALLED_CASKS" >/dev/null
 }
 
 # Check if a MAS app is installed
 is_mas_installed() {
     local app_id="$1"
-    get_installed_mas | grep -E "^${app_id}$" >/dev/null
+    if [[ -z "$INSTALLED_MAS" ]] && command -v mas &>/dev/null; then
+        INSTALLED_MAS=$(mas list 2>/dev/null | awk '{print $1}' || true)
+    fi
+    grep -E "^${app_id}$" <<<"$INSTALLED_MAS" >/dev/null
 }
 
 # Generic helper to list brew package status

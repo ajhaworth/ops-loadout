@@ -2,7 +2,7 @@
 //! repo's own `lib/windows/*.psm1` so status and install logic stay in one place.
 
 use crate::catalog::App;
-use crate::platform::Cmd;
+use crate::platform::{cache_name, Cmd};
 use base64::Engine;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -32,10 +32,6 @@ fn base_args(resources: &Path) -> Vec<String> {
         "-File".into(),
         bridge(resources).to_string_lossy().to_string(),
     ]
-}
-
-fn cache_name(id: &str) -> String {
-    format!("{}.png", id.replace(['/', ':', ' '], "_"))
 }
 
 fn icon(exe: &str, id: &str, cache_dir: &Path, resources: &Path) -> Option<String> {

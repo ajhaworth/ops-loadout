@@ -237,24 +237,7 @@ cmd_dotfiles_ls() {
     local count_wrong=0
     local count_conflict=0
 
-    while IFS='|' read -r source destination _ condition || [[ -n "$source" ]]; do
-        # Skip empty lines and comments
-        [[ -z "$source" ]] && continue
-        [[ "$source" =~ ^[[:space:]]*# ]] && continue
-
-        # Trim whitespace
-        source="$(echo "$source" | xargs)"
-        destination="$(echo "$destination" | xargs)"
-        condition="$(echo "${condition:-}" | xargs)"
-
-        # Check condition if specified
-        if [[ -n "$condition" ]]; then
-            local condition_value="${!condition:-true}"
-            if [[ "$condition_value" != "true" ]]; then
-                continue
-            fi
-        fi
-
+    while IFS='|' read -r source destination; do
         resolve_manifest_paths "$SCRIPT_DIR" "$source" "$destination"
 
         # Shorten paths for display
@@ -287,7 +270,7 @@ cmd_dotfiles_ls() {
         esac
 
         printf "  %-40s  %-50s  ${status_color}%s${RESET}\n" "$display_source" "$display_dest" "$status"
-    done < "$manifest"
+    done < <(manifest_entries "$manifest")
 
     # Print summary
     echo ""

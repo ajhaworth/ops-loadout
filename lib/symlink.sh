@@ -162,10 +162,44 @@ resolve_manifest_paths() {
     MANIFEST_ABS_DEST="${destination/#\~/$HOME}"
 }
 
-# Process a manifest file
+# Trim surrounding whitespace from the named variable in place (no fork).
+# Usage: trim_var varname
+trim_var() {
+    local s="${!1}"
+    s="${s#"${s%%[![:space:]]*}"}"
+    printf -v "$1" '%s' "${s%"${s##*[![:space:]]}"}"
+}
+
+# Read a manifest file and print "source|destination" for each row that
+# applies, trimmed and with comments/blank lines and disabled conditions
+# dropped. The (optional, third) backup column is reserved for future
+# behavior and is ignored here, same as before.
 # Format: source|destination|backup|condition
-#   - backup is optional, defaults to yes
 #   - condition is optional, a profile variable name that must be "true"
+#     (unset counts as true, matching the rest of this repo)
+# Usage: manifest_entries manifest_file
+manifest_entries() {
+    local manifest="$1"
+    local source destination backup condition
+
+    while IFS='|' read -r source destination backup condition || [[ -n "$source" ]]; do
+        # Skip empty lines and comments
+        [[ -z "$source" ]] && continue
+        [[ "$source" =~ ^[[:space:]]*# ]] && continue
+
+        trim_var source; trim_var destination; condition="${condition:-}"; trim_var condition
+
+        # Check condition if specified
+        if [[ -n "$condition" ]]; then
+            local condition_value="${!condition:-true}"
+            [[ "$condition_value" == "true" ]] || continue
+        fi
+
+        printf '%s|%s\n' "$source" "$destination"
+    done < "$manifest"
+}
+
+# Process a manifest file
 # Usage: process_manifest manifest_file
 process_manifest() {
     local manifest="$1"
@@ -177,33 +211,12 @@ process_manifest() {
         return 1
     fi
 
-    while IFS='|' read -r source destination backup condition || [[ -n "$source" ]]; do
-        # Skip empty lines and comments
-        [[ -z "$source" ]] && continue
-        [[ "$source" =~ ^[[:space:]]*# ]] && continue
-
-        # Trim whitespace
-        source="$(echo "$source" | xargs)"
-        destination="$(echo "$destination" | xargs)"
-        backup="$(echo "${backup:-}" | xargs)"
-        condition="$(echo "${condition:-}" | xargs)"
-
-        # The manifest backup column is reserved for future behavior and is ignored today.
-        : "$backup"
-
-        # Check condition if specified
-        if [[ -n "$condition" ]]; then
-            local condition_value="${!condition:-true}"
-            if [[ "$condition_value" != "true" ]]; then
-                continue
-            fi
-        fi
-
+    while IFS='|' read -r source destination; do
         resolve_manifest_paths "$repo_root" "$source" "$destination"
 
         # Create symlink
         create_symlink "$MANIFEST_ABS_SOURCE" "$destination"
-    done < "$manifest"
+    done < <(manifest_entries "$manifest")
 }
 
 # Classify the on-disk state of one manifest entry (source missing is the
@@ -242,24 +255,7 @@ check_manifest() {
         return 1
     fi
 
-    while IFS='|' read -r source destination _ condition || [[ -n "$source" ]]; do
-        # Skip empty lines and comments
-        [[ -z "$source" ]] && continue
-        [[ "$source" =~ ^[[:space:]]*# ]] && continue
-
-        # Trim whitespace
-        source="$(echo "$source" | xargs)"
-        destination="$(echo "$destination" | xargs)"
-        condition="$(echo "${condition:-}" | xargs)"
-
-        # Check condition if specified
-        if [[ -n "$condition" ]]; then
-            local condition_value="${!condition:-true}"
-            if [[ "$condition_value" != "true" ]]; then
-                continue
-            fi
-        fi
-
+    while IFS='|' read -r source destination; do
         resolve_manifest_paths "$repo_root" "$source" "$destination"
         local short_dest
         short_dest="$(shorten_path "$MANIFEST_ABS_DEST")"
@@ -282,7 +278,7 @@ check_manifest() {
                 all_ok=false
                 ;;
         esac
-    done < "$manifest"
+    done < <(manifest_entries "$manifest")
 
     $all_ok
 }
