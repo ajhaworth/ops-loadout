@@ -172,3 +172,10 @@ pub(crate) async fn hide_quick(handle: AppHandle) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// Cmd+Q from the page: the key never reaches the Quit menu item out of the
+/// borderless window, though the item itself works.
+#[tauri::command]
+pub(crate) fn quit(handle: AppHandle) {
+    handle.exit(0);
+}
