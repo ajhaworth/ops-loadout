@@ -208,16 +208,14 @@ Packages are defined in text files under `config/packages/`:
   one of `status|install|update|reinstall|uninstall`; `status` prints the
   `.app` path and exits 0 when installed. Only Loadout runs these, not
   `setup.sh`. Root work goes through `sudo -A`.
-  - `houdini` - latest production build via the SideFX download API. The
-    API key is entered once in Loadout's Settings dialog (gear icon),
-    which explains how to create it on sidefx.com, and is stored in
-    `config/sidefx.local`. After installing, a dialog explains the free
-    Apprentice license, which only Houdini itself can activate (License
-    Administrator -> "Activate Apprentice", no login needed, renews every
-    30 days). Older versions are left in place on update.
-  - `sidefxlabs` - SideFX Labs from GitHub releases, into
-    `~/Library/Preferences/houdini/<X.Y>/packages/` for the installed Houdini.
-    Needs redoing once per Houdini `X.Y`; restart Houdini after.
+  - `houdini` - latest production build via the SideFX download API, or the
+    latest of a pinned `X.Y`. The API key, license mode (Apprentice, Indie or
+    license server) and version pin are set in Loadout's Settings dialog
+    (gear icon) and stored in `config/sidefx.local`. License server mode runs
+    `hserver -S`; Apprentice and Indie are activated in Houdini's License
+    Administrator, which a dialog explains after installing. SideFX Labs is
+    installed alongside, per Houdini `X.Y`. Older versions are left in place
+    on update, and the tile menu has an Open row for each installed build.
   - `blender` - latest Blender into `/Applications`, with its portable config
     dir symlinked to `config/dcc/blender/` so prefs, startup file, keymap and
     extensions are tracked in this repo. See that directory's README.
