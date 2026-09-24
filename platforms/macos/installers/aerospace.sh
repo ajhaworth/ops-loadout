@@ -60,12 +60,15 @@ do_install() {
     ditto "$dir/AeroSpace.app" "$APP"
     mkdir -p "$(dirname "$CLI")"
     install -m 0755 "$dir/bin/aerospace" "$CLI"
-    # Stage Manager hides and shows window groups too, and fights AeroSpace. dock.sh sets this as well, but profiles
-    # without system defaults (workstation) only get it here.
+    # Stage Manager hides and shows window groups too, and fights AeroSpace; AeroSpace parks other workspaces' windows
+    # in a screen corner, which scatters Mission Control unless it groups by app. dock.sh sets both as well, but
+    # profiles without system defaults (workstation) only get them here.
     defaults write com.apple.WindowManager GloballyEnabled -bool false
+    defaults write com.apple.dock expose-group-apps -bool true
+    killall Dock 2>/dev/null || true
     open -a "$APP"
 
-    echo "AeroSpace $tag installed and Stage Manager turned off. Allow AeroSpace under"
+    echo "AeroSpace $tag installed, Stage Manager off, Mission Control grouped by app. Allow AeroSpace under"
     echo "Privacy & Security > Accessibility when asked, and apply the AeroSpace dotfiles (Updates tab)."
 }
 

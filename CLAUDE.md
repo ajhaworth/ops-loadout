@@ -315,7 +315,7 @@ replace it rather than `rm -rf`-ing someone else's app.
   like a full-screen Space: Blender and Houdini (main window only, by title
   ` - Blender <digit>` / ` - Houdini <edition> <digit>`; the Houdini pattern is
   unverified), Ghostty, Zen, Mail, Messages, Calendar, Agenda, Digest, ChatGPT, Claude,
-  Finder and
+  Slack, Safari, Fork, Finder and
   Loadout. Everything else floats. Opening or clicking an app switches to its
   workspace because AeroSpace follows macOS focus, so rules need no
   `--focus-follows-window`. Every window of a matched app tiles, so a second one
@@ -330,7 +330,9 @@ replace it rather than `rm -rf`-ing someone else's app.
   those workspaces is shown, so a window dragged aside snaps back. Their rules use `--focus-follows-window`: moving a window on a
   hidden workspace does not stick, AeroSpace restores its old spot when the
   workspace shows. Rules fire only for new windows; `reload-config` leaves open ones
-  where they are. A Ghostty window tiles on workspace "Ghostty" unless it opens
+  where they are. AeroSpace parks other workspaces' windows in a screen corner, so
+  Mission Control groups windows by app (`expose-group-apps`, set by `dock.sh` and,
+  for profiles without defaults, `installers/aerospace.sh`). A Ghostty window tiles on workspace "Ghostty" unless it opens
   while workspace "Blender" is focused - that is the Claude window, keyed on
   `%{workspace}` because Ghostty sets its title only after AeroSpace detects it.
   The menu bar stays: on a notched display the strip beside the notch is
