@@ -229,12 +229,12 @@ can answer it.
 `houdini.sh` resolves the latest production build through the SideFX download
 API, which needs `config/sidefx.local` (`SIDEFX_CLIENT_ID`,
 `SIDEFX_CLIENT_SECRET`; gitignored via `*.local`). The same file carries
-`HOUDINI_LICENSE` (apprentice|indie|server, default apprentice),
+`HOUDINI_LICENSE` (apprentice|indie|server|server-core, default apprentice),
 `HOUDINI_LICENSE_SERVER` and a `HOUDINI_VERSION` major.minor pin - all written
 by Loadout's Settings dialog (`get_settings`/`set_settings` in `settings.rs`);
 the script only reads it and points at Settings when the API credentials are
 missing. `installed_app` picks the edition by `HOUDINI_LICENSE` (Apprentice,
-Indie, or FX/Core for server, falling back to Apprentice/FX so something
+Indie, FX for `server`, Core for `server-core`, falling back to Apprentice/FX so something
 launches), and `installed_dir` picks the newest build matching the
 `HOUDINI_VERSION` pin when one is set. A `versions` verb lists one edition
 `.app` path per installed build, newest first, so Loadout can show a per-build

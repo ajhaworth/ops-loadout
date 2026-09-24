@@ -114,6 +114,11 @@ test_houdini_multi_version_status() {
     printf 'HOUDINI_LICENSE="server"\n' >> "$creds"
     run_capture env HOME="$home_dir" HOUDINI_DIR="$houdini_dir" SIDEFX_CREDENTIALS="$creds" "$houdini" status
     assert_contains "$RUN_OUTPUT" "Houdini20.5.370/Houdini FX"
+
+    mkdir -p "$houdini_dir/Houdini20.5.370/Houdini Core 20.5.370.app"
+    printf 'HOUDINI_LICENSE="server-core"\n' >> "$creds"
+    run_capture env HOME="$home_dir" HOUDINI_DIR="$houdini_dir" SIDEFX_CREDENTIALS="$creds" "$houdini" status
+    assert_contains "$RUN_OUTPUT" "Houdini20.5.370/Houdini Core"
 }
 
 test_mismatched_profile_rejected() {
