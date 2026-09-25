@@ -1,0 +1,4 @@
+# ai.txt - AI tools installed by platforms/macos/installers/<token>.sh
+# token | display-name | homepage
+
+claude-code | Claude Code | https://docs.claude.com/en/docs/claude-code/overview
