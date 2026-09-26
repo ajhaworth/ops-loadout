@@ -1,5 +1,5 @@
 fullscreen   -1
-playbarshown 1
+playbarshown 0
 playbar      -1
 shelf        -1
 menubar      -1
@@ -11,12 +11,18 @@ root {
             tabs 0 1 {
                 pane panetab14 -a 0 -l 10 -H /obj/ -T OBJ -m treecontrol
             }
-            tabs 0 1 {
-                pane panetab1 -a 0 -l 10 -H /obj/ -T OBJ -m sceneview
+            split 0.65 V R {
+                tabs 0 1 {
+                    pane panetab1 -a 0 -l 10 -H /obj/ -T OBJ -m sceneview
+                }
+                tabs 0 1 {
+                    pane panetab2 -a 0 -l 10 -H /obj/ -T OBJ -m details
+                }
             }
         }
         tabs 0 1 {
             pane panetab7 -a 0 -l 10 -H /obj/ -T OBJ -m neteditor
+            pane panetab3 -a 0 -l 0 -H /obj/ -T OBJ -m perfmon
         }
     }
 }

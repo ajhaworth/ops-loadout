@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Merged into Houdini's main menu from HOUDINI_PATH. A main-menu item's id doubles as a global hotkey symbol;
+     python3.13libs/uiready.py binds it. -->
+<mainMenu>
+  <addScriptItem id="h.loadout_toggle_update_mode">
+    <label>Toggle Auto Update / Manual</label>
+    <parent>edit_menu</parent>
+    <insertAfter>h.live_updates</insertAfter>
+    <scriptCode><![CDATA[
+manual = hou.updateModeSetting() == hou.updateMode.Manual
+hou.setUpdateMode(hou.updateMode.AutoUpdate if manual else hou.updateMode.Manual)
+hou.ui.setStatusMessage("Update mode: " + ("Auto Update" if manual else "Manual"))
+]]></scriptCode>
+  </addScriptItem>
+</mainMenu>
