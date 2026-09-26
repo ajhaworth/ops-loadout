@@ -54,7 +54,7 @@ const TABS = ["Apps", "Updates"];
 const CATEGORIES = {
   All: () => true,
   Learning: (a) => a.category === "Learning",
-  Creative: (a) => ["Creative", "3D"].includes(a.category) || a.kind === "comfynode",
+  Creative: (a) => ["Creative", "3D", "Game Engines"].includes(a.category) || a.kind === "comfynode",
   Development: (a) => ["Development", "Software Dev", "Devops"].includes(a.category),
 };
 let tab = "Apps";
