@@ -341,7 +341,7 @@ replace it rather than `rm -rf`-ing someone else's app.
   like a full-screen Space: Blender, Houdini, Godot and Unreal (main window only,
   by title ` - Blender <digit>` / ` - Houdini <edition> <digit>` / `Godot Engine` /
   ` - Unreal Editor`; the Houdini and Unreal patterns are unverified), Ghostty, Zen, Mail, Messages, Calendar, Agenda, Digest, ChatGPT, Claude,
-  Slack, Safari, Obsidian, Pulse, Spotify, Fork, Finder and
+  Slack, Safari, Obsidian, Pulse, Spotify, Fork, Finder, Simulator and
   Loadout. Everything else floats. Opening or clicking an app switches to its
   workspace because AeroSpace follows macOS focus, so rules need no
   `--focus-follows-window`. Every window of a matched app tiles, so a second one
@@ -352,7 +352,7 @@ replace it rather than `rm -rf`-ing someone else's app.
   against the left edge, so those two float on their workspace instead and
   `center.js` (-> `~/.config/aerospace/`, run by `exec-and-forget`) centers them
   at full height; Messages gets the same, narrowed to 760 px by `center.js`'s
-  width argument. `exec-on-workspace-change` re-runs `center.js` whenever one of
+  width argument, and the iOS Simulator likewise (its width follows the device's aspect ratio). `exec-on-workspace-change` re-runs `center.js` whenever one of
   those workspaces is shown, so a window dragged aside snaps back. Their rules use `--focus-follows-window`: moving a window on a
   hidden workspace does not stick, AeroSpace restores its old spot when the
   workspace shows. Rules fire only for new windows; `reload-config` leaves open ones

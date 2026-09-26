@@ -1,6 +1,6 @@
 // Centers an app's windows at full height, inside the same 8 px gaps aerospace.toml uses. AeroSpace tiles a window by
 // asking for the whole workspace, and one with a max width (Digest, Loadout) stops short against the left edge, so
-// aerospace.toml floats those and runs this instead; a width narrows an app that has no max width of its own (Messages).
+// aerospace.toml floats those (and the aspect-locked iOS Simulator) and runs this instead; a width narrows an app that has no max width of its own (Messages).
 // Usage: osascript -l JavaScript center.js <bundle-id> [width] [title]
 ObjC.import('AppKit')
 
