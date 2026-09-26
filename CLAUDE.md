@@ -400,6 +400,15 @@ the user prefs `desktop/`, not the repo — copy that file back into
 `config/dcc/houdini/desktop/` to keep a layout change. A sample scene lives in
 `examples/`.
 
+`houdini.sh` also installs the community MCP server `fxhoudinimcp` via
+`uv tool install` (not `uvx`) since its Houdini plugin ships inside the wheel
+at a path that must stay stable for Houdini's package file to keep finding it.
+It writes `<X.Y>/packages/fxhoudinimcp.json` per installed build and
+registers `houdini` at Claude Code user scope, pointing at that tool's own
+Python. The plugin autostarts a socket on `127.0.0.1:8100` when Houdini opens.
+The whole step is skipped, with a warning rather than a failure, when `uv` or
+`claude` is missing.
+
 **Asset library.** `config/dcc/blender/assets/` is registered by `setup.py`
 as Blender asset library "Loadout" (the Layout asset browser shows all
 libraries; `params` is unset while `setup.py` runs, so it cannot pin one). `assets/build.py` (run via `bin/blender -b --factory-startup

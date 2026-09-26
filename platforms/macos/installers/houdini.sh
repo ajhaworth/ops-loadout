@@ -2,10 +2,15 @@
 # Houdini installer: status | versions | install | update | reinstall | uninstall | config
 # Uses the SideFX Web API to resolve the latest production daily build, and
 # also installs/updates SideFX Labs per Houdini X.Y (folded in from the old
-# sidefxlabs.sh, since Labs is just another Houdini package tied to a build).
+# sidefxlabs.sh, since Labs is just another Houdini package tied to a build),
+# and installs/registers the fxhoudinimcp MCP server for Claude Code.
 
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
+
+# Finder launches do not read shell profiles. uv's standalone installer and
+# Claude's native installer use ~/.local/bin; Homebrew uses the other two directories.
+export PATH="${HOME:?}/.local/bin:/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
 
 REPO="$(cd "$(dirname "$0")/../../.." && pwd)"
 CREDS="${SIDEFX_CREDENTIALS:-$REPO/config/sidefx.local}"
@@ -93,7 +98,58 @@ do_versions() {
     return $found
 }
 
-# --- config: repo dir on HOUDINI_PATH, desktop set to ALX, SideFX Labs -----
+# --- config: repo dir on HOUDINI_PATH, desktop set to ALX, SideFX Labs, fxhoudinimcp MCP -----
+
+# fxhoudinimcp's Houdini plugin ships inside the wheel, so the package path
+# Houdini loads must stay stable across runs - `uv tool install` gives that,
+# unlike uvx's cache path, which moves. Offline and fast (no python startup):
+# called from `check`, which runs at Loadout startup.
+mcp_plugin_dir() {
+    local uv_bin tool_dir dir
+    uv_bin=$(command -v uv) || return 1
+    tool_dir="$("$uv_bin" tool dir 2>/dev/null)" || return 1
+    dir="$(printf '%s\n' "$tool_dir"/fxhoudinimcp/lib/python3.*/site-packages/fxhoudinimcp/houdini | sort -V | tail -1)"
+    [[ -d "$dir" ]] || return 1
+    printf '%s\n' "$dir"
+}
+
+# Shared by the writer and the checker so they can't drift.
+mcp_json() {
+    printf '{"env": [{"FXHOUDINIMCP": "%s"}], "path": "$FXHOUDINIMCP"}' "$1"
+}
+
+# Installs/upgrades the fxhoudinimcp PyPI package as a stable uv tool and
+# registers it with Claude Code. Never fails apply_config - like SideFX
+# Labs, a broken or offline MCP step must not sink the rest of `config`.
+setup_mcp() {
+    local uv_bin py claude_bin
+    uv_bin=$(command -v uv) || {
+        echo "skip Houdini MCP: uv not found (checked ~/.local/bin, Homebrew and PATH)"
+        return 0
+    }
+
+    echo "==> Installing fxhoudinimcp"
+    if ! "$uv_bin" tool install --upgrade fxhoudinimcp; then
+        if mcp_plugin_dir >/dev/null; then
+            echo "fxhoudinimcp upgrade failed; keeping the existing install" >&2
+        else
+            echo "fxhoudinimcp install failed and no existing install found; skipping MCP" >&2
+            return 0
+        fi
+    fi
+
+    py="$("$uv_bin" tool dir)/fxhoudinimcp/bin/python"
+    claude_bin=$(command -v claude || true)
+    if [[ -n "$claude_bin" ]]; then
+        echo "==> Registering Houdini MCP with Claude Code"
+        "$claude_bin" mcp remove -s user houdini >/dev/null 2>&1 || true
+        "$claude_bin" mcp add -s user houdini -- "$py" -m fxhoudinimcp \
+            || echo "Houdini MCP registration failed" >&2
+    else
+        echo "skip Houdini MCP registration: claude not found (checked ~/.local/bin, Homebrew and PATH)"
+    fi
+    return 0
+}
 
 # Applies loadout.json + desk pref + SideFX Labs for one Houdini X.Y.
 # action="check": writes nothing, fails when anything doesn't match (also
@@ -111,8 +167,17 @@ apply_config_xy() {
     if [[ "$action" == check ]]; then
         [[ "$(cat "$pkgdir/loadout.json" 2>/dev/null)" == "$json" ]] \
             && grep -qxF "$desk" "$pref_file" 2>/dev/null \
-            && [[ -d "$pkgdir/SideFXLabs$xy" && -f "$pkgdir/SideFXLabs$xy.json" ]]
-        return
+            && [[ -d "$pkgdir/SideFXLabs$xy" && -f "$pkgdir/SideFXLabs$xy.json" ]] \
+            || return 1
+        # No uv -> MCP is not required, so a machine without it is never
+        # permanently "outdated"; uv present but the tool missing -> outdated,
+        # so Update installs it.
+        if command -v uv >/dev/null 2>&1; then
+            local mcp_dir
+            mcp_dir="$(mcp_plugin_dir)" || return 1
+            [[ "$(cat "$pkgdir/fxhoudinimcp.json" 2>/dev/null)" == "$(mcp_json "$mcp_dir")" ]] || return 1
+        fi
+        return 0
     fi
 
     # The .pkg installer runs as root and creates this X.Y's prefs dir
@@ -129,6 +194,15 @@ apply_config_xy() {
     printf '%s\n' "$json" > "$pkgdir/loadout.json" \
         || { echo "Could not write $pkgdir/loadout.json" >&2; return 1; }
     echo "==> Wrote $pkgdir/loadout.json (HOUDINI_PATH -> $REPO/config/dcc/houdini)"
+
+    local mcp_dir
+    if mcp_dir="$(mcp_plugin_dir)"; then
+        if mcp_json "$mcp_dir" > "$pkgdir/fxhoudinimcp.json"; then
+            echo "==> Wrote $pkgdir/fxhoudinimcp.json (FXHOUDINIMCP -> $mcp_dir)"
+        else
+            echo "Could not write $pkgdir/fxhoudinimcp.json" >&2
+        fi
+    fi
 
     mkdir -p "$prefs" || { echo "Could not create $prefs" >&2; return 1; }
     if [[ -f "$pref_file" ]] && grep -q '^general\.desk\.val' "$pref_file"; then
@@ -158,6 +232,8 @@ apply_config() {
         apply_config_xy check "$xy"
         return
     fi
+
+    setup_mcp
 
     local dir version xy seen=() found=0 failed=0
     while IFS= read -r dir; do
@@ -451,7 +527,7 @@ EOF
 # ponytail: older Houdini versions are left in place on update; delete them by hand.
 
 do_uninstall() {
-    local dir version xy other d loadout_json labs_dir labs_json
+    local dir version xy other d loadout_json mcp_json_file labs_dir labs_json
     if ! dir="$(installed_dir)"; then
         echo "Houdini is not installed."
         return 1
@@ -471,6 +547,12 @@ do_uninstall() {
         if [[ -f "$loadout_json" ]]; then
             rm -f "$loadout_json"
             echo "Removed $loadout_json"
+        fi
+
+        mcp_json_file="$HOME/Library/Preferences/houdini/$xy/packages/fxhoudinimcp.json"
+        if [[ -f "$mcp_json_file" ]]; then
+            rm -f "$mcp_json_file"
+            echo "Removed $mcp_json_file"
         fi
 
         labs_dir="$HOME/Library/Preferences/houdini/$xy/packages/SideFXLabs$xy"
