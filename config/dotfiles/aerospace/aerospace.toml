@@ -1,6 +1,6 @@
 # AeroSpace gives each everyday app its own workspace, where its windows tile to fill the screen like a macOS full-screen
 # Space: Blender (plus the Claude Code Ghostty its Loadout tab opens, see
-# config/dcc/blender/portable/scripts/startup/dcc_claude.py), Houdini, Ghostty, Zen, Mail, Messages, Calendar, Agenda,
+# config/dcc/blender/portable/scripts/startup/dcc_claude.py), Houdini, Godot, Unreal, Ghostty, Zen, Mail, Messages, Calendar, Agenda,
 # Digest, ChatGPT, Claude, Slack, Safari, Obsidian, Pulse, Spotify, Fork, Finder and Loadout. Opening or clicking an app switches to its workspace. Every other window floats.
 # No key bindings: AeroSpace's sample Option chords would take keys Blender's keymap uses.
 config-version = 2
@@ -52,6 +52,20 @@ run = ['layout tiling', 'move-node-to-workspace Ghostty']
 if.app-name-regex-substring = '^Houdini'
 if.window-title-regex-substring = ' - Houdini \w+ \d'
 run = ['layout tiling', 'move-node-to-workspace Houdini']
+
+# Godot's editor ("<project> - Godot Engine") and Project Manager ("Godot Engine - Project Manager"); dialogs and the
+# running game ("<project> (DEBUG)") are separate windows with other titles, so they float.
+[[on-window-detected]]
+if.app-id = 'org.godotengine.godot'
+if.window-title-regex-substring = 'Godot Engine'
+run = ['layout tiling', 'move-node-to-workspace Godot']
+
+# Unreal Editor's main window ("<project> - Unreal Editor"); the splash screen and tool windows float.
+# ponytail: bundle id and title pattern unverified (no Unreal on the Mac this was written on); check on first launch.
+[[on-window-detected]]
+if.app-id = 'com.epicgames.UnrealEditor'
+if.window-title-regex-substring = ' - Unreal Editor'
+run = ['layout tiling', 'move-node-to-workspace Unreal']
 
 # Loadout's main window ("Loadout"), not its tray popup ("Loadout Tray"). Its max width would leave it tiled against the
 # left edge, so it floats, centered at full height by center.js. Focus follows so the workspace is showing when

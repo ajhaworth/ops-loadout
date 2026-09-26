@@ -338,9 +338,9 @@ replace it rather than `rm -rf`-ing someone else's app.
 - **AeroSpace = one workspace per app.** `config/dotfiles/aerospace/aerospace.toml`
   (-> `~/.aerospace.toml`, `DOTFILES_AEROSPACE`) gives each everyday app its own
   AeroSpace workspace, named after it, where its windows tile to fill the screen
-  like a full-screen Space: Blender and Houdini (main window only, by title
-  ` - Blender <digit>` / ` - Houdini <edition> <digit>`; the Houdini pattern is
-  unverified), Ghostty, Zen, Mail, Messages, Calendar, Agenda, Digest, ChatGPT, Claude,
+  like a full-screen Space: Blender, Houdini, Godot and Unreal (main window only,
+  by title ` - Blender <digit>` / ` - Houdini <edition> <digit>` / `Godot Engine` /
+  ` - Unreal Editor`; the Houdini and Unreal patterns are unverified), Ghostty, Zen, Mail, Messages, Calendar, Agenda, Digest, ChatGPT, Claude,
   Slack, Safari, Obsidian, Pulse, Spotify, Fork, Finder and
   Loadout. Everything else floats. Opening or clicking an app switches to its
   workspace because AeroSpace follows macOS focus, so rules need no
