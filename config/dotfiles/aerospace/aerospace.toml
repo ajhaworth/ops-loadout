@@ -46,11 +46,11 @@ run = 'layout tiling'
 if = 'test %{app-bundle-id} = com.mitchellh.ghostty'
 run = ['layout tiling', 'move-node-to-workspace Ghostty']
 
-# Houdini's main window only, as with Blender ("<file>.hip - Houdini <edition> <version>"); floating panes stay floating.
-# ponytail: title pattern unverified (no Houdini on the Mac this was written on); check it on first launch.
+# Houdini's main window only, as with Blender ("<file>.hip - Houdini <edition> <version>", where Apprentice's edition is
+# two words: "Houdini Apprentice Non-Commercial 22.0.429"); floating panes stay floating.
 [[on-window-detected]]
 if.app-name-regex-substring = '^Houdini'
-if.window-title-regex-substring = ' - Houdini \w+ \d'
+if.window-title-regex-substring = ' - Houdini [^0-9]+\d'
 run = ['layout tiling', 'move-node-to-workspace Houdini']
 
 # Godot's editor ("<project> - Godot Engine") and Project Manager ("Godot Engine - Project Manager"); dialogs and the
