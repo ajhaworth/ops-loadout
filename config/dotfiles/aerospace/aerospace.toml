@@ -1,18 +1,19 @@
 # AeroSpace gives each everyday app its own workspace, where its windows tile to fill the screen like a macOS full-screen
 # Space: Blender (plus the Claude Code Ghostty its Loadout tab opens, see
 # config/dcc/blender/portable/scripts/startup/dcc_claude.py), Houdini, Godot, Unreal, Ghostty, Zen, Mail, Messages, Calendar, Agenda,
-# Digest, ChatGPT, Claude, Slack, Safari, Obsidian, Pulse, Spotify, Fork, Finder and Loadout. Opening or clicking an app switches to its workspace. Every other window floats.
+# Digest, ChatGPT, Claude, Slack, Safari, Obsidian, Pulse, Spotify, Fork, Finder, Simulator and Loadout. Opening or clicking an app switches to its workspace. Every other window floats.
 # No key bindings: AeroSpace's sample Option chords would take keys Blender's keymap uses.
 config-version = 2
 start-at-login = true
 
-# The centered floating windows (Digest, Messages, Loadout; see their rules) snap back to center whenever their
+# The centered floating windows (Digest, Messages, Simulator, Loadout; see their rules) snap back to center whenever their
 # workspace is shown, so a window dragged aside never stays there.
 exec-on-workspace-change = ['/bin/bash', '-c', '''
     c() { osascript -l JavaScript ~/.config/aerospace/center.js "$@"; }
     case "$AEROSPACE_FOCUSED_WORKSPACE" in
         Digest) c dev.alx.Digest ;;
         Messages) c com.apple.MobileSMS 760 ;;
+        Simulator) c com.apple.iphonesimulator ;;
         Loadout) c dev.alx.loadout Loadout ;;
     esac
 ''']
@@ -95,6 +96,13 @@ run = ['layout tiling', 'move-node-to-workspace Mail']
 if.app-id = 'com.apple.MobileSMS'
 run = ['layout floating', 'move-node-to-workspace --focus-follows-window Messages',
        'exec-and-forget osascript -l JavaScript ~/.config/aerospace/center.js com.apple.MobileSMS 760']
+
+# The iOS Simulator keeps its device's aspect ratio, so tiling would leave it against the left edge: it floats, centered
+# at full height, its width following the device.
+[[on-window-detected]]
+if.app-id = 'com.apple.iphonesimulator'
+run = ['layout floating', 'move-node-to-workspace --focus-follows-window Simulator',
+       'exec-and-forget osascript -l JavaScript ~/.config/aerospace/center.js com.apple.iphonesimulator']
 
 [[on-window-detected]]
 if.app-id = 'com.apple.iCal'
