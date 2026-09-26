@@ -2,3 +2,4 @@
 
 gimp                # Image editing
 imageoptim          # Image optimization
+bambu-studio        # 3D printing slicer
