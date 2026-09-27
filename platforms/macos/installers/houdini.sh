@@ -524,11 +524,12 @@ end run
 EOF
 }
 
-# ponytail: older Houdini versions are left in place on update; delete them by hand.
-
 do_uninstall() {
-    local dir version xy other d loadout_json mcp_json_file labs_dir labs_json
-    if ! dir="$(installed_dir)"; then
+    local version="${1:-}" dir xy other d loadout_json mcp_json_file labs_dir labs_json
+    dir="${version:+$HOUDINI_DIR/Houdini$version}"
+    if [[ -n "$dir" ]]; then
+        [[ -d "$dir" ]] || { echo "Houdini $version is not installed."; return 1; }
+    elif ! dir="$(installed_dir)"; then
         echo "Houdini is not installed."
         return 1
     fi
@@ -576,7 +577,7 @@ case "${1:-status}" in
     status)                    do_status ;;
     versions)                  do_versions ;;
     install|update|reinstall)  do_install "$1" ;;
-    uninstall)                 do_uninstall ;;
+    uninstall)                 do_uninstall "${2:-}" ;;
     config|configure)          apply_config ;;
     *)
         echo "usage: $(basename "$0") <status|versions|install|update|reinstall|uninstall|config>" >&2

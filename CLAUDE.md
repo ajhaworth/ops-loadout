@@ -508,6 +508,29 @@ archives are attached to a release regardless and cannot be removed. Nothing is
 signed - neither by Apple nor minisign. The check compares against the running
 app's version, so an unbumped release is invisible to it - see Versioning.
 
+**Background checks (macOS).** A thread started in `setup` waits 2 minutes, then
+every 4 hours runs `brew update` (only when the catalog has formulae/casks -
+`brew_env` sets `HOMEBREW_NO_AUTO_UPDATE`, so nothing else refreshes brew's
+index), `rescan`s and emits `apps-changed`. It notifies (tauri-plugin-notification)
+only when the outdated set is not a subset of the last notified one
+(`should_notify`), so updating things never re-notifies, and once per new
+Loadout release tag (`update::latest_release`, shared with the tray updater). It
+skips ticks while the catalog is empty, so it never triggers repo discovery or
+Settings. `set_dock_badge` also puts the count in the tray title, the only
+visible signal while the app runs as an Accessory.
+
+**Session presets.** `config/presets.txt` (`name | id id ...`, catalog ids)
+launches a group of apps from a button row on the Apps tab or the quick panel.
+Ids the profile drops or that are not installed are skipped; a preset with none
+left is hidden. All but the first open with `open -g`; the first opens last so
+it takes focus, and AeroSpace follows focus to its workspace.
+
+**Quick-panel actions.** While the tray panel's search box has text it also
+lists actions (Update all, Reapply Blender settings, Pull repo, Open repo in
+Fork/Ghostty). Job actions open the main window and `emit("quick-action")`, so
+their output streams into its log drawer; `pull_repo` refuses the seeded copy,
+which has no `.git`.
+
 **Versioning.** Every change that reaches main and touches something a release
 ships gets a version bump: `app/`, `config/`, `lib/`, `platforms/` (the bundle),
 plus `setup.sh`/`setup.ps1`. That includes package-list edits, installer
@@ -557,7 +580,10 @@ bridge.ps1 tasks-status <repo> <section> [profile]      # Windows
 bridge.ps1 tasks-apply  <repo> <section> <id> [profile]
 ```
 
-Sections: `prereq`, `dotfiles`, `defaults`, `debloat` (Windows only).
+Sections: `prereq`, `dotfiles`, `defaults`, `debloat` (Windows only), `cleanup`
+(macOS only; manual - never counted as an update or run by Run all, and each
+row confirms first. Old Houdini builds get a row only when they are neither
+the newest, the pinned nor `Current`, so their ids cannot be applied).
 
 A status verb prints exactly one JSON array on stdout and nothing else:
 

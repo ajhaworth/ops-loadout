@@ -15,7 +15,7 @@ pub(crate) fn cache_name(id: &str) -> String {
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
-pub use macos::{hydrate, job_command, launch, launch_targets, open_url, refresh_icon, reveal, task_command};
+pub use macos::{brew_env, hydrate, job_command, launch, launch_targets, open_url, refresh_icon, reveal, task_command};
 
 #[cfg(target_os = "windows")]
 mod windows;
@@ -33,7 +33,7 @@ mod stub {
 
     pub fn hydrate(_apps: &mut [App], _cache_dir: &Path, _repo: &Path, _resources: &Path) {}
     pub fn refresh_icon(_app: &mut App, _cache_dir: &Path, _repo: &Path, _resources: &Path) {}
-    pub fn launch(_app: &App, _resources: &Path) -> Result<(), String> {
+    pub fn launch(_app: &App, _resources: &Path, _background: bool) -> Result<(), String> {
         Err("unsupported platform".into())
     }
     pub fn launch_targets(_app: &App, _repo: &Path, _resources: &Path) -> Vec<String> {

@@ -5,7 +5,7 @@
 #   lib/tasks.sh status <section> [--profile name]
 #   lib/tasks.sh apply  <section> <id> [--profile name]
 #
-# Sections: prereq, dotfiles, defaults
+# Sections: prereq, dotfiles, defaults, cleanup
 #
 # status prints exactly one JSON array on stdout and nothing else - see
 # CLAUDE.md "Setup Tasks (Loadout)" for the row shape and state values.
@@ -480,6 +480,182 @@ tasks_prereq() {
 }
 
 # ============================================================================
+# Section: cleanup (macOS only - caches and old Houdini builds)
+# ============================================================================
+
+# "1.2GB" / "512MB" / "900KB" -> kB (int), best-effort.
+cleanup_parse_size_kb() {
+    awk -v s="$1" 'BEGIN {
+        if (!match(s, /^[0-9.]+/)) { print 0; exit }
+        num = substr(s, RSTART, RLENGTH)
+        unit = substr(s, RSTART + RLENGTH)
+        if (unit ~ /^GB/) printf "%d", num * 1024 * 1024
+        else if (unit ~ /^MB/) printf "%d", num * 1024
+        else if (unit ~ /^KB/) printf "%d", num
+        else printf "%d", num / 1024
+    }'
+}
+
+cleanup_human_kb() {
+    awk -v kb="$1" 'BEGIN {
+        mb = kb / 1024
+        if (mb < 1024) { printf "%.0f MB", mb; exit }
+        printf "%.1f GB", mb / 1024
+    }'
+}
+
+# Usage: cleanup_row <id> <name> <kb> <apply-cmd>
+# Same shape as defaults_hook: status is the apply traversal with writes off.
+# TASK_GROUP is set by the caller, like TASK_GROUP is for defaults modules.
+cleanup_row() {
+    local id="$1" name="$2" kb="$3" apply_cmd="$4"
+    local state detail
+
+    if [[ "${kb:-0}" -gt 0 ]]; then
+        state="pending"
+        detail="$(cleanup_human_kb "$kb") reclaimable"
+    else
+        state="applied"
+        detail="nothing to clean"
+    fi
+
+    if [[ "${TASK_MODE:-apply}" == "status" ]]; then
+        emit_row "$id" "cleanup" "$TASK_GROUP" "$name" "$state" "$detail"
+        return 0
+    fi
+
+    if [[ -n "$TASK_ONLY" ]] && [[ "$TASK_ONLY" != "$id" ]]; then
+        return 0
+    fi
+    if [[ -n "$TASK_ONLY" ]]; then
+        TASK_MATCHED="true"
+    fi
+
+    if [[ "$state" == "applied" ]]; then
+        log_substep "Skip: $name ($detail)"
+        TASK_SKIPPED=$((TASK_SKIPPED + 1))
+        return 0
+    fi
+
+    if is_dry_run; then
+        log_dry "$apply_cmd  # $name"
+        return 0
+    fi
+
+    local apply_err
+    if apply_err=$(bash -c "$apply_cmd" 2>&1); then
+        log_substep "$name"
+        TASK_CHANGED=$((TASK_CHANGED + 1))
+    else
+        log_error "$name: $apply_err"
+        TASK_FAILED=$((TASK_FAILED + 1))
+        if [[ -n "$TASK_ONLY" ]]; then
+            return 1
+        fi
+    fi
+}
+
+tasks_cleanup_homebrew() {
+    [[ "${PROFILE_HOMEBREW:-true}" != "false" ]] || return 0
+    local b out line kb=0
+    b="$(tasks_brew_path)" || return 0
+
+    out="$("$b" cleanup -n 2>/dev/null)" || true
+    line="$(printf '%s\n' "$out" | grep -o 'free approximately [0-9.]*[A-Za-z]*' | tail -1)"
+    [[ -n "$line" ]] && kb="$(cleanup_parse_size_kb "${line#free approximately }")"
+
+    TASK_GROUP="Homebrew"
+    cleanup_row "cleanup:homebrew" "Homebrew cache" "$kb" "'$b' cleanup"
+}
+
+# Usage: cleanup_dir_row <id> <name> <path>...
+# Sums du -sk across every existing path and skips the row entirely when
+# none of them exist - a row only appears for something that's actually there.
+cleanup_dir_row() {
+    local id="$1" name="$2"
+    shift 2
+    local existing=() p
+    for p in "$@"; do
+        [[ -e "$p" ]] && existing+=("$p")
+    done
+    [[ ${#existing[@]} -gt 0 ]] || return 0
+
+    local kb
+    kb="$(du -sk "${existing[@]}" 2>/dev/null | awk '{sum += $1} END {print sum + 0}')"
+    cleanup_row "$id" "$name" "$kb" "rm -rf $(printf '%q ' "${existing[@]}")"
+}
+
+tasks_cleanup_blender() {
+    TASK_GROUP="Blender"
+    cleanup_dir_row "cleanup:blender:cache" "Blender cache" \
+        "$HOME/Library/Caches/Blender" "${TMPDIR:-/tmp}"/blender_*
+}
+
+tasks_cleanup_houdini_cache() {
+    TASK_GROUP="Houdini"
+    cleanup_dir_row "cleanup:houdini:cache" "Houdini cache" \
+        "$HOME"/Library/Caches/Houdini*
+}
+
+# Given a path anywhere under $1 (an app bundle inside a build dir, or a build
+# dir itself), returns that top-level HoudiniX.Y.ZZZ build directory.
+cleanup_houdini_build_dir() {
+    local base="$1" path="$2" rel
+    rel="${path#"$base"/}"
+    [[ "$rel" != "$path" ]] || return 1
+    printf '%s/%s\n' "$base" "${rel%%/*}"
+}
+
+# One row per installed Houdini build that isn't the newest, isn't the
+# active/pinned (status) build, and isn't what HOUDINI_DIR/Current resolves
+# to. Those three are never emitted, so applying one of their ids falls
+# through to main()'s "Unknown id" handling like any other id this run didn't
+# produce.
+tasks_cleanup_houdini_builds() {
+    local houdini_sh="$REPO_ROOT/platforms/macos/installers/houdini.sh"
+    local houdini_dir="${HOUDINI_DIR:-/Applications/Houdini}"
+    [[ -x "$houdini_sh" && -d "$houdini_dir" ]] || return 0
+
+    local newest_line status_line
+    newest_line="$("$houdini_sh" versions 2>/dev/null | head -1)" || true
+    status_line="$("$houdini_sh" status 2>/dev/null | head -1)" || true
+
+    local newest_dir="" status_dir="" current_dir=""
+    [[ -n "$newest_line" ]] && newest_dir="$(cleanup_houdini_build_dir "$houdini_dir" "$newest_line")" || true
+    [[ -n "$status_line" ]] && status_dir="$(cleanup_houdini_build_dir "$houdini_dir" "$status_line")" || true
+    if [[ -L "$houdini_dir/Current" ]]; then
+        # One-hop readlink, not resolve_symlink_target's realpath - the latter
+        # canonicalizes the whole path (e.g. macOS's /tmp -> /private/tmp),
+        # which would no longer share $houdini_dir's own (unresolved) prefix.
+        local current_target
+        current_target="$(readlink "$houdini_dir/Current")"
+        [[ "$current_target" == /* ]] || current_target="$houdini_dir/$current_target"
+        current_dir="$(cleanup_houdini_build_dir "$houdini_dir" "$current_target")" || true
+    fi
+
+    TASK_GROUP="Houdini"
+    local d version kb
+    for d in "$houdini_dir"/Houdini[0-9]*; do
+        [[ -d "$d" ]] || continue
+        [[ "$d" == "$newest_dir" || "$d" == "$status_dir" || "$d" == "$current_dir" ]] && continue
+        version="${d##*/Houdini}"
+        # "Houdini20.5.410 copy" etc. is not a build houdini.sh can target.
+        [[ "$version" =~ ^[0-9.]+$ ]] || continue
+        kb="$(du -sk "$d" 2>/dev/null | awk '{print $1}')"
+        cleanup_row "cleanup:houdini:$version" "Houdini $version" "${kb:-0}" \
+            "'$houdini_sh' uninstall $version"
+    done
+}
+
+tasks_cleanup() {
+    [[ "$(uname -s)" == "Darwin" ]] || return 0
+    tasks_cleanup_homebrew
+    tasks_cleanup_blender
+    tasks_cleanup_houdini_cache
+    tasks_cleanup_houdini_builds
+}
+
+# ============================================================================
 # CLI entry point
 # ============================================================================
 
@@ -489,7 +665,7 @@ Usage:
   lib/tasks.sh status <section> [--profile name]
   lib/tasks.sh apply  <section> <id> [--profile name]
 
-Sections: prereq, dotfiles, defaults
+Sections: prereq, dotfiles, defaults, cleanup
 EOF
 }
 
@@ -561,6 +737,7 @@ main() {
         prereq) tasks_prereq ;;
         dotfiles) tasks_dotfiles ;;
         defaults) tasks_defaults ;;
+        cleanup) tasks_cleanup ;;
         *)
             echo "Unknown section: $section" >&2
             exit 1

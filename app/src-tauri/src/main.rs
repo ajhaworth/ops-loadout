@@ -58,14 +58,21 @@ fn resource_dir(app: &AppHandle) -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("."))
 }
 
-/// Dock badge with the number of updates waiting. Windows has no badge count -
-/// it wants an overlay icon instead - so this is macOS only.
+/// Dock badge and tray title with the number of updates waiting. The dock
+/// badge is macOS only - Windows has no badge count, it wants an overlay icon
+/// instead; the tray title is a no-op on Windows (`set_title` there returns
+/// "Unsupported"), so it is left uncfg'd and just ignored on failure.
 #[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
 fn set_dock_badge(handle: &AppHandle, apps: &[App]) {
+    let n = apps.iter().filter(|a| a.outdated).count() as i64;
+
     #[cfg(target_os = "macos")]
     if let Some(window) = handle.get_webview_window("main") {
-        let n = apps.iter().filter(|a| a.outdated).count() as i64;
         let _ = window.set_badge_count((n > 0).then_some(n));
+    }
+
+    if let Some(tray) = handle.tray_by_id("tray") {
+        let _ = tray.set_title((n > 0).then(|| n.to_string()));
     }
 }
 
@@ -96,13 +103,165 @@ fn rescan(app: &AppHandle, store: &Store) -> Result<Vec<App>, String> {
     Ok(apps)
 }
 
-#[tauri::command]
-async fn list_apps(handle: AppHandle, store: State<'_, Store>) -> Result<Vec<App>, String> {
+/// True when `cur` has an outdated-app id `prev` (the last set notified about)
+/// doesn't - i.e. there is something new to say. Empty `cur` never notifies.
+#[cfg(target_os = "macos")]
+fn should_notify(prev: &std::collections::HashSet<String>, cur: &std::collections::HashSet<String>) -> bool {
+    !cur.is_empty() && !cur.is_subset(prev)
+}
+
+#[cfg(target_os = "macos")]
+fn notify(app: &AppHandle, body: &str) {
+    use tauri_plugin_notification::NotificationExt;
+    let _ = app.notification().builder().title("Loadout").body(body).show();
+}
+
+/// Comma-joined names, truncated so a long outdated list stays one line.
+#[cfg(target_os = "macos")]
+fn join_names(names: &[&str]) -> String {
+    const MAX: usize = 5;
+    if names.len() <= MAX {
+        names.join(", ")
+    } else {
+        format!("{}, and {} more", names[..MAX].join(", "), names.len() - MAX)
+    }
+}
+
+/// Polls for package and Loadout-itself updates every `CHECK_INTERVAL`,
+/// notifying only when there is something new to say - see CLAUDE.md
+/// "Loadout" self-update and `should_notify` above. Runs for the life of the
+/// app; every step logs and continues rather than tearing the thread down.
+#[cfg(target_os = "macos")]
+fn background_update_check(app: AppHandle) {
+    use std::collections::HashSet;
+    use std::time::Duration;
+
+    const CHECK_INTERVAL: Duration = Duration::from_secs(4 * 60 * 60);
+    std::thread::sleep(Duration::from_secs(2 * 60));
+
+    let mut notified_outdated: HashSet<String> = HashSet::new();
+    let mut notified_tag: Option<String> = None;
+
+    loop {
+        let store: State<'_, Store> = app.state();
+
+        // No profile saved yet, or the picker is up - never force repo
+        // discovery or a dialog from a background thread.
+        if store.apps.lock().unwrap().is_empty() {
+            std::thread::sleep(CHECK_INTERVAL);
+            continue;
+        }
+
+        let has_brew = store.apps.lock().unwrap().iter().any(|a| a.kind == "cask" || a.kind == "formula");
+        if has_brew {
+            match std::process::Command::new("brew")
+                .args(["update", "--quiet"])
+                .envs(platform::brew_env())
+                .output()
+            {
+                Ok(out) if !out.status.success() => {
+                    eprintln!("background brew update failed: {}", String::from_utf8_lossy(&out.stderr));
+                }
+                Err(e) => eprintln!("background brew update: {e}"),
+                _ => {}
+            }
+        }
+
+        match rescan(&app, &store) {
+            Ok(apps) => {
+                let _ = app.emit("apps-changed", ());
+                let outdated: HashSet<String> = apps.iter().filter(|a| a.outdated).map(|a| a.id.clone()).collect();
+                if should_notify(&notified_outdated, &outdated) {
+                    let mut names: Vec<&str> = apps.iter().filter(|a| a.outdated).map(|a| a.name.as_str()).collect();
+                    names.sort_unstable();
+                    let s = if outdated.len() == 1 { "" } else { "s" };
+                    notify(&app, &format!("{} update{s} available: {}", outdated.len(), join_names(&names)));
+                }
+                notified_outdated = outdated;
+            }
+            Err(e) => eprintln!("background rescan: {e}"),
+        }
+
+        match update::latest_release() {
+            Ok((latest, release)) => {
+                let tag = release["tag_name"].as_str().unwrap_or_default();
+                if latest > app.package_info().version && notified_tag.as_deref() != Some(tag) {
+                    notify(
+                        &app,
+                        &format!("Loadout {latest} is available \u{2014} use Check for Updates in the tray."),
+                    );
+                    notified_tag = Some(tag.to_string());
+                }
+            }
+            Err(e) => eprintln!("background update check: {e}"),
+        }
+
+        std::thread::sleep(CHECK_INTERVAL);
+    }
+}
+
+/// The catalog as last scanned, scanning first when nothing has been yet.
+fn current_apps(handle: &AppHandle, store: &Store) -> Result<Vec<App>, String> {
     let cached = store.apps.lock().unwrap().clone();
     if !cached.is_empty() {
         return Ok(cached);
     }
-    rescan(&handle, &store)
+    rescan(handle, store)
+}
+
+#[tauri::command]
+async fn list_apps(handle: AppHandle, store: State<'_, Store>) -> Result<Vec<App>, String> {
+    current_apps(&handle, &store)
+}
+
+/// `config/presets.txt`, each preset narrowed to the ids this profile shows and
+/// that are installed and launchable, in file order.
+fn usable_presets(handle: &AppHandle, store: &Store) -> Result<Vec<(String, Vec<App>)>, String> {
+    let repo = repo_of(handle, store).ok_or("no ops-loadout repo found")?;
+    let apps = current_apps(handle, store)?;
+    Ok(catalog::presets(&repo)
+        .into_iter()
+        .map(|(name, ids)| {
+            let usable = ids
+                .iter()
+                .filter_map(|id| apps.iter().find(|a| &a.id == id && a.installed && a.launchable))
+                .cloned()
+                .collect();
+            (name, usable)
+        })
+        .collect())
+}
+
+#[tauri::command]
+async fn list_presets(handle: AppHandle, store: State<'_, Store>) -> Result<Vec<serde_json::Value>, String> {
+    Ok(usable_presets(&handle, &store)?
+        .into_iter()
+        .filter(|(_, apps)| !apps.is_empty())
+        .map(|(name, apps)| {
+            let ids: Vec<&str> = apps.iter().map(|a| a.id.as_str()).collect();
+            serde_json::json!({ "name": name, "apps": ids })
+        })
+        .collect())
+}
+
+/// Launches a preset's apps in the background, then its first app in front,
+/// so that one ends up focused. Re-reads the file rather than trusting the UI.
+#[tauri::command]
+async fn launch_preset(handle: AppHandle, store: State<'_, Store>, name: String) -> Result<(), String> {
+    let (_, apps) = usable_presets(&handle, &store)?
+        .into_iter()
+        .find(|(n, _)| *n == name)
+        .ok_or("unknown preset")?;
+    let (first, rest) = apps.split_first().ok_or("nothing in this preset is installed")?;
+    let resources = resource_dir(&handle);
+    // One app failing to open should not keep the rest closed.
+    let errors: Vec<String> = rest
+        .iter()
+        .map(|a| platform::launch(a, &resources, true))
+        .chain([platform::launch(first, &resources, false)])
+        .filter_map(Result::err)
+        .collect();
+    if errors.is_empty() { Ok(()) } else { Err(errors.join("; ")) }
 }
 
 #[tauri::command]
@@ -135,7 +294,7 @@ async fn launch(
         }
         app.target = Some(target);
     }
-    platform::launch(&app, &resource_dir(&handle))
+    platform::launch(&app, &resource_dir(&handle), false)
 }
 
 /// The alternate builds an installer app can open (currently only multiple
@@ -243,6 +402,56 @@ async fn run_task(handle: AppHandle, store: State<'_, Store>, id: String, sectio
     });
 
     Ok(())
+}
+
+/// `git pull --ff-only` in the repo, streamed like a task under id `repo`. The
+/// copy seeded from the app bundle is not a checkout, so it has nothing to pull.
+#[tauri::command]
+async fn pull_repo(handle: AppHandle, store: State<'_, Store>) -> Result<(), String> {
+    let repo = repo_of(&handle, &store).ok_or("no ops-loadout repo found")?;
+    if !repo.join(".git").exists() {
+        return Err(format!("{} is not a git checkout", repo.display()));
+    }
+    let cmd = platform::Cmd {
+        program: "git".into(),
+        args: vec!["-C".into(), repo.to_string_lossy().into(), "pull".into(), "--ff-only".into()],
+        env: vec![],
+    };
+
+    std::thread::spawn(move || {
+        let ok = run_streaming(&handle, "repo", "pull", cmd);
+        let _ = handle.emit(
+            "install-done",
+            serde_json::json!({ "id": "repo", "ok": ok, "action": "pull" }),
+        );
+    });
+
+    Ok(())
+}
+
+/// Opens the repo in an installed app (Fork, Ghostty). Ghostty takes a folder
+/// only as `--working-directory`, in a new instance - the same invocation
+/// `dcc_claude.py` uses.
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+#[tauri::command]
+async fn open_repo_in(handle: AppHandle, store: State<'_, Store>, id: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let app = find_app(&store, &id).ok_or("unknown app")?;
+        let target = app.target.filter(|_| app.launchable).ok_or("app is not installed")?;
+        let repo = repo_of(&handle, &store).ok_or("no ops-loadout repo found")?;
+        let mut cmd = std::process::Command::new("open");
+        if app.token == "ghostty" {
+            cmd.args(["-na", &target, "--args", "--window-save-state=never"])
+                .arg(format!("--working-directory={}", repo.display()));
+        } else {
+            cmd.arg("-a").arg(&target).arg(&repo);
+        }
+        let status = cmd.status().map_err(|e| e.to_string())?;
+        return status.success().then_some(()).ok_or_else(|| format!("open {} failed", app.name));
+    }
+    #[cfg(not(target_os = "macos"))]
+    Err("only supported on macOS".into())
 }
 
 /// Runs one package-manager job in the background, streaming its output to the
@@ -392,6 +601,7 @@ fn main() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .plugin(tauri_plugin_notification::init())
         .manage(Store::default())
         .register_uri_scheme_protocol("loadout", serve_ui)
         .setup(|app| {
@@ -457,6 +667,12 @@ fn main() {
                 show_main(app.handle());
             }
 
+            #[cfg(target_os = "macos")]
+            {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || background_update_check(handle));
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -479,6 +695,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             list_apps,
             refresh,
+            list_presets,
+            launch_preset,
             launch,
             launch_targets,
             install,
@@ -493,6 +711,8 @@ fn main() {
             settings::set_settings,
             tasks_status,
             run_task,
+            pull_repo,
+            open_repo_in,
             window::open_full,
             window::open_page,
             window::hide_quick,
@@ -500,6 +720,28 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running Loadout");
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod background_check {
+    use crate::should_notify;
+    use std::collections::HashSet;
+
+    fn set(ids: &[&str]) -> HashSet<String> {
+        ids.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn notifies_only_on_something_new() {
+        let empty = set(&[]);
+        let a = set(&["a"]);
+        let ab = set(&["a", "b"]);
+
+        assert!(!should_notify(&empty, &empty), "nothing outdated");
+        assert!(!should_notify(&a, &a), "same set already notified");
+        assert!(!should_notify(&ab, &a), "a is a subset of what was already notified");
+        assert!(should_notify(&a, &ab), "b is new");
+    }
 }
 
 #[cfg(test)]

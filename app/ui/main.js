@@ -13,6 +13,7 @@ const statusTextEl = document.getElementById("status-text");
 const statusDotEl = document.getElementById("status-dot");
 
 let apps = [];
+let presets = []; // [{ name, apps: [id] }], only presets with something launchable
 let scanning = false;
 const lastLog = new Map();
 // A job in flight (id -> action), and the last failure per app. Both keep an
@@ -68,6 +69,7 @@ const SETUP = [
   { id: "dotfiles", name: "Dotfiles", desc: "Symlinks from this repo's config/dotfiles into your home directory. Existing files are backed up to ~/.dotfiles_backup.", open: true },
   { id: "defaults", name: "System defaults", desc: "Finder, Dock, keyboard, screenshot and app preferences. Each row shows the current value against the wanted one.", open: true },
   { id: "debloat", name: "Windows debloat", desc: "Removes preinstalled apps, disables Xbox services and Game DVR. Opt-in via PROFILE_DEBLOAT.", open: false, win: true },
+  { id: "cleanup", name: "Cleanup", desc: "Homebrew, Blender and Houdini caches, and old Houdini builds you can reclaim space from. Each row is deleted only when you click it.", mac: true, manual: true, open: false },
 ];
 // section id -> { loading } | { error } | { items }
 const tasks = new Map();
@@ -75,7 +77,7 @@ const sectionRunning = new Map(); // section id -> "Running i/n\u2026" label
 let everythingLabel = null; // null when idle, else a "Running i/n\u2026" label
 
 function setupSections() {
-  return SETUP.filter((s) => !s.win || IS_WINDOWS);
+  return SETUP.filter((s) => (!s.win || IS_WINDOWS) && (!s.mac || !IS_WINDOWS));
 }
 
 // GUI first, then the App Store, then the CLI grab-bag.
@@ -330,6 +332,7 @@ function render() {
     // Only categories the profile leaves apps in; a saved one that emptied falls back to All.
     const cats = Object.keys(CATEGORIES).filter((c) => c === "All" || apps.some(CATEGORIES[c]));
     const cat = cats.includes(category) ? category : "All";
+    if (presets.length) sectionsEl.append(presetsEl());
     sectionsEl.append(segEl(cats, cat, "category", (n) => (category = n), "chips"));
     sectionsEl.append(...appSectionEls(apps.filter(CATEGORIES[cat]), q));
   } else {
@@ -345,6 +348,22 @@ function render() {
   renderStatus();
 }
 
+// One button per session preset (config/presets.txt), launching its apps together.
+function presetsEl() {
+  const nav = document.createElement("nav");
+  nav.className = "chips";
+  nav.setAttribute("aria-label", "Presets");
+  nav.append(...presets.map((p) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = `\u25B6 ${p.name}`;
+    b.title = p.apps.map((id) => apps.find((a) => a.id === id)?.name || id).join(", ");
+    b.onclick = () => invoke("launch_preset", { name: p.name }).catch((e) => logLine(String(e)));
+    return b;
+  }));
+  return nav;
+}
+
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 function labelRowEl(text, ...right) {
@@ -358,7 +377,7 @@ function labelRowEl(text, ...right) {
 
 // The Updates tab's app half: the summary card, then a row per outdated app.
 function updatesEls(outdated) {
-  const setupN = setupSections().flatMap((s) => tasks.get(s.id)?.items || []).filter(runnable).length;
+  const setupN = setupSections().filter((s) => !s.manual).flatMap((s) => tasks.get(s.id)?.items || []).filter(runnable).length;
   const total = outdated.length + setupN;
 
   const hero = document.createElement("section");
@@ -576,7 +595,7 @@ function setupSectionEl(sec, q) {
   if (bucket?.items) {
     extra.push(...statePills(bucket.items));
     const runLabel = sectionRunning.get(sec.id);
-    if (runLabel || bucket.items.some(runnable)) {
+    if (!sec.manual && (runLabel || bucket.items.some(runnable))) {
       const runBtn = document.createElement("button");
       runBtn.type = "button";
       runBtn.className = "link-btn";
@@ -704,7 +723,12 @@ function startJob(id, kind, line, call) {
 }
 
 /// Same shape as doJob, but for a Setup task rather than a package.
-function doTask(task) {
+async function doTask(task) {
+  if (task.section === "cleanup") {
+    // Destructive, so confirm before anything is deleted.
+    const go = await ask(`Delete ${task.name} (${task.detail})?`, { title: "Loadout", kind: "warning" });
+    if (!go) return false;
+  }
   return startJob(task.id, "apply", `$ applying ${task.name}`, () =>
     invoke("run_task", { id: task.id, section: task.section }));
 }
@@ -728,7 +752,7 @@ async function runAll(sectionId) {
 
 async function runEverything() {
   if (everythingLabel) return;
-  const queue = setupSections().flatMap((s) => tasks.get(s.id)?.items || []).filter(runnable);
+  const queue = setupSections().filter((s) => !s.manual).flatMap((s) => tasks.get(s.id)?.items || []).filter(runnable);
   if (!queue.length) return;
   for (const [i, t] of queue.entries()) {
     everythingLabel = `Running ${i + 1}/${queue.length}\u2026`;
@@ -748,6 +772,8 @@ async function load(command) {
     apps = [];
     logLine(String(e));
   }
+  // Presets follow what is installed, so they reload with the catalog.
+  presets = await invoke("list_presets").catch(() => []);
   scanning = false;
   render();
 }
@@ -953,6 +979,22 @@ listen("install-done", async ({ payload }) => {
   }
   settle?.(payload.ok);
 });
+
+// The tray panel hands these off so their output streams into the log drawer here.
+listen("quick-action", ({ payload }) => {
+  if (payload === "update-all") {
+    updateAll();
+  } else if (payload === "blender-configure") {
+    const blender = apps.find((a) => a.id === "installer:blender");
+    if (blender) doJob(blender, "configure");
+  } else if (payload === "pull") {
+    startJob("repo", "pull", "$ git pull --ff-only", () => invoke("pull_repo"))
+      .then((ok) => ok && doRefresh());
+  }
+});
+
+// The background update check rescanned already; just pick up its result.
+listen("apps-changed", () => load("list_apps"));
 
 addEventListener("click", hideMenu);
 addEventListener("keydown", (e) => e.key === "Escape" && hideMenu());
