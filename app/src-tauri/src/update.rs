@@ -30,28 +30,29 @@ pub fn check_for_updates(app: &AppHandle) {
     });
 }
 
-async fn run(app: &AppHandle) {
-    let body = match sh("curl", &["-fsSL", "-H", "User-Agent: Loadout", LATEST]) {
-        Ok(body) => body,
-        Err(e) => return say(app, &format!("Update check failed: {e}")),
-    };
-    let release: serde_json::Value = match serde_json::from_str(&body) {
-        Ok(v) => v,
-        Err(e) => return say(app, &format!("Update check failed: {e}")),
-    };
+/// Fetches the latest GitHub release and parses its tag as a version. Shared
+/// by the tray's "Check for Updates" and the background checker.
+pub fn latest_release() -> Result<(semver::Version, serde_json::Value), String> {
+    let body = sh("curl", &["-fsSL", "-H", "User-Agent: Loadout", LATEST])?;
+    let release: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
+    let tag = release["tag_name"]
+        .as_str()
+        .ok_or("no tag in the latest release")?
+        .to_string();
+    let version = semver::Version::parse(tag.trim_start_matches('v')).map_err(|e| format!("{tag}: {e}"))?;
+    Ok((version, release))
+}
 
-    let tag = match release["tag_name"].as_str() {
-        Some(tag) => tag.to_string(),
-        None => return say(app, "Update check failed: no tag in the latest release."),
-    };
-    let latest = match semver::Version::parse(tag.trim_start_matches('v')) {
+async fn run(app: &AppHandle) {
+    let (latest, release) = match latest_release() {
         Ok(v) => v,
-        Err(e) => return say(app, &format!("Update check failed: {tag}: {e}")),
+        Err(e) => return say(app, &format!("Update check failed: {e}")),
     };
     if latest <= app.package_info().version {
         let version = app.package_info().version.to_string();
         return say(app, &format!("Loadout {version} is up to date."));
     }
+    let tag = release["tag_name"].as_str().unwrap_or_default();
 
     let ext = if cfg!(target_os = "macos") {
         ".dmg"

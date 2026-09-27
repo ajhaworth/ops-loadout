@@ -546,9 +546,14 @@ fn mas_artwork(apps: &mut [App], cache_dir: &Path) {
     }
 }
 
-pub fn launch(app: &App, _resources: &Path) -> Result<(), String> {
+/// `background` opens without bringing the app forward (`open -g`).
+pub fn launch(app: &App, _resources: &Path, background: bool) -> Result<(), String> {
     let target = app.target.as_deref().ok_or("no app bundle for this entry")?;
-    run(Command::new("open").arg("-a").arg(target), "open -a")
+    let mut cmd = Command::new("open");
+    if background {
+        cmd.arg("-g");
+    }
+    run(cmd.arg("-a").arg(target), "open -a")
 }
 
 /// `<token>.sh versions`: one installed build path per line, newest first.
@@ -571,7 +576,7 @@ pub fn launch_targets(app: &App, repo: &Path, _resources: &Path) -> Vec<String> 
         .collect()
 }
 
-fn brew_env() -> Vec<(String, String)> {
+pub fn brew_env() -> Vec<(String, String)> {
     // HOMEBREW_NO_COLOR, not HOMEBREW_COLOR=0: brew reads HOMEBREW_COLOR by
     // presence, so setting it to "0" forces colour on and fills the log drawer
     // with escape codes.

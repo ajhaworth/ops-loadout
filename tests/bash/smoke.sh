@@ -361,6 +361,71 @@ import json, sys
 data = json.loads(sys.stdin.read())
 assert isinstance(data, list) and len(data) > 0, "expected a non-empty list"
 ' || fail "lib/tasks.sh status defaults --profile workstation produced invalid JSON"
+
+    # cleanup rows depend on what is actually on the machine (Homebrew cache,
+    # Blender/Houdini caches, old Houdini builds) - unlike the sections above,
+    # an empty list is a valid result here, not a broken one.
+    local cleanup_rows
+    cleanup_rows="$("$REPO_ROOT/lib/tasks.sh" status cleanup 2>/dev/null)" \
+        || fail "lib/tasks.sh status cleanup failed"
+
+    printf '%s' "$cleanup_rows" | python3 -c '
+import json, sys
+data = json.loads(sys.stdin.read())
+assert isinstance(data, list), "expected a list"
+
+valid_states = {"applied", "pending", "failed", "needs_admin", "unknown"}
+seen_ids = set()
+for row in data:
+    assert set(row.keys()) == {"id", "section", "group", "name", "state", "detail"}, sorted(row.keys())
+    assert row["section"] == "cleanup", row["section"]
+    assert row["state"] in valid_states, row["state"]
+    assert row["id"] not in seen_ids, "duplicate id: " + row["id"]
+    seen_ids.add(row["id"])
+' || fail "lib/tasks.sh status cleanup produced invalid rows"
+}
+
+# Three fake Houdini builds, pinned to the middle one: only the oldest
+# (neither newest nor the pinned/active build) should get a cleanup row, and
+# applying one of the excluded ids must fall through to "Unknown id".
+test_cleanup_houdini_builds() {
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    local houdini_dir="$tmpdir/Houdini"
+    mkdir -p "$houdini_dir/Houdini20.5.370/Houdini Apprentice 20.5.370.app"
+    mkdir -p "$houdini_dir/Houdini20.5.435/Houdini Apprentice 20.5.435.app"
+    mkdir -p "$houdini_dir/Houdini21.0.440/Houdini Apprentice 21.0.440.app"
+    ln -s "$houdini_dir/Houdini21.0.440" "$houdini_dir/Current"
+
+    local creds="$tmpdir/sidefx.local"
+    printf 'HOUDINI_VERSION="20.5"\n' > "$creds"
+
+    local home_dir="$tmpdir/home" tmp_dir="$tmpdir/tmp"
+    mkdir -p "$home_dir" "$tmp_dir"
+
+    local rows
+    rows="$(env HOME="$home_dir" HOUDINI_DIR="$houdini_dir" TMPDIR="$tmp_dir" \
+        SIDEFX_CREDENTIALS="$creds" PROFILE_HOMEBREW="false" \
+        "$REPO_ROOT/lib/tasks.sh" status cleanup 2>/dev/null)" \
+        || fail "lib/tasks.sh status cleanup failed with fake Houdini installs present"
+
+    local houdini_ids
+    houdini_ids="$(printf '%s' "$rows" | python3 -c '
+import json, sys
+data = json.loads(sys.stdin.read())
+print("\n".join(r["id"] for r in data if r["id"].startswith("cleanup:houdini:") and r["id"] != "cleanup:houdini:cache"))
+')"
+    [[ "$houdini_ids" == "cleanup:houdini:20.5.370" ]] \
+        || fail "expected exactly one cleanup row for the oldest build, got: $houdini_ids"
+
+    if run_capture env HOME="$home_dir" HOUDINI_DIR="$houdini_dir" TMPDIR="$tmp_dir" \
+        SIDEFX_CREDENTIALS="$creds" PROFILE_HOMEBREW="false" \
+        "$REPO_ROOT/lib/tasks.sh" apply cleanup "cleanup:houdini:21.0.440"; then
+        fail "applying the excluded newest build should have failed"
+    fi
+    assert_contains "$RUN_OUTPUT" "Unknown id"
 }
 
 test_json_str_escaping() {
@@ -508,6 +573,7 @@ test_unsupported_linux_rejected
 test_macos_installer_scripts
 test_houdini_multi_version_status
 test_tasks_status_json
+test_cleanup_houdini_builds
 test_json_str_escaping
 test_defaults_compare
 test_tasks_apply_unknown_id

@@ -254,6 +254,19 @@ pub fn filter_by_profile(apps: Vec<App>, flags: &HashMap<String, String>) -> Vec
         .collect()
 }
 
+/// `config/presets.txt`: `name | id id ...`, in file order. A missing file is
+/// no presets; which ids are usable is the caller's business.
+pub fn presets(repo: &Path) -> Vec<(String, Vec<String>)> {
+    let text = fs::read_to_string(repo.join("config/presets.txt")).unwrap_or_default();
+    parse_list(&text)
+        .iter()
+        .filter_map(|line| {
+            let ids = field(line, 1)?.split_whitespace().map(str::to_string).collect();
+            Some((field(line, 0)?, ids))
+        })
+        .collect()
+}
+
 pub fn is_repo(path: &Path) -> bool {
     path.join("config/packages").is_dir()
 }
@@ -343,5 +356,24 @@ houdini | Houdini | https://www.sidefx.com/
 
         // Unset means enabled, everywhere.
         assert_eq!(listed(&filter_by_profile(apps.clone(), &HashMap::new())), listed(&apps));
+    }
+
+    /// The real `config/presets.txt`: every id is `kind:token`, and on macOS
+    /// names an entry the lists actually carry.
+    #[test]
+    fn presets_file_names_real_apps() {
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let presets = presets(&repo);
+        assert!(presets.iter().any(|(_, ids)| !ids.is_empty()), "{presets:?}");
+        let known: Vec<String> = scan(&repo).into_iter().map(|a| a.id).collect();
+        for (name, ids) in &presets {
+            for id in ids {
+                let (kind, token) = id.split_once(':').unwrap_or_default();
+                assert!(!kind.is_empty() && !token.is_empty(), "{name}: {id} is not kind:token");
+                if cfg!(target_os = "macos") {
+                    assert!(known.contains(id), "{name}: {id} is in no package list");
+                }
+            }
+        }
     }
 }

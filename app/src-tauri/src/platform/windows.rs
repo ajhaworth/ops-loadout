@@ -103,7 +103,8 @@ pub fn refresh_icon(app: &mut App, cache_dir: &Path, repo: &Path, resources: &Pa
     *app = one.into_iter().next().unwrap();
 }
 
-pub fn launch(app: &App, resources: &Path) -> Result<(), String> {
+/// `background` is macOS-only (`open -g`); Windows always brings the app forward.
+pub fn launch(app: &App, resources: &Path, _background: bool) -> Result<(), String> {
     let exe = app.target.as_deref().ok_or("no executable for this entry")?;
     let mut args = base_args(resources);
     args.push("launch".into());

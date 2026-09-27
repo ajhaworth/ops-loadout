@@ -1,0 +1,4 @@
+# Session presets: one click launches a group of apps.
+# name | catalog app ids, space-separated; the first one ends up focused.
+# Ids the profile filters out or that are not installed are skipped.
+Env art | installer:blender installer:houdini installer:ghostty cask:claude
