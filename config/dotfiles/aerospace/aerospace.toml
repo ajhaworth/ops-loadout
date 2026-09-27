@@ -1,17 +1,16 @@
 # AeroSpace gives each everyday app its own workspace, where its windows tile to fill the screen like a macOS full-screen
 # Space: Blender (plus the Claude Code Ghostty its Loadout tab opens, see
 # config/dcc/blender/portable/scripts/startup/dcc_claude.py), Houdini, Godot, Unreal, Ghostty, Zen, Mail, Messages, Calendar, Agenda,
-# Digest, ChatGPT, Claude, Slack, Safari, Obsidian, Pulse, Spotify, Fork, Finder, Simulator and Loadout. Opening or clicking an app switches to its workspace. Every other window floats.
+# Digest and Pulse (sharing one, side by side), ChatGPT, Claude, Slack, Safari, Obsidian, Spotify, Fork, Finder, Simulator and Loadout. Opening or clicking an app switches to its workspace. Every other window floats.
 # No key bindings: AeroSpace's sample Option chords would take keys Blender's keymap uses.
 config-version = 2
 start-at-login = true
 
-# The centered floating windows (Digest, Messages, Simulator, Loadout; see their rules) snap back to center whenever their
+# The centered floating windows (Messages, Simulator, Loadout; see their rules) snap back to center whenever their
 # workspace is shown, so a window dragged aside never stays there.
 exec-on-workspace-change = ['/bin/bash', '-c', '''
     c() { osascript -l JavaScript ~/.config/aerospace/center.js "$@"; }
     case "$AEROSPACE_FOCUSED_WORKSPACE" in
-        Digest) c dev.alx.Digest ;;
         Messages) c com.apple.MobileSMS 760 ;;
         Simulator) c com.apple.iphonesimulator ;;
         Loadout) c dev.alx.loadout Loadout ;;
@@ -76,12 +75,6 @@ if = 'test %{app-bundle-id} = dev.alx.loadout && test %{window-title} = Loadout'
 run = ['layout floating', 'move-node-to-workspace --focus-follows-window Loadout',
        'exec-and-forget osascript -l JavaScript ~/.config/aerospace/center.js dev.alx.loadout Loadout']
 
-# Digest has a max width too: same treatment as Loadout.
-[[on-window-detected]]
-if.app-id = 'dev.alx.Digest'
-run = ['layout floating', 'move-node-to-workspace --focus-follows-window Digest',
-       'exec-and-forget osascript -l JavaScript ~/.config/aerospace/center.js dev.alx.Digest']
-
 # One workspace per app. Every window of the app tiles there, so a second window (a compose window, Get Info) splits it.
 [[on-window-detected]]
 if.app-id = 'app.zen-browser.zen'
@@ -91,7 +84,7 @@ run = ['layout tiling', 'move-node-to-workspace Zen']
 if.app-id = 'com.apple.mail'
 run = ['layout tiling', 'move-node-to-workspace Mail']
 
-# Messages reads best narrow, so it gets Digest's width, centered the same way.
+# Messages reads best narrow, so it floats at 760 px, centered the same way as Loadout.
 [[on-window-detected]]
 if.app-id = 'com.apple.MobileSMS'
 run = ['layout floating', 'move-node-to-workspace --focus-follows-window Messages',
@@ -107,6 +100,11 @@ run = ['layout floating', 'move-node-to-workspace --focus-follows-window Simulat
 [[on-window-detected]]
 if.app-id = 'com.apple.iCal'
 run = ['layout tiling', 'move-node-to-workspace Calendar']
+
+# Digest and Pulse share workspace "Digest", tiled side by side. Digest's max width (760 px) may leave a gap in its tile.
+[[on-window-detected]]
+if.app-id = 'dev.alx.Digest'
+run = ['layout tiling', 'move-node-to-workspace Digest']
 
 [[on-window-detected]]
 if.app-id = 'dev.alx.Agenda'
@@ -134,7 +132,7 @@ run = ['layout tiling', 'move-node-to-workspace Obsidian']
 
 [[on-window-detected]]
 if.app-id = 'dev.alx.Pulse'
-run = ['layout tiling', 'move-node-to-workspace Pulse']
+run = ['layout tiling', 'move-node-to-workspace Digest']
 
 [[on-window-detected]]
 if.app-id = 'com.spotify.client'
