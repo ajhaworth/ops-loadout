@@ -689,7 +689,7 @@ async function loadSection(id) {
     const items = await invoke("tasks_status", { section: id });
     tasks.set(id, { items });
   } catch (e) {
-    tasks.set(id, { error: String(e) });
+    tasks.set(id, { error: String(e) || "status check failed" });
   }
   render();
 }
