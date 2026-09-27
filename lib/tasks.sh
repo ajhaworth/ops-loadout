@@ -561,7 +561,7 @@ tasks_cleanup_homebrew() {
     b="$(tasks_brew_path)" || return 0
 
     out="$("$b" cleanup -n 2>/dev/null)" || true
-    line="$(printf '%s\n' "$out" | grep -o 'free approximately [0-9.]*[A-Za-z]*' | tail -1)"
+    line="$(printf '%s\n' "$out" | grep -o 'free approximately [0-9.]*[A-Za-z]*' | tail -1)" || true
     [[ -n "$line" ]] && kb="$(cleanup_parse_size_kb "${line#free approximately }")"
 
     TASK_GROUP="Homebrew"
@@ -581,7 +581,7 @@ cleanup_dir_row() {
     [[ ${#existing[@]} -gt 0 ]] || return 0
 
     local kb
-    kb="$(du -sk "${existing[@]}" 2>/dev/null | awk '{sum += $1} END {print sum + 0}')"
+    kb="$(du -sk "${existing[@]}" 2>/dev/null | awk '{sum += $1} END {print sum + 0}')" || true
     cleanup_row "$id" "$name" "$kb" "rm -rf $(printf '%q ' "${existing[@]}")"
 }
 
@@ -641,7 +641,7 @@ tasks_cleanup_houdini_builds() {
         version="${d##*/Houdini}"
         # "Houdini20.5.410 copy" etc. is not a build houdini.sh can target.
         [[ "$version" =~ ^[0-9.]+$ ]] || continue
-        kb="$(du -sk "$d" 2>/dev/null | awk '{print $1}')"
+        kb="$(du -sk "$d" 2>/dev/null | awk '{print $1}')" || true
         cleanup_row "cleanup:houdini:$version" "Houdini $version" "${kb:-0}" \
             "'$houdini_sh' uninstall $version"
     done
