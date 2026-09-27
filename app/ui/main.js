@@ -377,8 +377,8 @@ function labelRowEl(text, ...right) {
 
 // The Updates tab's app half: the summary card, then a row per outdated app.
 function updatesEls(outdated) {
-  const setupN = setupSections().filter((s) => !s.manual).flatMap((s) => tasks.get(s.id)?.items || []).filter(runnable).length;
-  const total = outdated.length + setupN;
+  // Apps only, like the tab badge: Update All does not touch setup tasks, which have their own Run all.
+  const total = outdated.length;
 
   const hero = document.createElement("section");
   hero.className = "hero";
@@ -388,14 +388,8 @@ function updatesEls(outdated) {
   const text = document.createElement("div");
   text.className = "hero-text";
   const h = document.createElement("h1");
-  h.textContent = total ? `${plural(total, "update")} ready` : "Everything is up to date";
+  h.textContent = total ? `${plural(total, "app update")} ready` : "All apps are up to date";
   text.append(h);
-  if (total) {
-    const sub = document.createElement("div");
-    sub.className = "hero-sub";
-    sub.textContent = `${plural(outdated.length, "app")} and ${plural(setupN, "setup task")}`;
-    text.append(sub);
-  }
   hero.append(mark, text);
   // Stays put while a run is in progress even as the count drains.
   if (outdated.length || updatingAll) {

@@ -446,7 +446,6 @@ details.nested > summary { padding-left: 24px; font-weight: 500; }
 .hero-mark svg { stroke-width: 2; }
 .hero-text { flex: 1; min-width: 0; }
 .hero h1 { margin: 0; font-size: 15px; font-weight: 600; line-height: 20px; }
-.hero-sub { color: var(--dim); font-size: 12px; line-height: 16px; }
 
 /* Pill buttons. Secondary by default; .primary is the filled one. */
 .pill-btn {
