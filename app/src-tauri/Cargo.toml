@@ -1,6 +1,6 @@
 [package]
 name = "loadout"
-version = "0.15.2"
+version = "0.16.0"
 edition = "2021"
 rust-version = "1.77"
 description = "Tracks, installs and configures the apps a workstation runs"
@@ -13,6 +13,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-autostart = "2"
+tauri-plugin-notification = "2"
 window-vibrancy = "0.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
