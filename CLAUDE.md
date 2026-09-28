@@ -364,7 +364,12 @@ replace it rather than `rm -rf`-ing someone else's app.
   The menu bar stays: on a notched display the strip beside the notch is
   off-limits to normal windows (macOS clamps them to y=32) even with the menu bar
   auto-hidden.
-  No key bindings - AeroSpace's sample Option chords steal Blender keys. The
+  Key bindings are Hyper (ctrl-alt-cmd-shift) only - AeroSpace's sample Option
+  chords steal Blender keys. Hyper+Enter moves the focused window to the
+  previous workspace, tiled (one-off side-by-side); `exec-on-workspace-change`
+  records that workspace in `/tmp/aerospace-prev-workspace`, since
+  `move-node-to-workspace` has no "previous" target. Hyper+F toggles floating,
+  Hyper+Left/Right swap tiles, Hyper+Minus/Equal resize. The
   launcher's `AERO_TILE` finds the new Claude window as the Ghostty window id
   that was not there before, takes Blender out of macOS native full screen if
   needed (AeroSpace cannot tile across Spaces, and only sees the current one),

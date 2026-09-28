@@ -2,13 +2,14 @@
 # Space: Blender (plus the Claude Code Ghostty its Loadout tab opens, see
 # config/dcc/blender/portable/scripts/startup/dcc_claude.py), Houdini, Godot, Unreal, Ghostty, Zen, Mail, Messages, Calendar, Agenda,
 # Digest and Pulse (sharing one, side by side), ChatGPT, Claude, Slack, Safari, Obsidian, Spotify, Fork, Finder, Simulator and Loadout. Opening or clicking an app switches to its workspace. Every other window floats.
-# No key bindings: AeroSpace's sample Option chords would take keys Blender's keymap uses.
+# Key bindings use Hyper (ctrl-alt-cmd-shift) only: AeroSpace's sample Option chords would take keys Blender's keymap uses.
 config-version = 2
 start-at-login = true
 
 # The centered floating windows (Messages, Simulator, Loadout; see their rules) snap back to center whenever their
-# workspace is shown, so a window dragged aside never stays there.
+# workspace is shown, so a window dragged aside never stays there. The previous workspace is recorded for Hyper+Enter.
 exec-on-workspace-change = ['/bin/bash', '-c', '''
+    printf %s "$AEROSPACE_PREV_WORKSPACE" > /tmp/aerospace-prev-workspace
     c() { osascript -l JavaScript ~/.config/aerospace/center.js "$@"; }
     case "$AEROSPACE_FOCUSED_WORKSPACE" in
         Messages) c com.apple.MobileSMS 760 ;;
@@ -16,6 +17,18 @@ exec-on-workspace-change = ['/bin/bash', '-c', '''
         Loadout) c dev.alx.loadout Loadout ;;
     esac
 ''']
+
+# One-off tiling beside another app: switch to the app, then Hyper+Enter sends its window back to the workspace you
+# came from, tiled, with focus following. Pressing it again returns it. move-node-to-workspace has no "previous"
+# target, hence the file written above. The CLI is in ~/.local/bin (installers/aerospace.sh) or Homebrew.
+[mode.main.binding]
+ctrl-alt-cmd-shift-enter = '''exec-and-forget PATH="$HOME/.local/bin:/opt/homebrew/bin:$PATH";
+    aerospace move-node-to-workspace --focus-follows-window "$(cat /tmp/aerospace-prev-workspace)" && aerospace layout tiling'''
+ctrl-alt-cmd-shift-f = 'layout floating tiling'
+ctrl-alt-cmd-shift-left = 'move left'
+ctrl-alt-cmd-shift-right = 'move right'
+ctrl-alt-cmd-shift-minus = 'resize smart -50'
+ctrl-alt-cmd-shift-equal = 'resize smart +50'
 
 # The margin macOS's own window tiling leaves, around and between tiled windows.
 [gaps]
