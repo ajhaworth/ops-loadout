@@ -3,3 +3,4 @@
 
 blender | Blender | https://www.blender.org/
 houdini | Houdini | https://www.sidefx.com/
+comfyui | ComfyUI | https://www.comfy.org/
