@@ -15,6 +15,13 @@ apply_dock() {
     defaults_set com.apple.dock mru-spaces bool false "Don't rearrange Spaces based on most recent use"
     # AeroSpace (Blender + Claude Code tiling) and Stage Manager both hide and show window groups, and fight.
     defaults_set com.apple.WindowManager GloballyEnabled bool false "Stage Manager off (AeroSpace manages windows)"
+    # macOS's own tiling snaps a dragged window to an edge, which AeroSpace then fights over.
+    defaults_set com.apple.WindowManager EnableTilingByEdgeDrag bool false "Don't tile windows dragged to screen edges"
+    defaults_set com.apple.WindowManager EnableTopTilingByEdgeDrag bool false "Don't fill the screen when dragging to the top"
+    defaults_set com.apple.WindowManager EnableTilingOptionAccelerator bool false "Don't tile windows on Option-drag"
+    # Ctrl-Cmd-drag moves a window from anywhere in it (applies after logout): swaps AeroSpace tiles by dropping one on
+    # another, without hunting for a title bar in Blender or Houdini.
+    defaults_set NSGlobalDomain NSWindowShouldDragOnGesture bool true "Ctrl-Cmd-drag moves windows from anywhere"
     # AeroSpace parks other workspaces' windows in a screen corner; grouped by app, Mission Control stays readable.
     defaults_set com.apple.dock expose-group-apps bool true "Group windows by app in Mission Control"
 }

@@ -344,8 +344,10 @@ replace it rather than `rm -rf`-ing someone else's app.
   tiles beside it there), ChatGPT, Claude, Slack, Safari, Obsidian, Spotify, Fork, Finder, Simulator and
   Loadout. Everything else floats. Opening or clicking an app switches to its
   workspace because AeroSpace follows macOS focus, so rules need no
-  `--focus-follows-window`. Every window of a matched app tiles, so a second one
-  (compose window, Get Info) splits that workspace. 8 px gaps all round, like
+  `--focus-follows-window`. A matched app's normal windows tile, so a second one
+  (compose window) splits that workspace; its dialogs, panels and
+  picture-in-picture float there by AeroSpace's own heuristic, which is why the
+  plain per-app rules carry no `layout tiling` (it would override that). 8 px gaps all round, like
   macOS's own tiling. Loadout's rule matches the title `Loadout` exactly: its tray
   popup is titled "Loadout Tray" (never shown, it has no decorations) so it keeps
   floating. A window with a max width (Loadout 550 px) would tile
@@ -358,7 +360,9 @@ replace it rather than `rm -rf`-ing someone else's app.
   workspace shows. Rules fire only for new windows; `reload-config` leaves open ones
   where they are. AeroSpace parks other workspaces' windows in a screen corner, so
   Mission Control groups windows by app (`expose-group-apps`, set by `dock.sh` and,
-  for profiles without defaults, `installers/aerospace.sh`). A Ghostty window tiles on workspace "Ghostty" unless it opens
+  for profiles without defaults, `installers/aerospace.sh`), which also turn off
+  Stage Manager and macOS's edge-drag tiling (both fight AeroSpace) and turn on
+  Ctrl-Cmd-drag from anywhere in a window. A Ghostty window tiles on workspace "Ghostty" unless it opens
   while workspace "Blender" is focused - that is the Claude window, keyed on
   `%{workspace}` because Ghostty sets its title only after AeroSpace detects it.
   The menu bar stays: on a notched display the strip beside the notch is
@@ -368,14 +372,16 @@ replace it rather than `rm -rf`-ing someone else's app.
   Blender keys. `capslock-f18.plist` (-> `~/Library/LaunchAgents/`) runs
   `hidutil` at login to remap Caps Lock to F18 (no Karabiner; `hidutil` forgets
   mappings on reboot), and F18 enters AeroSpace mode `window`, where one key
-  runs a command. F18 cannot be seen held, so Enter and F drop back to `main`
-  while arrows and Minus/Equal stay in the mode for repeated presses until Caps
-  Lock or Esc. Caps Lock, Enter moves the focused
+  runs a command. F18 cannot be seen held, so Enter, F and R drop back to `main`
+  while arrows and Minus/Equal move on to mode `repeat`, which binds only those
+  (F and Enter reach the app again) for repeated presses until Caps Lock or Esc.
+  No mode shows on screen, so `on-focus-changed` drops back to `main` on any
+  focus change. Caps Lock, Enter moves the focused
   window to the previous workspace, tiled (one-off side-by-side);
   `exec-on-workspace-change` records that workspace in
   `/tmp/aerospace-prev-workspace`, since `move-node-to-workspace` has no
-  "previous" target. F toggles floating, Left/Right swap tiles, Minus/Equal
-  resize. The
+  "previous" target. F toggles floating, R flattens and rebalances a tangled
+  workspace, Left/Right swap tiles, Minus/Equal resize. The
   launcher's `AERO_TILE` finds the new Claude window as the Ghostty window id
   that was not there before, takes Blender out of macOS native full screen if
   needed (AeroSpace cannot tile across Spaces, and only sees the current one),
