@@ -368,12 +368,14 @@ replace it rather than `rm -rf`-ing someone else's app.
   Blender keys. `capslock-f18.plist` (-> `~/Library/LaunchAgents/`) runs
   `hidutil` at login to remap Caps Lock to F18 (no Karabiner; `hidutil` forgets
   mappings on reboot), and F18 enters AeroSpace mode `window`, where one key
-  runs a command and drops back to `main`. Caps Lock, Enter moves the focused
+  runs a command. F18 cannot be seen held, so Enter and F drop back to `main`
+  while arrows and Minus/Equal stay in the mode for repeated presses until Caps
+  Lock or Esc. Caps Lock, Enter moves the focused
   window to the previous workspace, tiled (one-off side-by-side);
   `exec-on-workspace-change` records that workspace in
   `/tmp/aerospace-prev-workspace`, since `move-node-to-workspace` has no
   "previous" target. F toggles floating, Left/Right swap tiles, Minus/Equal
-  resize, Esc cancels. The
+  resize. The
   launcher's `AERO_TILE` finds the new Claude window as the Ghostty window id
   that was not there before, takes Blender out of macOS native full screen if
   needed (AeroSpace cannot tile across Spaces, and only sees the current one),
