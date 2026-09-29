@@ -19,11 +19,17 @@ exec-on-workspace-change = ['/bin/bash', '-c', '''
     esac
 ''']
 
-# Caps Lock (F18) enters mode "window". Enter and F run once and drop back to main; arrows and -/= stay in the mode so
-# they can be pressed repeatedly, until Caps Lock or Esc. F18 is a plain key, so AeroSpace cannot see it held down.
+# A mode has no on-screen indicator, so leaving one open would keep eating its keys in apps; any focus change (a
+# click, Cmd-Tab, a workspace switch) drops back to main.
+on-focus-changed = 'mode main'
+
+# Caps Lock (F18) enters mode "window". Enter, F and R run once and drop back to main; arrows and -/= move on to mode
+# "repeat", where only they stay bound (so F and Enter reach the app again) for repeated presses, until Caps Lock or
+# Esc. F18 is a plain key, so AeroSpace cannot see it held down.
 # One-off tiling beside another app: switch to the app, then Caps Lock, Enter sends its window back to the workspace
 # you came from, tiled, with focus following. Doing it again returns it. move-node-to-workspace has no "previous"
 # target, hence the file written above. The CLI is in ~/.local/bin (installers/aerospace.sh) or Homebrew.
+# R flattens and rebalances a workspace whose splits got tangled by moves.
 [mode.main.binding]
 f18 = 'mode window'
 
@@ -31,6 +37,15 @@ f18 = 'mode window'
 enter = ['mode main', '''exec-and-forget PATH="$HOME/.local/bin:/opt/homebrew/bin:$PATH";
     aerospace move-node-to-workspace --focus-follows-window "$(cat /tmp/aerospace-prev-workspace)" && aerospace layout tiling''']
 f = ['mode main', 'layout floating tiling']
+r = ['mode main', 'flatten-workspace-tree', 'balance-sizes']
+left = ['mode repeat', 'move left']
+right = ['mode repeat', 'move right']
+minus = ['mode repeat', 'resize smart -50']
+equal = ['mode repeat', 'resize smart +50']
+esc = 'mode main'
+f18 = 'mode main'
+
+[mode.repeat.binding]
 left = 'move left'
 right = 'move right'
 minus = 'resize smart -50'
@@ -96,14 +111,15 @@ if = 'test %{app-bundle-id} = dev.alx.loadout && test %{window-title} = Loadout'
 run = ['layout floating', 'move-node-to-workspace --focus-follows-window Loadout',
        'exec-and-forget osascript -l JavaScript ~/.config/aerospace/center.js dev.alx.loadout Loadout']
 
-# One workspace per app. Every window of the app tiles there, so a second window (a compose window, Get Info) splits it.
+# One workspace per app. Its normal windows tile there, so a second one (a compose window) splits it; dialogs, panels
+# and picture-in-picture float on it by AeroSpace's own heuristic, which a 'layout tiling' here would override.
 [[on-window-detected]]
 if.app-id = 'app.zen-browser.zen'
-run = ['layout tiling', 'move-node-to-workspace Zen']
+run = 'move-node-to-workspace Zen'
 
 [[on-window-detected]]
 if.app-id = 'com.apple.mail'
-run = ['layout tiling', 'move-node-to-workspace Mail']
+run = 'move-node-to-workspace Mail'
 
 # Messages reads best narrow, so it floats at 760 px, centered the same way as Loadout.
 [[on-window-detected]]
@@ -120,52 +136,52 @@ run = ['layout floating', 'move-node-to-workspace --focus-follows-window Simulat
 
 [[on-window-detected]]
 if.app-id = 'com.apple.iCal'
-run = ['layout tiling', 'move-node-to-workspace Calendar']
+run = 'move-node-to-workspace Calendar'
 
 # Digest and Pulse share workspace "Digest", tiled side by side. Digest's max width (760 px) may leave a gap in its tile.
 [[on-window-detected]]
 if.app-id = 'dev.alx.Digest'
-run = ['layout tiling', 'move-node-to-workspace Digest']
+run = 'move-node-to-workspace Digest'
 
 [[on-window-detected]]
 if.app-id = 'dev.alx.Agenda'
-run = ['layout tiling', 'move-node-to-workspace Agenda']
+run = 'move-node-to-workspace Agenda'
 
 [[on-window-detected]]
 if.app-id = 'com.openai.codex'
-run = ['layout tiling', 'move-node-to-workspace ChatGPT']
+run = 'move-node-to-workspace ChatGPT'
 
 [[on-window-detected]]
 if.app-id = 'com.anthropic.claudefordesktop'
-run = ['layout tiling', 'move-node-to-workspace Claude']
+run = 'move-node-to-workspace Claude'
 
 [[on-window-detected]]
 if.app-id = 'com.tinyspeck.slackmacgap'
-run = ['layout tiling', 'move-node-to-workspace Slack']
+run = 'move-node-to-workspace Slack'
 
 [[on-window-detected]]
 if.app-id = 'com.apple.Safari'
-run = ['layout tiling', 'move-node-to-workspace Safari']
+run = 'move-node-to-workspace Safari'
 
 [[on-window-detected]]
 if.app-id = 'md.obsidian'
-run = ['layout tiling', 'move-node-to-workspace Obsidian']
+run = 'move-node-to-workspace Obsidian'
 
 [[on-window-detected]]
 if.app-id = 'dev.alx.Pulse'
-run = ['layout tiling', 'move-node-to-workspace Digest']
+run = 'move-node-to-workspace Digest'
 
 [[on-window-detected]]
 if.app-id = 'com.spotify.client'
-run = ['layout tiling', 'move-node-to-workspace Spotify']
+run = 'move-node-to-workspace Spotify'
 
 [[on-window-detected]]
 if.app-id = 'com.DanPristupov.Fork'
-run = ['layout tiling', 'move-node-to-workspace Fork']
+run = 'move-node-to-workspace Fork'
 
 [[on-window-detected]]
 if.app-id = 'com.apple.finder'
-run = ['layout tiling', 'move-node-to-workspace Finder']
+run = 'move-node-to-workspace Finder'
 
 [[on-window-detected]]
 if = 'true'

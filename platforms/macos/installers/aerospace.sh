@@ -60,15 +60,20 @@ do_install() {
     ditto "$dir/AeroSpace.app" "$APP"
     mkdir -p "$(dirname "$CLI")"
     install -m 0755 "$dir/bin/aerospace" "$CLI"
-    # Stage Manager hides and shows window groups too, and fights AeroSpace; AeroSpace parks other workspaces' windows
-    # in a screen corner, which scatters Mission Control unless it groups by app. dock.sh sets both as well, but
-    # profiles without system defaults (workstation) only get them here.
+    # Stage Manager and macOS's edge-drag tiling move windows too, and fight AeroSpace; AeroSpace parks other
+    # workspaces' windows in a screen corner, which scatters Mission Control unless it groups by app; Ctrl-Cmd-drag
+    # moves a window from anywhere in it. dock.sh sets all of these as well, but profiles without system defaults
+    # (workstation) only get them here.
     defaults write com.apple.WindowManager GloballyEnabled -bool false
+    defaults write com.apple.WindowManager EnableTilingByEdgeDrag -bool false
+    defaults write com.apple.WindowManager EnableTopTilingByEdgeDrag -bool false
+    defaults write com.apple.WindowManager EnableTilingOptionAccelerator -bool false
+    defaults write NSGlobalDomain NSWindowShouldDragOnGesture -bool true
     defaults write com.apple.dock expose-group-apps -bool true
     killall Dock 2>/dev/null || true
     open -a "$APP"
 
-    echo "AeroSpace $tag installed, Stage Manager off, Mission Control grouped by app. Allow AeroSpace under"
+    echo "AeroSpace $tag installed, Stage Manager and edge tiling off, Mission Control grouped by app. Allow AeroSpace under"
     echo "Privacy & Security > Accessibility when asked, and apply the AeroSpace dotfiles (Updates tab)."
 }
 
