@@ -649,6 +649,18 @@ A status verb prints exactly one JSON array on stdout and nothing else:
   path per item; the helper (`defaults_set` on macOS, `Set-RegistryValue` on
   Windows) branches on mode. Never add a separate checker that can drift.
 
+### Wallpaper
+
+`config/wallpapers/macos.jpg` and `windows.jpg` are the desktop pictures, set by
+a `wallpaper` defaults module on each platform (one Updates-tab row). macOS
+(`defaults/wallpaper.sh`) reads and sets every screen through `NSWorkspace` in
+JXA, not System Events, so it needs no Automation permission; it covers the
+current Space per display. Windows (`defaults/wallpaper.ps1`, `DEFAULTS_WALLPAPER`)
+compares `HKCU:\Control Panel\Desktop\WallPaper` and sets it with
+`SystemParametersInfo`. Both point at the repo file in place, so moving the repo
+(or switching to the seeded copy) shows the row pending again. To change a
+wallpaper, replace the file; keep it a JPEG around 5K wide.
+
 ### Dotfiles
 
 Dotfiles use symlinks managed via two platform-specific manifests:
