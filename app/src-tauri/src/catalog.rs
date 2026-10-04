@@ -2,7 +2,7 @@
 //!
 //! Mirrors `lib/packages.sh:parse_package_list` (full-line and trailing `#`
 //! comments, trimmed, blanks skipped) plus the pipe-delimited formats used by
-//! the mas / windows-github / windows-comfynodes lists.
+//! the mas / windows-winget / windows-github / windows-comfynodes lists.
 
 use serde::Serialize;
 use std::collections::HashMap;
@@ -17,7 +17,7 @@ pub struct App {
     /// The list file's stem (`software-dev`), as the profile variable spells
     /// it. `category` is its title case, which is not reliably reversible.
     pub list: String,
-    /// "cask" | "formula" | "mas" | "github" | "comfynode" | "installer"
+    /// "cask" | "formula" | "mas" | "installer" | "winget" | "github" | "comfynode"
     pub kind: String,
     pub installed: bool,
     /// An installed app with a newer version available.
@@ -152,6 +152,24 @@ fn mas(repo: &Path) -> Vec<App> {
         .collect()
 }
 
+fn winget(repo: &Path) -> Vec<App> {
+    read_dir_lists(&repo.join("config/packages/windows/winget"))
+        .into_iter()
+        .flat_map(|(stem, entries)| {
+            let category = title_case(&stem);
+            entries.into_iter().filter_map(move |line| {
+                // Winget.Id | name (default: the id after its first dot)
+                let id = field(&line, 0)?;
+                let default_name = id.split_once('.').map_or(id.as_str(), |(_, n)| n).to_string();
+                let name = field(&line, 1).unwrap_or(default_name);
+                let mut app = App::new("winget", &id, &name, &category, &stem);
+                app.token = line.clone(); // bridge.ps1 parses the whole spec
+                Some(app)
+            })
+        })
+        .collect()
+}
+
 fn github(repo: &Path) -> Vec<App> {
     read_dir_lists(&repo.join("config/packages/windows/github"))
         .into_iter()
@@ -215,7 +233,8 @@ fn comfynodes(repo: &Path) -> Vec<App> {
 /// saved in Settings.
 pub fn scan(repo: &Path) -> Vec<App> {
     if cfg!(target_os = "windows") {
-        let mut apps = github(repo);
+        let mut apps = winget(repo);
+        apps.extend(github(repo));
         apps.extend(comfynodes(repo));
         apps
     } else {
@@ -247,6 +266,7 @@ pub fn filter_by_profile(apps: Vec<App>, flags: &HashMap<String, String>) -> Vec
             "cask" => homebrew && on(&category_var("CASKS", &app.list)),
             "formula" => homebrew && on(&category_var("FORMULAE", &app.list)),
             "installer" => on(&category_var("INSTALLERS", &app.list)),
+            "winget" => on(&category_var("WINGET", &app.list)),
             "github" => on(&category_var("GITHUB", &app.list)),
             "comfynode" => on(&category_var("COMFYNODES", &app.list)),
             _ => true,
@@ -331,6 +351,7 @@ houdini | Houdini | https://www.sidefx.com/
             app("mas", "productivity"),
             app("installer", "creative"),
             app("installer", "dcc"),
+            app("winget", "gaming"),
         ];
         let flags = |pairs: &[(&str, &str)]| -> HashMap<String, String> {
             pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
@@ -345,13 +366,22 @@ houdini | Houdini | https://www.sidefx.com/
             apps.clone(),
             &flags(&[("PROFILE_HOMEBREW", "false"), ("INSTALLERS_CREATIVE", "false")]),
         );
-        assert_eq!(listed(&kept), ["installer:dcc"]);
+        assert_eq!(listed(&kept), ["installer:dcc", "winget:gaming"]);
+        let kept = filter_by_profile(apps.clone(), &flags(&[("WINGET_GAMING", "false")]));
+        assert!(!listed(&kept).contains(&"winget:gaming".to_string()));
 
         // The variable names one list file, not one kind.
         let kept = filter_by_profile(apps.clone(), &flags(&[("CASKS_SOFTWARE_DEV", "false")]));
         assert_eq!(
             listed(&kept),
-            ["formula:core", "cask:development", "mas:productivity", "installer:creative", "installer:dcc"]
+            [
+                "formula:core",
+                "cask:development",
+                "mas:productivity",
+                "installer:creative",
+                "installer:dcc",
+                "winget:gaming"
+            ]
         );
 
         // Unset means enabled, everywhere.

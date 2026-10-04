@@ -103,11 +103,9 @@ Full dev station setup for Debian/Ubuntu Linux including core tools, shell enhan
 
 ### Windows (`--profile windows`)
 
-Gaming workstation setup for Windows: dotfiles, GitHub-release apps, ComfyUI
-custom nodes, and system preferences, with optional bloatware removal. Winget
-and Chocolatey package installation (core dev tools, browsers, productivity
-apps, gaming clients, emulators) has moved to Ansible in the `ops-server`
-repo (`roles/windows/packages`, run via `./scripts/homelab setup windows`).
+Gaming workstation setup for Windows: dotfiles, winget apps, GitHub-release
+apps, ComfyUI custom nodes, and system preferences, with optional bloatware
+removal.
 
 ## Usage
 
@@ -224,8 +222,12 @@ Packages are defined in text files under `config/packages/`:
 - `apt/*.txt` - APT packages (Debian/Ubuntu only)
 
 **Windows** (`config/packages/windows/`):
+- `winget/*.txt` - winget packages, `Winget.Id | name`, where `name` is the
+  tile name and the Start Menu shortcut launched for it (default: the id after
+  its first dot). Install state comes from `winget list`, which also finds apps
+  installed by other means, so winget upgrades those in place.
 - `github/*.txt` - Apps published only as GitHub release assets, for the
-  handful with no winget or Chocolatey package. Pipe-delimited:
+  handful with no winget package. Pipe-delimited:
   `owner/repo | asset-pattern | display-name | install-args`, where every field
   after the repo is optional (defaults: `*.exe`, the repo name, `/quiet`).
   Install state is read from Add/Remove Programs, and an app already present is
@@ -236,11 +238,6 @@ Packages are defined in text files under `config/packages/`:
   backend's `custom_nodes/`, with `requirements.txt` installed into that
   backend's own `.venv`. Existing nodes are skipped; `-Force` fast-forwards
   them. Skipped entirely on a machine with no ComfyUI.
-
-Winget and Chocolatey packages are managed by Ansible in the `ops-server`
-repo (`roles/windows/packages`, run via `./scripts/homelab setup windows`),
-not here. The GitHub-release and ComfyUI-node paths stay in this repo because
-their version-stamp/compare logic has no clean Ansible equivalent.
 
 ### Local Overrides
 
@@ -289,7 +286,7 @@ ops-loadout/
 │   │   │   └── mas/            # App Store apps
 │   │   ├── linux/              # Linux package lists
 │   │   │   └── apt/            # APT packages
-│   │   └── windows/            # Windows package lists (winget/choco moved to ops-server)
+│   │   └── windows/            # Windows package lists (winget, GitHub releases, ComfyUI nodes)
 │   │       ├── github/         # GitHub release installers
 │   │       └── comfynodes/     # ComfyUI custom nodes
 │   └── dotfiles/               # Configuration files and manifests

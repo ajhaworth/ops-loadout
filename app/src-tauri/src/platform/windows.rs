@@ -130,7 +130,8 @@ pub fn channels(_app: &App, _repo: &Path, _resources: &Path) -> Vec<String> {
 }
 
 pub fn job_command(action: &str, app: &App, repo: &Path, resources: &Path) -> Result<Cmd, String> {
-    // The repo's own upgrade path is a -Force reinstall, so both map to it.
+    // The repo's own upgrade path is a -Force reinstall (winget: upgrade), so
+    // both map to it.
     let verb = match action {
         "install" => "install",
         "uninstall" => "uninstall",
@@ -196,7 +197,7 @@ pub fn task_command(
 
 fn bridge_job(verb: &str, app: &App, repo: &Path, resources: &Path) -> Result<Cmd, String> {
     let kind = match app.kind.as_str() {
-        "github" | "comfynode" => app.kind.clone(),
+        "winget" | "github" | "comfynode" => app.kind.clone(),
         other => return Err(format!("cannot {verb} a {other} on Windows")),
     };
     let mut args = base_args(resources);

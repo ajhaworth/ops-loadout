@@ -136,9 +136,8 @@ Write-Section "Package lists match profile variables"
 $packagesDir = Join-Path $repoRoot "config\packages\windows"
 $knownVars = @{}
 
-foreach ($manager in @('github', 'comfynodes')) {
-    $prefix = 'GITHUB'
-    if ($manager -eq 'comfynodes') { $prefix = 'COMFYNODES' }
+foreach ($manager in @('winget', 'github', 'comfynodes')) {
+    $prefix = $manager.ToUpper()
 
     $managerDir = Join-Path $packagesDir $manager
     if (-not (Test-Path -LiteralPath $managerDir)) { continue }
@@ -150,6 +149,13 @@ foreach ($manager in @('github', 'comfynodes')) {
         Assert-True ($packages.Count -gt 0) "$manager/$($file.Name) is not empty"
 
         # A malformed spec only fails at install time otherwise
+        if ($manager -eq 'winget') {
+            foreach ($package in $packages) {
+                $parsed = $null
+                try { $parsed = ConvertFrom-WingetPackageSpec -Spec $package } catch { $parsed = $null }
+                Assert-True ($null -ne $parsed) "winget spec parses: $package"
+            }
+        }
         if ($manager -eq 'github') {
             foreach ($package in $packages) {
                 $parsed = $null
@@ -167,13 +173,33 @@ foreach ($manager in @('github', 'comfynodes')) {
     }
 }
 
-# Every GITHUB_*/COMFYNODES_* variable in the profile must have a backing
+# Every WINGET_*/GITHUB_*/COMFYNODES_* variable in the profile must have a backing
 # file, otherwise a deleted category silently lingers in the profile.
 foreach ($key in $windowsProfile.Keys) {
-    if ($key -match '^(GITHUB|COMFYNODES)_') {
+    if ($key -match '^(WINGET|GITHUB|COMFYNODES)_') {
         Assert-True $knownVars.ContainsKey($key) "profile var $key has a matching package list"
     }
 }
+
+# --- winget specs ------------------------------------------------------------
+
+$wg = ConvertFrom-WingetPackageSpec -Spec 'Perforce.P4V | P4V'
+Assert-Equal 'Perforce.P4V' $wg.Id "winget spec id"
+Assert-Equal 'P4V' $wg.Name "winget spec name"
+Assert-Equal 'Steam' (ConvertFrom-WingetPackageSpec -Spec 'Valve.Steam').Name "winget name defaults to the id after its first dot"
+
+# Real `winget list` rows: a `>` version prefix, an Available column, and an
+# id that only prefixes another (EpicGames.EpicOnlineServices).
+$rows = @(
+    'Name                  Id                            Version      Available  Source',
+    '1Password             AgileBits.1Password           > 8.12.36.40            winget',
+    'Epic Games Launcher   EpicGames.EpicGamesLauncher   1.3.149.0    1.3.210.0  winget',
+    'Epic Online Services  EpicGames.EpicOnlineServices  4.2.1        4.3.1      winget'
+)
+$ws = Get-WingetState -Ids @('AgileBits.1Password', 'EpicGames.EpicGamesLauncher', 'Valve.Steam') -Lines $rows
+Assert-Equal $false $ws['AgileBits.1Password'] "winget: installed, no update despite > prefix"
+Assert-Equal $true $ws['EpicGames.EpicGamesLauncher'] "winget: Available column means outdated"
+Assert-True (-not $ws.ContainsKey('Valve.Steam')) "winget: absent id is not installed"
 
 # --- ComfyUI custom node specs ---------------------------------------------
 

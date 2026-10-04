@@ -50,14 +50,36 @@ Packages are defined in text files under `config/packages/` — one package per 
 - `macos/formulae/*.txt` / `macos/casks/*.txt` - Homebrew CLI tools and GUI apps
 - `macos/mas/*.txt` - Mac App Store apps (`ID|Name` format); one list per category like casks, all gated by `PROFILE_MAS`
 - `linux/apt/*.txt` - APT packages
+- `windows/winget/*.txt` - winget packages (see below)
 - `windows/github/*.txt` - GitHub release installers (see below)
 - `windows/comfynodes/*.txt` - ComfyUI custom nodes (see below)
 
-Windows winget and Chocolatey packages are **not** managed here — they moved
-to Ansible in the sibling `ops-server` repo (`roles/windows/packages`, run via
-`./scripts/homelab setup windows`), to keep the package lists in one place.
-This repo deliberately keeps the GitHub-release and ComfyUI-node paths, since
-their version-stamp/compare logic has no clean Ansible equivalent.
+### winget Packages
+
+Windows apps install through winget from Loadout (and `setup.ps1 packages`),
+not Ansible - the user does not want Windows apps installed by Ansible. The
+`ops-server` repo's `roles/windows/packages` predates this and still lists
+many of the same ids. One package per line:
+
+```
+Winget.Id | name
+```
+
+`name` is the tile name *and* the Start Menu shortcut Loadout launches
+(`Get-ShortcutTarget`), defaulting to the id after its first dot. The shortcut,
+not Add/Remove Programs, is the launch target because ARP is unreliable for
+it: Steam and GOG record their uninstaller as `DisplayIcon`, 1Password and
+Nextcloud record nothing, and ARP names drift from the app name (P4V registers
+as "P4 Apps").
+
+Installed/outdated come from one `winget list` (`Get-WingetState`, ~2 s), keyed
+on the id token in each row; an extra token for the Available column means
+outdated, and a `<`/`>` version prefix is skipped. `winget list` correlates ARP
+entries winget did not install, so Chocolatey-installed apps read as installed
+and `winget upgrade` updates them in place. Install/update/uninstall run
+`winget install|upgrade|uninstall --id <id> --exact --silent`; the exit codes
+for "already installed"/"no applicable update" count as success
+(`$script:WingetNoop`). No winget package exists for the NVIDIA app.
 
 ### GitHub Release Packages
 
@@ -467,7 +489,7 @@ points straight at `../ui`) over a Rust backend in `app/src-tauri/src/`:
   `install-log`/`install-done` events.
 - `catalog.rs` — pure parser of `config/packages/**` into `App` structs; never
   shells out. Kinds: `formula`, `cask`, `mas`, `installer` (macOS) and
-  `github`, `comfynode` (Windows). `scan` reads every list file;
+  `winget`, `github`, `comfynode` (Windows). `scan` reads every list file;
   `filter_by_profile` then drops what the profile saved in Settings disables,
   using the same `<PREFIX>_<CATEGORY>` / `PROFILE_MAS` / `PROFILE_HOMEBREW`
   semantics as the bash side, before `hydrate` runs. `hydrate` only shells to
@@ -836,7 +858,7 @@ python3 tests/bash/blender_install.py InstallTests.<test_name>  # one test
 .\setup.ps1 -DryRun                  # Preview changes
 .\setup.ps1 dotfiles                 # Dotfiles only
 .\setup.ps1 dotfiles ls              # Check symlink status
-.\setup.ps1 packages                 # GitHub releases + ComfyUI custom nodes
+.\setup.ps1 packages                 # winget + GitHub releases + ComfyUI nodes
 .\setup.ps1 packages ls              # Package status
 .\setup.ps1 defaults                 # System preferences
 .\setup.ps1 defaults ls              # Preference categories
@@ -921,7 +943,7 @@ setup.ps1 (Windows entry point — thin wrapper)
     └── platforms/windows/setup.ps1
         ├── lib/windows/common.psm1, packages.psm1, dotfiles.psm1, registry.psm1,
         │                comfyui.psm1
-        ├── packages.ps1 (github releases + comfyui nodes)
+        ├── packages.ps1 (winget, github releases, comfyui nodes)
         ├── dotfiles.ps1 (manifest.windows.txt processing)
         ├── defaults.ps1 (dynamically loads defaults/*.ps1)
         └── debloat.ps1 (optional bloatware removal)

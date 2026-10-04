@@ -1,8 +1,6 @@
 # packages.ps1 - Windows package installation
 #
-# Installs GitHub-release apps and ComfyUI custom nodes. Winget and
-# Chocolatey packages are installed by Ansible in the ops-server repo
-# (roles/windows/packages, run via ./scripts/homelab setup windows).
+# Installs winget packages, GitHub-release apps and ComfyUI custom nodes.
 # Reads package lists from config/packages/windows/
 
 param(
@@ -38,14 +36,11 @@ $packagesDir = Join-Path $repoRoot "config\packages\windows"
 function Get-EnabledPackages {
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('github', 'comfynodes')]
+        [ValidateSet('winget', 'github', 'comfynodes')]
         [string]$Manager
     )
 
-    $prefix = 'GITHUB'
-    if ($Manager -eq 'comfynodes') {
-        $prefix = 'COMFYNODES'
-    }
+    $prefix = $Manager.ToUpper()
 
     $managerDir = Join-Path $packagesDir $Manager
     $enabledPackages = @{}
@@ -73,6 +68,26 @@ function Get-EnabledPackages {
 
 # List package status
 function Show-AllPackageStatus {
+    $wingetPackages = Get-EnabledPackages -Manager 'winget'
+    if ($wingetPackages.Count -gt 0) {
+        Write-Step "winget Packages"
+        $all = @($wingetPackages.Values | ForEach-Object { $_ } | ForEach-Object { ConvertFrom-WingetPackageSpec -Spec $_ })
+        $state = Get-WingetState -Ids @($all | ForEach-Object { $_.Id })
+        foreach ($category in $wingetPackages.Keys | Sort-Object) {
+            Write-SubStep $category
+            foreach ($package in $wingetPackages[$category]) {
+                $id = (ConvertFrom-WingetPackageSpec -Spec $package).Id
+                if ($state.ContainsKey($id)) {
+                    Write-Host "    [" -NoNewline
+                    Write-Host "X" -ForegroundColor Green -NoNewline
+                    Write-Host "] $id"
+                } else {
+                    Write-Host "    [ ] $id" -ForegroundColor DarkGray
+                }
+            }
+        }
+    }
+
     Write-Step "GitHub Release Packages"
 
     $githubPackages = Get-EnabledPackages -Manager 'github'
@@ -146,6 +161,19 @@ function Install-AllComfyNodes {
 # Install all enabled packages
 function Install-AllPackages {
     Reset-Results
+
+    # install also upgrades an installed package; -Force changes nothing here.
+    $wingetPackages = Get-EnabledPackages -Manager 'winget'
+    if ($wingetPackages.Count -gt 0) {
+        Write-Step "Installing winget Packages"
+
+        foreach ($category in $wingetPackages.Keys | Sort-Object) {
+            Write-SubStep $category
+            foreach ($package in $wingetPackages[$category]) {
+                Invoke-WingetPackage -Verb 'install' -Spec $package -DryRun:$DryRun | Out-Null
+            }
+        }
+    }
 
     # GitHub release installers. These need no package manager, but the
     # installers they download will prompt for elevation when not already admin.

@@ -45,7 +45,7 @@ function svgEl(name, size, cls = "") {
 
 const KIND_LABELS = {
   cask: "Homebrew cask", formula: "Homebrew formula", mas: "App Store",
-  installer: "Loadout installer", github: "GitHub release", comfynode: "ComfyUI node",
+  installer: "Loadout installer", winget: "winget", github: "GitHub release", comfynode: "ComfyUI node",
 };
 
 // Two top-level tabs: Apps is the grid, Updates is outdated packages plus the
@@ -83,7 +83,7 @@ function setupSections() {
 // GUI first, then the App Store, then the CLI grab-bag.
 const GROUPS = [
   { kinds: ["cask", "installer"], open: true },
-  { kinds: ["github"], open: true },
+  { kinds: ["winget", "github"], open: true },
   { kinds: ["mas"], open: true },
   { kinds: ["comfynode"], open: true },
   { kinds: ["formula"], open: false, wrap: "Command line" },

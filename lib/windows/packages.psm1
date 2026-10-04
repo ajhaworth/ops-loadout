@@ -46,8 +46,8 @@ function Format-ExitCode {
 
 # --- GitHub release installs -------------------------------------------------
 #
-# Some apps ship only as a GitHub release asset, with no winget or Chocolatey
-# package (those are managed by Ansible in ops-server). Entries in
+# Some apps ship only as a GitHub release asset, with no winget package (those
+# are config/packages/windows/winget, below). Entries in
 # config/packages/windows/github/*.txt are pipe-delimited:
 #
 #   owner/repo | asset-pattern | display-name | install-args
@@ -585,8 +585,132 @@ function Invoke-UninstallString {
     }
 }
 
-# Install multiple GitHub-release packages from a list. Winget/choco packages
-# are installed by Ansible in ops-server, not here.
+# --- winget packages ---------------------------------------------------------
+#
+# config/packages/windows/winget/*.txt, one package per line:
+#
+#   Winget.Id | name
+#
+#   name   the tile name, and the Start Menu shortcut launched for it
+#          (default: the id after its first dot)
+#
+# Installed/outdated come from one `winget list`, which also matches apps
+# winget did not install itself (Chocolatey, by hand) through Add/Remove
+# Programs - so winget upgrades those in place.
+
+# winget's "nothing to do" exit codes: already the latest / already installed.
+$script:WingetNoop = @(
+    -1978335189,  # 0x8A15002B UPDATE_NOT_APPLICABLE
+    -1978335135   # 0x8A150061 PACKAGE_ALREADY_INSTALLED
+)
+
+function ConvertFrom-WingetPackageSpec {
+    param([Parameter(Mandatory)][string]$Spec)
+
+    $parts = @($Spec -split '\|' | ForEach-Object { $_.Trim() })
+    $id = $parts[0]
+    if (-not $id -or $id -match '\s') { throw "Invalid winget spec: $Spec" }
+    $name = ($id -split '\.', 2)[-1]
+    if ($parts.Count -gt 1 -and $parts[1]) { $name = $parts[1] }
+    return @{ Id = $id; Name = $name }
+}
+
+# id -> outdated, for each of -Ids that `winget list` reports installed. A row
+# reads `Name  Id  Version  [Available]  Source`; the name has spaces and the
+# version may carry a `<`/`>` prefix, so count the tokens after the id.
+# -Lines stands in for winget's output (tests).
+function Get-WingetState {
+    param([string[]]$Ids, [string[]]$Lines)
+
+    $state = @{}
+    if (-not $Ids) { return $state }
+    if ($null -eq $Lines) {
+        if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { return $state }
+        $Lines = @(winget list --accept-source-agreements --disable-interactivity 2>$null)
+    }
+
+    foreach ($line in $Lines) {
+        $tokens = @("$line".Trim() -split '\s+')
+        foreach ($id in $Ids) {
+            $at = [Array]::FindIndex($tokens, [Predicate[string]] { param($t) $t -eq $id })
+            if ($at -lt 0) { continue }
+            $after = @($tokens | Select-Object -Skip ($at + 1) | Where-Object { $_ -notin '<', '>' })
+            $state[$id] = ($after.Count -ge 3)
+        }
+    }
+    return $state
+}
+
+# Start Menu shortcut name -> its target exe. Built once per process: the walk
+# resolves every .lnk through WScript.Shell.
+$script:Shortcuts = $null
+
+function Get-ShortcutTarget {
+    param([Parameter(Mandatory)][string]$Name)
+
+    if ($null -eq $script:Shortcuts) {
+        $script:Shortcuts = @{}
+        if (Test-IsWindowsPlatform) {
+            $shell = New-Object -ComObject WScript.Shell
+            $dirs = @([Environment]::GetFolderPath('CommonPrograms'), [Environment]::GetFolderPath('Programs'))
+            foreach ($lnk in @(Get-ChildItem -LiteralPath $dirs -Recurse -Filter '*.lnk' -ErrorAction SilentlyContinue)) {
+                if ($script:Shortcuts.ContainsKey($lnk.BaseName)) { continue }
+                $target = $shell.CreateShortcut($lnk.FullName).TargetPath
+                if ($target -and (Test-Path -LiteralPath $target)) { $script:Shortcuts[$lnk.BaseName] = $target }
+            }
+        }
+    }
+
+    $target = $script:Shortcuts[$Name]
+    if ($target) { return $target }
+    return ''
+}
+
+function Invoke-WingetPackage {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('install', 'upgrade', 'uninstall')]
+        [string]$Verb,
+        [Parameter(Mandatory)]
+        [string]$Spec,
+        [switch]$DryRun
+    )
+
+    $parsed = ConvertFrom-WingetPackageSpec -Spec $Spec
+    $wingetArgs = @($Verb, '--id', $parsed.Id, '--exact', '--silent',
+        '--accept-source-agreements', '--disable-interactivity')
+    # Uninstall matches what is installed, wherever it came from.
+    if ($Verb -ne 'uninstall') { $wingetArgs += @('--source', 'winget', '--accept-package-agreements') }
+
+    if ($DryRun) {
+        Write-Host "  [dry-run] winget $($wingetArgs -join ' ')"
+        return $true
+    }
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        Write-Err 'winget not found - install App Installer from the Microsoft Store'
+        $script:Results.Failed += $parsed.Id
+        return $false
+    }
+
+    Write-Host "Running: winget $($wingetArgs -join ' ')"
+    & winget @wingetArgs
+    $code = $LASTEXITCODE
+
+    if ($code -eq 0) {
+        $script:Results.Installed += $parsed.Id
+        return $true
+    }
+    if ($script:WingetNoop -contains $code) {
+        Write-Host "$($parsed.Name) is already up to date"
+        $script:Results.Skipped += $parsed.Id
+        return $true
+    }
+    Write-Err "winget $Verb $($parsed.Id) exited $(Format-ExitCode -Code $code)"
+    $script:Results.Failed += $parsed.Id
+    return $false
+}
+
+# Install multiple GitHub-release packages from a list.
 function Install-PackageBatch {
     param(
         [Parameter(Mandatory)]
@@ -674,6 +798,10 @@ function Get-FailureCount {
 }
 
 Export-ModuleMember -Function @(
+    'ConvertFrom-WingetPackageSpec',
+    'Get-WingetState',
+    'Get-ShortcutTarget',
+    'Invoke-WingetPackage',
     'Reset-Results',
     'Get-Results',
     'Get-FailureCount',

@@ -1,5 +1,7 @@
 # bridge.ps1 - Loadout <-> lib/windows/packages.psm1
 #
+# Package kinds: winget, github, comfynode.
+#
 # Invoked as:
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 status  <repo>
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 install <repo> <kind> <spec>
@@ -508,6 +510,25 @@ switch ($Verb) {
         Import-OpsModules -RepoRoot $repoRoot
         $result = @()
 
+        $wingetSpecs = @(Get-SpecsIn (Join-Path $repoRoot 'config\packages\windows\winget'))
+        if ($wingetSpecs.Count -gt 0) {
+            $parsed = @(foreach ($spec in $wingetSpecs) {
+                try { ConvertFrom-WingetPackageSpec -Spec $spec } catch { }
+            })
+            $state = Get-WingetState -Ids @($parsed | ForEach-Object { $_.Id })
+            foreach ($p in $parsed) {
+                $installed = $state.ContainsKey($p.Id)
+                $exe = ''
+                if ($installed) { $exe = Get-ShortcutTarget -Name $p.Name }
+                $result += [pscustomobject]@{
+                    id        = "winget:$($p.Id)"
+                    installed = $installed
+                    outdated  = ($installed -and $state[$p.Id])
+                    exe       = $exe
+                }
+            }
+        }
+
         foreach ($spec in Get-SpecsIn (Join-Path $repoRoot 'config\packages\windows\github')) {
             $parsed = $null
             try { $parsed = ConvertFrom-GitHubPackageSpec -Spec $spec } catch { continue }
@@ -554,14 +575,18 @@ switch ($Verb) {
 
     { $_ -in 'install', 'update' } {
         # -Force is the repo's upgrade path: it reinstalls a GitHub release at
-        # the latest tag and fast-forwards a node checkout.
+        # the latest tag and fast-forwards a node checkout. winget upgrades.
         $force = ($Verb -eq 'update')
         $repoRoot = $Args2[0]
         $kind = $Args2[1]
         $spec = $Args2[2]
         Import-OpsModules -RepoRoot $repoRoot
 
-        if ($kind -eq 'github') {
+        if ($kind -eq 'winget') {
+            $wingetVerb = 'install'
+            if ($force) { $wingetVerb = 'upgrade' }
+            Invoke-WingetPackage -Verb $wingetVerb -Spec $spec | Out-Null
+        } elseif ($kind -eq 'github') {
             Install-GitHubRelease -PackageSpec $spec -Force:$force | Out-Null
         } else {
             $backends = @(Get-ComfyBackends)
@@ -583,7 +608,9 @@ switch ($Verb) {
         $spec = $Args2[2]
         Import-OpsModules -RepoRoot $repoRoot
 
-        if ($kind -eq 'github') {
+        if ($kind -eq 'winget') {
+            if (-not (Invoke-WingetPackage -Verb 'uninstall' -Spec $spec)) { exit 1 }
+        } elseif ($kind -eq 'github') {
             $parsed = ConvertFrom-GitHubPackageSpec -Spec $spec
             $existing = Get-InstalledProgram -NamePattern $parsed.DisplayName
             if ($null -eq $existing) {

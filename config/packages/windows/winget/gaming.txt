@@ -1,0 +1,5 @@
+# Format: Winget.Id | name (tile name and the Start Menu shortcut it launches)
+Valve.Steam | Steam
+goatcorp.XIVLauncher | XIVLauncher
+EpicGames.EpicGamesLauncher | Epic Games Launcher
+GOG.Galaxy | GOG GALAXY

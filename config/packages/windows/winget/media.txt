@@ -1,0 +1,2 @@
+# Format: Winget.Id | name (tile name and the Start Menu shortcut it launches)
+Spotify.Spotify | Spotify
