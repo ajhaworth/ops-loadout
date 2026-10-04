@@ -22,6 +22,11 @@ function Apply-Explorer {
         @{ Path = $cabinet;  Name = 'FullPath';              Value = 1; Label = 'Full path in title bar' }
         @{ Path = $explorer; Name = 'ShowRecent';            Value = 0; Label = 'Hide recent files in Quick Access' }
         @{ Path = $explorer; Name = 'ShowFrequent';          Value = 0; Label = 'Hide frequent folders in Quick Access' }
+        # An empty InprocServer32 for the Windows 11 menu's COM class makes it
+        # fail to load, so Explorer falls back to the full classic menu. Takes
+        # effect when Explorer restarts.
+        @{ Path = "HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32"
+           Name = '(default)'; Value = ''; Type = 'String'; Label = 'Classic right-click menu' }
     )
 
     Set-RegistryValueSet -Settings $settings -DryRun:$DryRun

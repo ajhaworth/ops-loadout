@@ -3,3 +3,5 @@ Valve.Steam | Steam
 goatcorp.XIVLauncher | XIVLauncher
 EpicGames.EpicGamesLauncher | Epic Games Launcher
 GOG.Galaxy | GOG GALAXY
+# Controller configuration. Portable zip, so no Start Menu shortcut.
+8BitDo.UltimateSoftwareV2 | 8BitDo Ultimate Software V2

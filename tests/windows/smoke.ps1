@@ -344,6 +344,20 @@ foreach ($key in $windowsProfile.Keys) {
 }
 
 # ---------------------------------------------------------------------------
+Write-Section "Vibepollo sunshine.conf"
+
+. (Join-Path $defaultsDir "vibepollo.ps1")
+$sunConf = Join-Path ([IO.Path]::GetTempPath()) "ops-sunshine-$PID.conf"
+Set-Content -LiteralPath $sunConf -Value @('sunshine_name = box', 'update_check_interval = 86400')
+Assert-Equal '86400' (Get-SunshineConfValue -Path $sunConf -Key 'update_check_interval') "reads an existing key"
+Set-SunshineConfValue -Path $sunConf -Key 'update_check_interval' -Value '0'
+Set-SunshineConfValue -Path $sunConf -Key 'notify_pre_releases' -Value 'disabled'
+$sunLines = @(Get-Content -LiteralPath $sunConf)
+Remove-Item -LiteralPath $sunConf
+Assert-Equal 3 $sunLines.Count "replaces in place, appends a new key, keeps the rest"
+Assert-Equal 'update_check_interval = 0' $sunLines[1] "replaced line keeps its position"
+
+# ---------------------------------------------------------------------------
 Write-Section "ComfyUI model config"
 
 $comfyModule = Join-Path $defaultsDir "comfyui.ps1"

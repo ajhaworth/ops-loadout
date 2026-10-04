@@ -19,8 +19,11 @@ function Apply-Taskbar {
         @{ Path = $advanced; Name = 'TaskbarMn';                  Value = 0; Label = 'Hide chat button' }
         @{ Path = $advanced; Name = 'ShowTaskViewButton';         Value = 0; Label = 'Hide Task View button' }
         @{ Path = $advanced; Name = 'TaskbarGlomLevel';           Value = 0; Label = 'Always combine taskbar buttons' }
+        @{ Path = $advanced; Name = 'ShowCopilotButton';          Value = 0; Label = 'Hide Copilot button' }
+        @{ Path = $advanced; Name = 'Start_IrisRecommendations';  Value = 0; Label = 'No tips and recommendations in Start' }
         @{ Path = $search;   Name = 'SearchboxTaskbarMode';       Value = 0; Label = 'Hide taskbar search box' }
         @{ Path = $policies; Name = 'DisableSearchBoxSuggestions'; Value = 1; Label = 'Disable web results in Start search' }
+        @{ Path = $policies; Name = 'HideRecentlyAddedApps';       Value = 1; Label = 'No recently added apps in Start' }
     )
 
     Set-RegistryValueSet -Settings $settings -DryRun:$DryRun

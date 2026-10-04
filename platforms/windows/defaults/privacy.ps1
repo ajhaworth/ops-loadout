@@ -34,6 +34,8 @@ function Apply-Privacy {
         @{ Path = $system;         Name = 'EnableActivityFeed';   Value = 0; Label = 'Disable activity feed' }
         @{ Path = $system;         Name = 'PublishUserActivities'; Value = 0; Label = 'Disable publishing activities' }
         @{ Path = $system;         Name = 'UploadUserActivities';  Value = 0; Label = 'Disable uploading activities' }
+        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI";      Name = 'DisableAIDataAnalysis'; Value = 1; Label = 'Turn off Recall snapshots' }
+        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot"; Name = 'TurnOffWindowsCopilot'; Value = 1; Label = 'Turn off Windows Copilot' }
     )
 
     Set-RegistryValueSet -Settings $machineSettings -DryRun:$DryRun

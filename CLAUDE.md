@@ -119,8 +119,9 @@ DisplayVersion with `-IgnorePreRelease`, comparing numeric cores only, and
 records a stamp on the way past so the next run is exact.
 
 (That same mismatch is why Vibepollo itself nags about an available update: its
-updater compares its internal version to the repo's git tags. Setting
-`update_check_interval = 0` in `sunshine.conf` disables the check.)
+updater compares its internal version to the repo's git tags.
+`defaults/vibepollo.ps1` sets `update_check_interval = 0` in `sunshine.conf`
+to disable the check, editing that one key, never the whole file.)
 
 Resolving the latest release requires the API, so this path is not offline —
 but a failed lookup during `-DryRun` degrades to a notice rather than an error,
@@ -726,9 +727,16 @@ Dotfiles use symlinks managed via two platform-specific manifests:
   `%DOCUMENTS%`, `%LOCALAPPDATA%`, `%APPDATA%`. `%DOCUMENTS%` resolves through
   the shell API rather than `$HOME\Documents`, so OneDrive Known Folder Move is
   handled correctly.
-- Windows is deliberately git-only. Shell, prompt and terminal config are not
-  managed here — that box isn't terminal-driven. Don't add them back without
-  asking.
+- Windows manages git, WezTerm (`.wezterm.lua`, Ghostty has no Windows build)
+  and GlazeWM only. No shell profile or prompt: that box isn't terminal-driven.
+  Don't add them without asking.
+- `glazewm/config.yaml` is a port of `aerospace.toml`: one workspace per app,
+  everything else floats (`initial_state`, since GlazeWM runs *every* matching
+  rule, so a catch-all floating rule would undo the tiling ones), Caps Lock ->
+  F18 leader with the same `window`/`repeat` modes. The remap is a `Scancode
+  Map` write in `defaults/system.ps1`, only while `DOTFILES_GLAZEWM` is on.
+  Games are `ignore`d by engine window class; Alt+Shift+P pauses GlazeWM. The
+  entry is skipped until GlazeWM has run once and created `.glzr\glazewm`.
 
 Both manifests: condition is a profile variable name; entry is skipped when that variable is `"false"`.
 

@@ -1,0 +1,206 @@
+# GlazeWM on the Windows box, a port of config/dotfiles/aerospace/aerospace.toml: each everyday app gets its own
+# workspace, where its main window tiles to fill the screen like a macOS full-screen Space - Blender, Houdini, Godot,
+# Unreal, WezTerm (Ghostty's stand-in), Zen, Claude, Spotify, ComfyUI, P4V, Steam, Explorer and Loadout. Every other
+# window floats. Opening an app switches to its workspace.
+# Key bindings sit behind Caps Lock, which platforms/windows/defaults/system.ps1 remaps to F18 as on the Mac: Alt chords
+# would take keys Blender's keymap uses.
+# GlazeWM has no start-at-login setting in this file: tick "Run on system startup" in its tray menu once.
+#
+# Differences from AeroSpace, forced by GlazeWM:
+# - Every matching window rule runs, not just the first, so "everything else floats" is initial_state rather than a
+#   catch-all rule (which would undo the tiling rules).
+# - A rule's 'move --workspace' leaves focus behind, so each rule also focuses the workspace.
+# - Process names and title patterns below are unverified on Windows; check with `glazewm query windows`.
+
+general:
+  startup_commands: []
+  shutdown_commands: []
+  config_reload_commands: []
+  focus_follows_cursor: false
+  toggle_workspace_on_refocus: false
+  cursor_jump:
+    enabled: false
+  hide_method: 'cloak'
+  # The taskbar and Alt-Tab list windows on hidden workspaces too, and picking one switches to its workspace: the
+  # way macOS focus pulls AeroSpace to an app's workspace.
+  show_all_in_taskbar: true
+
+# The margin macOS's own window tiling leaves, as in aerospace.toml.
+gaps:
+  scale_with_dpi: true
+  inner_gap: '8px'
+  outer_gap:
+    top: '8px'
+    right: '8px'
+    bottom: '8px'
+    left: '8px'
+
+window_effects:
+  focused_window:
+    border:
+      enabled: false
+  other_windows:
+    border:
+      enabled: false
+
+window_behavior:
+  initial_state: 'floating'
+  state_defaults:
+    floating:
+      centered: true
+      shown_on_top: false
+
+workspaces:
+  - name: 'Blender'
+  - name: 'Houdini'
+  - name: 'Godot'
+  - name: 'Unreal'
+  - name: 'WezTerm'
+  - name: 'Zen'
+  - name: 'Claude'
+  - name: 'Spotify'
+  - name: 'ComfyUI'
+  - name: 'P4V'
+  - name: 'Steam'
+  - name: 'Explorer'
+  - name: 'Loadout'
+
+window_rules:
+  # Games are left alone entirely: a fullscreen game, or one streamed through Vibepollo, must not be moved or resized.
+  # Matched by engine window class, since games share no process name.
+  # ponytail: heuristic list; add a class when a game misbehaves (or pause GlazeWM with Alt+Shift+P).
+  - commands: ['ignore']
+    match:
+      - window_class: { equals: 'UnityWndClass' }
+      - window_class: { equals: 'UnrealWindow' }
+        window_process: { not_regex: '(?i)^UnrealEditor$' }
+      - window_class: { equals: 'FFXIVGAME' }
+      - window_process: { regex: '(?i)^sunshine$' }
+      - window_process: { regex: '(?i)^NVIDIA Overlay$' }
+
+  # A mode has no on-screen indicator, so leaving one open would keep eating its keys in apps; any focus change (a
+  # click, Alt-Tab, a workspace switch) drops back to the default bindings.
+  - commands: ['wm-disable-binding-mode --name window', 'wm-disable-binding-mode --name repeat']
+    on: ['focus']
+    run_once: false
+    match:
+      - window_process: { regex: '.*' }
+
+  # Blender's main window is titled "<file> - Blender <version>"; Preferences and File View float with the rest.
+  - commands: ['set-tiling', 'move --workspace Blender', 'focus --workspace Blender']
+    match:
+      - window_process: { regex: '(?i)^blender$' }
+        window_title: { regex: ' - Blender \d' }
+
+  # Houdini's main window only ("<file>.hip - Houdini <edition> <version>", where Apprentice's edition is two words);
+  # each edition is its own executable.
+  - commands: ['set-tiling', 'move --workspace Houdini', 'focus --workspace Houdini']
+    match:
+      - window_process: { regex: '(?i)^(houdini|happrentice|hindie|houdinifx|houdinicore)$' }
+        window_title: { regex: ' - Houdini [^0-9]+\d' }
+
+  # Godot's editor and Project Manager; dialogs and the running game ("<project> (DEBUG)") float. The executable
+  # carries the version (Godot_v4.7-stable_win64).
+  - commands: ['set-tiling', 'move --workspace Godot', 'focus --workspace Godot']
+    match:
+      - window_process: { regex: '(?i)^Godot' }
+        window_title: { regex: 'Godot Engine' }
+
+  # Unreal Editor's main window ("<project> - Unreal Editor"); the splash screen and tool windows float.
+  - commands: ['set-tiling', 'move --workspace Unreal', 'focus --workspace Unreal']
+    match:
+      - window_process: { regex: '(?i)^UnrealEditor$' }
+        window_title: { regex: ' - Unreal Editor' }
+
+  # Loadout's main window ("Loadout"), not its tray popup ("Loadout Tray"). Its max width would leave it tiled against
+  # the left edge, so it floats, centered at full height.
+  - commands: ['set-floating --centered --width 550px --height 100%', 'move --workspace Loadout', 'focus --workspace Loadout']
+    match:
+      - window_process: { regex: '(?i)^loadout$' }
+        window_title: { equals: 'Loadout' }
+
+  # One workspace per app, normal windows only: Firefox-family dialogs are MozillaDialogClass, Explorer's file
+  # windows are CabinetWClass, Steam's main window is titled just "Steam" (friends and chat float).
+  - commands: ['set-tiling', 'move --workspace WezTerm', 'focus --workspace WezTerm']
+    match:
+      - window_process: { regex: '(?i)^wezterm-gui$' }
+
+  - commands: ['set-tiling', 'move --workspace Zen', 'focus --workspace Zen']
+    match:
+      - window_process: { regex: '(?i)^zen$' }
+        window_class: { equals: 'MozillaWindowClass' }
+
+  - commands: ['set-tiling', 'move --workspace Claude', 'focus --workspace Claude']
+    match:
+      - window_process: { regex: '(?i)^claude$' }
+
+  - commands: ['set-tiling', 'move --workspace Spotify', 'focus --workspace Spotify']
+    match:
+      - window_process: { regex: '(?i)^spotify$' }
+
+  - commands: ['set-tiling', 'move --workspace ComfyUI', 'focus --workspace ComfyUI']
+    match:
+      - window_process: { regex: '(?i)^comfyui$' }
+
+  - commands: ['set-tiling', 'move --workspace P4V', 'focus --workspace P4V']
+    match:
+      - window_process: { regex: '(?i)^p4v$' }
+
+  - commands: ['set-tiling', 'move --workspace Steam', 'focus --workspace Steam']
+    match:
+      - window_process: { regex: '(?i)^steamwebhelper$' }
+        window_title: { equals: 'Steam' }
+
+  - commands: ['set-tiling', 'move --workspace Explorer', 'focus --workspace Explorer']
+    match:
+      - window_process: { regex: '(?i)^explorer$' }
+        window_class: { equals: 'CabinetWClass' }
+
+# Caps Lock (F18) enters mode "window". Enter, F and R run once and drop back; arrows and -/= move on to mode "repeat",
+# where only they stay bound (so F and Enter reach the app again) for repeated presses, until Caps Lock or Esc.
+# Each list leaves its mode first, so a command that fails cannot strand the mode.
+binding_modes:
+  - name: 'window'
+    keybindings:
+      # One-off tiling beside another app: switch to the app, then Caps Lock, Enter sends its window back to the
+      # workspace you came from, tiled, with focus following. Doing it again returns it. GlazeWM tracks the previous
+      # workspace itself, so the /tmp file AeroSpace needs has no counterpart here.
+      - commands: ['wm-disable-binding-mode --name window', 'set-tiling', 'move --recent-workspace', 'focus --recent-workspace']
+        bindings: ['enter']
+      - commands: ['wm-disable-binding-mode --name window', 'toggle-floating --centered']
+        bindings: ['f']
+      # AeroSpace's R flattens and rebalances; GlazeWM has neither, so R flips where the next window splits instead.
+      # ponytail: no untangle; drag tiles or close/reopen until GlazeWM grows one.
+      - commands: ['wm-disable-binding-mode --name window', 'toggle-tiling-direction']
+        bindings: ['r']
+      - commands: ['wm-disable-binding-mode --name window', 'wm-enable-binding-mode --name repeat', 'move --direction left']
+        bindings: ['left']
+      - commands: ['wm-disable-binding-mode --name window', 'wm-enable-binding-mode --name repeat', 'move --direction right']
+        bindings: ['right']
+      - commands: ['wm-disable-binding-mode --name window', 'wm-enable-binding-mode --name repeat', 'resize --width -50px']
+        bindings: ['oem_minus']
+      - commands: ['wm-disable-binding-mode --name window', 'wm-enable-binding-mode --name repeat', 'resize --width +50px']
+        bindings: ['oem_plus']
+      - commands: ['wm-disable-binding-mode --name window']
+        bindings: ['escape', 'f18']
+
+  - name: 'repeat'
+    keybindings:
+      - commands: ['move --direction left']
+        bindings: ['left']
+      - commands: ['move --direction right']
+        bindings: ['right']
+      - commands: ['resize --width -50px']
+        bindings: ['oem_minus']
+      - commands: ['resize --width +50px']
+        bindings: ['oem_plus']
+      - commands: ['wm-disable-binding-mode --name repeat']
+        bindings: ['escape', 'f18']
+
+keybindings:
+  - commands: ['wm-enable-binding-mode --name window']
+    bindings: ['f18']
+  # Escape hatch with no AeroSpace counterpart: stops all tiling and bindings (except this one) until pressed again,
+  # for a game the ignore rules miss. Blender's keymap leaves Alt+Shift+P free.
+  - commands: ['wm-toggle-pause']
+    bindings: ['alt+shift+p']

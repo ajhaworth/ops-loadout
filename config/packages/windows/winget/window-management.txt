@@ -1,0 +1,5 @@
+# Format: Winget.Id | name (tile name and the Start Menu shortcut it launches)
+# AeroSpace-style tiling, configured from config/dotfiles/glazewm (a port of aerospace.toml).
+glzr-io.glazewm | GlazeWM
+# FancyZones only acts on Shift-drag, so it stays out of GlazeWM's way.
+Microsoft.PowerToys | PowerToys

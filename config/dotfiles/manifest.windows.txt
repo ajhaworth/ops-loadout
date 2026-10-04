@@ -1,4 +1,7 @@
 # manifest.windows.txt - Windows dotfiles symlink mapping
+#
+# Git, terminal and window manager only. No PowerShell profile or prompt: this
+# box is not terminal-driven.
 # Format: source|destination|condition
 # source: path relative to repo root
 # destination: path relative to $HOME (%USERPROFILE%), or one of the tokens below
@@ -13,3 +16,10 @@
 
 # Git configuration
 config/dotfiles/git/config|.gitconfig|DOTFILES_GIT
+
+# WezTerm (Ghostty has no Windows build)
+config/dotfiles/wezterm/wezterm.lua|.wezterm.lua|DOTFILES_WEZTERM
+
+# GlazeWM, a port of aerospace.toml. GlazeWM creates .glzr\glazewm on first
+# launch; until then this entry is skipped (two directory levels missing).
+config/dotfiles/glazewm/config.yaml|.glzr\glazewm\config.yaml|DOTFILES_GLAZEWM

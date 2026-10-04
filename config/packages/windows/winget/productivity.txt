@@ -1,3 +1,5 @@
 # Format: Winget.Id | name (tile name and the Start Menu shortcut it launches)
 AgileBits.1Password | 1Password
 Nextcloud.NextcloudDesktop | Nextcloud
+Anthropic.Claude | Claude
+7zip.7zip | 7-Zip File Manager
