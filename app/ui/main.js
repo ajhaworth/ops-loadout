@@ -821,7 +821,7 @@ async function updateAll() {
 
 const REVEAL = navigator.userAgent.includes("Windows") ? "Show in Explorer" : "Reveal in Finder";
 
-function menuItems(app, launchTargets = []) {
+function menuItems(app, launchTargets = [], channels = []) {
   const job = (action) => () => doJob(app, action);
   const items = [];
 
@@ -857,6 +857,24 @@ function menuItems(app, launchTargets = []) {
     if (app.launchable) items.push({ label: REVEAL, run: () => call("reveal", app) });
   }
 
+  // Installer scripts with a `channels` verb: "* release" is the current one.
+  if (channels.length) {
+    items.push({ sep: true }, { head: "Build" });
+    for (const line of channels) {
+      const current = line.startsWith("* ");
+      const name = line.replace(/^\* /, "");
+      const label = `${current ? "\u2713 " : ""}${name[0].toUpperCase()}${name.slice(1)}`;
+      items.push(current
+        ? { label, why: "Current build" }
+        : {
+            label,
+            run: () => startJob(app.id, "switch", `$ switching ${app.name} to ${name}`, () =>
+              invoke("set_channel", { id: app.id, channel: name })),
+          });
+    }
+    items.push({ sep: true });
+  }
+
   if (app.homepage) items.push({ label: "Homepage", run: () => call("open_homepage", app) });
 
   if (app.installed) {
@@ -883,11 +901,18 @@ function showPopover(children, x, y, cls = "") {
 }
 
 async function showMenu(e, app) {
-  const launchTargets = app.id === "installer:houdini"
-    ? await invoke("launch_targets", { id: app.id }).catch(() => [])
-    : [];
-  const nodes = menuItems(app, launchTargets).map((item) => {
+  const [launchTargets, channels] = await Promise.all([
+    app.id === "installer:houdini" ? invoke("launch_targets", { id: app.id }).catch(() => []) : [],
+    app.kind === "installer" ? invoke("channels", { id: app.id }).catch(() => []) : [],
+  ]);
+  const nodes = menuItems(app, launchTargets, channels).map((item) => {
     if (item.sep) return document.createElement("hr");
+    if (item.head) {
+      const head = document.createElement("div");
+      head.className = "menu-label";
+      head.textContent = item.head;
+      return head;
+    }
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = item.label;

@@ -124,6 +124,11 @@ pub fn launch_targets(_app: &App, _repo: &Path, _resources: &Path) -> Vec<String
     Vec::new()
 }
 
+/// Nor build channels.
+pub fn channels(_app: &App, _repo: &Path, _resources: &Path) -> Vec<String> {
+    Vec::new()
+}
+
 pub fn job_command(action: &str, app: &App, repo: &Path, resources: &Path) -> Result<Cmd, String> {
     // The repo's own upgrade path is a -Force reinstall, so both map to it.
     let verb = match action {

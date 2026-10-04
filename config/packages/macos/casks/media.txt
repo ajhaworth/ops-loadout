@@ -4,5 +4,4 @@ spotify             # Music streaming
 iina                # Video player
 vlc                 # Universal media player
 losslesscut         # Video trimmer
-moonlight           # Game streaming client
 simple-comic        # Comic/manga viewer

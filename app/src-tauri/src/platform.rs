@@ -15,12 +15,12 @@ pub(crate) fn cache_name(id: &str) -> String {
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
-pub use macos::{brew_env, hydrate, job_command, launch, launch_targets, open_url, refresh_icon, reveal, task_command};
+pub use macos::{brew_env, hydrate, job_command, launch, launch_targets, channels, open_url, refresh_icon, reveal, task_command};
 
 #[cfg(target_os = "windows")]
 mod windows;
 #[cfg(target_os = "windows")]
-pub use windows::{hydrate, job_command, launch, launch_targets, open_url, refresh_icon, reveal, task_command};
+pub use windows::{hydrate, job_command, launch, launch_targets, channels, open_url, refresh_icon, reveal, task_command};
 
 // Linux is not a target of Loadout (no apt support in the plan), but the
 // crate should still build there.
@@ -37,6 +37,9 @@ mod stub {
         Err("unsupported platform".into())
     }
     pub fn launch_targets(_app: &App, _repo: &Path, _resources: &Path) -> Vec<String> {
+        Vec::new()
+    }
+    pub fn channels(_app: &App, _repo: &Path, _resources: &Path) -> Vec<String> {
         Vec::new()
     }
     pub fn job_command(
@@ -65,4 +68,4 @@ mod stub {
     }
 }
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-pub use stub::{hydrate, job_command, launch, launch_targets, open_url, refresh_icon, reveal, task_command};
+pub use stub::{hydrate, job_command, launch, launch_targets, channels, open_url, refresh_icon, reveal, task_command};

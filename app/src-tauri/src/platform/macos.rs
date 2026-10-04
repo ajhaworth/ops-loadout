@@ -559,10 +559,20 @@ pub fn launch(app: &App, _resources: &Path, background: bool) -> Result<(), Stri
 /// `<token>.sh versions`: one installed build path per line, newest first.
 /// Empty when the script has no `versions` verb, finds nothing, or fails.
 pub fn launch_targets(app: &App, repo: &Path, _resources: &Path) -> Vec<String> {
+    installer_lines(app, repo, "versions")
+}
+
+/// `<token>.sh channels`: the build channels it can install, one per line, the
+/// current one prefixed `* `. Empty when the script has no `channels` verb.
+pub fn channels(app: &App, repo: &Path, _resources: &Path) -> Vec<String> {
+    installer_lines(app, repo, "channels")
+}
+
+fn installer_lines(app: &App, repo: &Path, verb: &str) -> Vec<String> {
     if app.kind != "installer" {
         return Vec::new();
     }
-    let Ok(out) = Command::new(installer_script(repo, &app.token)).arg("versions").output() else {
+    let Ok(out) = Command::new(installer_script(repo, &app.token)).arg(verb).output() else {
         return Vec::new();
     };
     if !out.status.success() {
@@ -626,9 +636,10 @@ pub fn job_command(action: &str, app: &App, repo: &Path, _resources: &Path) -> R
                 env: vec![],
             })
         }
-        // The script takes the action verbatim and handles its own sudo -A.
+        // The script takes the action verbatim and handles its own sudo -A;
+        // `channel` gets its name appended by `run_job`.
         "installer" => match action {
-            "install" | "update" | "reinstall" | "configure" | "uninstall" => Ok(Cmd {
+            "install" | "update" | "reinstall" | "configure" | "uninstall" | "channel" => Ok(Cmd {
                 program: installer_script(repo, &app.token).to_string_lossy().to_string(),
                 args: vec![action.to_string()],
                 env: vec![],

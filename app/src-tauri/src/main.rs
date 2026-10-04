@@ -306,6 +306,27 @@ async fn launch_targets(handle: AppHandle, store: State<'_, Store>, id: String) 
     Ok(platform::launch_targets(&app, &repo, &resource_dir(&handle)))
 }
 
+/// The build channels an installer app can switch between, the current one
+/// prefixed `* ` (Moonlight: release/nightly on macOS).
+#[tauri::command]
+async fn channels(handle: AppHandle, store: State<'_, Store>, id: String) -> Result<Vec<String>, String> {
+    let app = find_app(&store, &id).ok_or("unknown app")?;
+    let repo = repo_of(&handle, &store).ok_or("no ops-loadout repo found")?;
+    Ok(platform::channels(&app, &repo, &resource_dir(&handle)))
+}
+
+/// Saves `channel` as the app's build channel and installs that build.
+#[tauri::command]
+async fn set_channel(handle: AppHandle, store: State<'_, Store>, id: String, channel: String) -> Result<(), String> {
+    let app = find_app(&store, &id).ok_or("unknown app")?;
+    let repo = repo_of(&handle, &store).ok_or("no ops-loadout repo found")?;
+    let known = platform::channels(&app, &repo, &resource_dir(&handle));
+    if !known.iter().any(|c| c.trim_start_matches("* ") == channel) {
+        return Err("unknown channel".into());
+    }
+    run_job_with(handle, store, id, "channel", Some(channel))
+}
+
 #[tauri::command]
 async fn install(handle: AppHandle, store: State<'_, Store>, id: String) -> Result<(), String> {
     run_job(handle, store, id, "install")
@@ -463,11 +484,23 @@ fn run_job(
     id: String,
     action: &'static str,
 ) -> Result<(), String> {
+    run_job_with(handle, store, id, action, None)
+}
+
+/// `run_job` with one extra argument appended to the command (a channel name).
+fn run_job_with(
+    handle: AppHandle,
+    store: State<'_, Store>,
+    id: String,
+    action: &'static str,
+    extra: Option<String>,
+) -> Result<(), String> {
     let target = find_app(&store, &id).ok_or("unknown app")?;
     let repo = repo_of(&handle, &store).ok_or("no ops-loadout repo found")?;
     let resources = resource_dir(&handle);
     let cache = cache_dir(&handle);
-    let cmd = platform::job_command(action, &target, &repo, &resources)?;
+    let mut cmd = platform::job_command(action, &target, &repo, &resources)?;
+    cmd.args.extend(extra);
 
     std::thread::spawn(move || {
         let ok = run_streaming(&handle, &id, action, cmd);
@@ -699,6 +732,8 @@ fn main() {
             launch_preset,
             launch,
             launch_targets,
+            channels,
+            set_channel,
             install,
             uninstall,
             update,
@@ -882,7 +917,7 @@ mod smoke {
         );
         // Installers take the action verbatim; the script is the program.
         let inst = app_of("installer", "houdini");
-        for action in ["install", "update", "reinstall", "configure", "uninstall"] {
+        for action in ["install", "update", "reinstall", "configure", "uninstall", "channel"] {
             let (program, args) = argv(action, &inst);
             assert!(
                 program.ends_with("platforms/macos/installers/houdini.sh"),

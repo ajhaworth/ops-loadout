@@ -221,7 +221,13 @@ lists apps with no Homebrew cask. Each token is
 `platforms/macos/installers/<token>.sh`, taking one of
 `status|install|update|reinstall|uninstall`: `status` prints the `.app` (or
 package directory) path and exits 0 when installed, and must stay fast and
-offline because Loadout runs it at startup. Only Loadout consumes
+offline because Loadout runs it at startup. A script may also answer
+`channels` (one build channel per line, the current one prefixed `* `; fast and
+offline too, run on every right-click) and `channel <name>`, which saves the
+choice and installs that build - Loadout then shows a "Build" section in the
+tile's right-click menu. `moonlight.sh` does this (`release` = latest GitHub
+release, the default; `nightly` = newest master build via `gh`), keeping the
+choice in `~/Library/Application Support/ops-loadout/moonlight.channel`. Only Loadout consumes
 this kind (`catalog.rs` kind `installer`, `platform/macos.rs`); `setup.sh`
 does not. Root work goes through `sudo -A` so Loadout's askpass dialog
 can answer it.
