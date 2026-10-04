@@ -663,7 +663,33 @@ function Get-ShortcutTarget {
 
     $target = $script:Shortcuts[$Name]
     if ($target) { return $target }
+    # Per-series shortcuts ("Blender 5.2"): the newest one.
+    $series = @($script:Shortcuts.Keys | Where-Object { $_ -match "^$([regex]::Escape($Name)) (\d+(\.\d+)*)$" } |
+        Sort-Object { [version]($_ -replace '^.* ', '' -replace '^(\d+)$', '$1.0') } -Descending)
+    if ($series.Count -gt 0) { return $script:Shortcuts[$series[0]] }
     return ''
+}
+
+# Config Loadout applies with an app, the way the macOS installer scripts do:
+# after every install/update, and alone from "Reapply Settings". The functions
+# come from comfyui.psm1 and blender.psm1, which callers import alongside.
+function Invoke-WingetAppConfig {
+    param(
+        [Parameter(Mandatory)][string]$Spec,
+        [Parameter(Mandatory)][string]$RepoRoot,
+        [Parameter(Mandatory)][hashtable]$ProfileConfig,
+        [switch]$DryRun,
+        [switch]$Force
+    )
+
+    switch ((ConvertFrom-WingetPackageSpec -Spec $Spec).Id) {
+        'Comfy.ComfyUI-Desktop' {
+            Install-ComfyNodeLists -RepoRoot $RepoRoot -ProfileConfig $ProfileConfig -DryRun:$DryRun -Force:$Force
+        }
+        'BlenderFoundation.Blender' {
+            Install-BlenderConfig -RepoRoot $RepoRoot -DryRun:$DryRun | Out-Null
+        }
+    }
 }
 
 function Invoke-WingetPackage {
@@ -802,6 +828,7 @@ Export-ModuleMember -Function @(
     'Get-WingetState',
     'Get-ShortcutTarget',
     'Invoke-WingetPackage',
+    'Invoke-WingetAppConfig',
     'Reset-Results',
     'Get-Results',
     'Get-FailureCount',

@@ -24,7 +24,8 @@ p.system.anisotropic_filter = 'FILTER_16'  # floors and roads stay sharp at graz
 p.filepaths.save_version = 5
 p.filepaths.use_auto_save_temporary_files = True
 p.filepaths.auto_save_time = 5
-autosave_dir = os.path.expanduser('~/Library/Application Support/Blender/autosave')
+autosave_dir = (os.path.join(os.environ['LOCALAPPDATA'], 'Blender', 'autosave') if os.name == 'nt'
+                else os.path.expanduser('~/Library/Application Support/Blender/autosave'))
 os.makedirs(autosave_dir, exist_ok=True)
 p.filepaths.temporary_directory = autosave_dir
 p.filepaths.use_file_compression = True

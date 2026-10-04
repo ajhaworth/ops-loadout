@@ -8,6 +8,7 @@
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 install <repo> <kind> <spec>
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 uninstall <repo> <kind> <spec>
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 update <repo> <kind> <spec>
+#   pwsh -NoProfile -NonInteractive -File bridge.ps1 configure <repo> <kind> <spec>
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 open    <url>
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 icon    <exe> <outpng>
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 launch  <exe>
@@ -21,7 +22,7 @@
 
 param(
     [Parameter(Mandatory, Position = 0)]
-    [ValidateSet('status', 'install', 'uninstall', 'update', 'icon', 'launch', 'open', 'tasks-status', 'tasks-apply')]
+    [ValidateSet('status', 'install', 'uninstall', 'update', 'configure', 'icon', 'launch', 'open', 'tasks-status', 'tasks-apply')]
     [string]$Verb,
 
     [Parameter(Position = 1, ValueFromRemainingArguments)]
@@ -35,6 +36,7 @@ function Import-OpsModules {
     Import-Module (Join-Path $RepoRoot 'lib\windows\common.psm1') -Force
     Import-Module (Join-Path $RepoRoot 'lib\windows\packages.psm1') -Force
     Import-Module (Join-Path $RepoRoot 'lib\windows\comfyui.psm1') -Force
+    Import-Module (Join-Path $RepoRoot 'lib\windows\blender.psm1') -Force
 }
 
 # tasks-status/tasks-apply need the registry and dotfiles helpers too, plus
@@ -520,11 +522,19 @@ switch ($Verb) {
             foreach ($p in $parsed) {
                 $installed = $state.ContainsKey($p.Id)
                 $exe = ''
-                if ($installed) { $exe = Get-ShortcutTarget -Name $p.Name }
+                $outdated = $false
+                if ($installed) {
+                    $exe = Get-ShortcutTarget -Name $p.Name
+                    $outdated = $state[$p.Id]
+                    # Like blender.sh's status: config drift reads as an update.
+                    if ($p.Id -eq 'BlenderFoundation.Blender' -and -not (Test-BlenderConfigCurrent -RepoRoot $repoRoot)) {
+                        $outdated = $true
+                    }
+                }
                 $result += [pscustomobject]@{
                     id        = "winget:$($p.Id)"
                     installed = $installed
-                    outdated  = ($installed -and $state[$p.Id])
+                    outdated  = $outdated
                     exe       = $exe
                 }
             }
@@ -565,17 +575,23 @@ switch ($Verb) {
             $wingetVerb = 'install'
             if ($force) { $wingetVerb = 'upgrade' }
             Invoke-WingetPackage -Verb $wingetVerb -Spec $spec | Out-Null
-
-            # Config applied with the app, like blender.sh on macOS: ComfyUI's
-            # custom nodes, gated by the profile Loadout passes in the env.
-            if ((ConvertFrom-WingetPackageSpec -Spec $spec).Id -eq 'Comfy.ComfyUI-Desktop') {
-                $config = Get-BridgeProfileConfig -ProfileName $env:LOADOUT_PROFILE
-                Install-ComfyNodeLists -RepoRoot $repoRoot -ProfileConfig $config -Force:$force
-            }
+            # Profile-gated parts (ComfyUI's node lists) read the profile Loadout passes.
+            $config = Get-BridgeProfileConfig -ProfileName $env:LOADOUT_PROFILE
+            Invoke-WingetAppConfig -Spec $spec -RepoRoot $repoRoot -ProfileConfig $config -Force:$force
         } else {
             Install-GitHubRelease -PackageSpec $spec -Force:$force | Out-Null
         }
 
+        if ((Get-FailureCount) -gt 0) { exit 1 }
+    }
+
+    'configure' {
+        # Reapply an app's config without touching the app (winget only).
+        $repoRoot = $Args2[0]
+        $spec = $Args2[2]
+        Import-OpsModules -RepoRoot $repoRoot
+        $config = Get-BridgeProfileConfig -ProfileName $env:LOADOUT_PROFILE
+        Invoke-WingetAppConfig -Spec $spec -RepoRoot $repoRoot -ProfileConfig $config
         if ((Get-FailureCount) -gt 0) { exit 1 }
     }
 

@@ -1,3 +1,5 @@
 # Format: Winget.Id | name (tile name and the Start Menu shortcut it launches)
-# Installing or updating it also installs the comfynodes/*.txt custom nodes.
+# Installing or updating these also applies their config (Invoke-WingetAppConfig):
+# Blender's repo config (lib/windows/blender.psm1), ComfyUI's comfynodes/*.txt.
+BlenderFoundation.Blender | Blender
 Comfy.ComfyUI-Desktop | Comfy Desktop

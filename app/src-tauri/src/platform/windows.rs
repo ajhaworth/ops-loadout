@@ -138,6 +138,7 @@ pub fn job_command(action: &str, app: &App, repo: &Path, resources: &Path) -> Re
         "install" => "install",
         "uninstall" => "uninstall",
         "update" | "reinstall" => "update",
+        "configure" => "configure",
         other => return Err(format!("unknown action {other}")),
     };
     bridge_job(verb, app, repo, resources)
