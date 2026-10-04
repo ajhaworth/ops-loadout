@@ -62,10 +62,11 @@ not Ansible - the user does not want Windows apps installed by Ansible. The
 many of the same ids. One package per line:
 
 ```
-Winget.Id | name
+Winget.Id | name | installer args
 ```
 
-`name` is the tile name *and* the Start Menu shortcut Loadout launches
+`installer args`, optional, go to `winget --custom` on install/upgrade (GlazeWM
+uses it to skip its bundled Zebar bar). `name` is the tile name *and* the Start Menu shortcut Loadout launches
 (`Get-ShortcutTarget`), defaulting to the id after its first dot. The shortcut,
 not Add/Remove Programs, is the launch target because ARP is unreliable for
 it: Steam and GOG record their uninstaller as `DisplayIcon`, 1Password and

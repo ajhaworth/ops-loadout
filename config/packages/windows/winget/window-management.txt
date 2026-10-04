@@ -1,5 +1,8 @@
-# Format: Winget.Id | name (tile name and the Start Menu shortcut it launches)
+# Format: Winget.Id | name (tile name and the Start Menu shortcut it launches) | installer args
 # AeroSpace-style tiling, configured from config/dotfiles/glazewm (a port of aerospace.toml).
-glzr-io.glazewm | GlazeWM
+# Its installer bundles Zebar, a status bar AeroSpace has no counterpart for. The
+# bundle variable skips it on install; a Zebar already installed stays until
+# removed under Settings > Apps.
+glzr-io.glazewm | GlazeWM | Custom_InstallZebar=0
 # FancyZones only acts on Shift-drag, so it stays out of GlazeWM's way.
 Microsoft.PowerToys | PowerToys

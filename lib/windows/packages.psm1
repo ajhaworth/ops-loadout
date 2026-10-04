@@ -612,7 +612,10 @@ function ConvertFrom-WingetPackageSpec {
     if (-not $id -or $id -match '\s') { throw "Invalid winget spec: $Spec" }
     $name = ($id -split '\.', 2)[-1]
     if ($parts.Count -gt 1 -and $parts[1]) { $name = $parts[1] }
-    return @{ Id = $id; Name = $name }
+    # Optional third field: extra installer arguments (winget --custom).
+    $custom = ''
+    if ($parts.Count -gt 2) { $custom = $parts[2] }
+    return @{ Id = $id; Name = $name; Custom = $custom }
 }
 
 # id -> outdated, for each of -Ids that `winget list` reports installed. A row
@@ -707,6 +710,7 @@ function Invoke-WingetPackage {
         '--accept-source-agreements', '--disable-interactivity')
     # Uninstall matches what is installed, wherever it came from.
     if ($Verb -ne 'uninstall') { $wingetArgs += @('--source', 'winget', '--accept-package-agreements') }
+    if ($Verb -ne 'uninstall' -and $parsed.Custom) { $wingetArgs += @('--custom', $parsed.Custom) }
 
     if ($DryRun) {
         Write-Host "  [dry-run] winget $($wingetArgs -join ' ')"

@@ -205,6 +205,8 @@ $wg = ConvertFrom-WingetPackageSpec -Spec 'Perforce.P4V | P4V'
 Assert-Equal 'Perforce.P4V' $wg.Id "winget spec id"
 Assert-Equal 'P4V' $wg.Name "winget spec name"
 Assert-Equal 'Steam' (ConvertFrom-WingetPackageSpec -Spec 'Valve.Steam').Name "winget name defaults to the id after its first dot"
+Assert-Equal 'Custom_InstallZebar=0' (ConvertFrom-WingetPackageSpec -Spec 'glzr-io.glazewm | GlazeWM | Custom_InstallZebar=0').Custom "winget third field is installer args"
+Assert-Equal '' $wg.Custom "winget installer args default to none"
 
 # Real `winget list` rows: a `>` version prefix, an Available column, and an
 # id that only prefixes another (EpicGames.EpicOnlineServices).
