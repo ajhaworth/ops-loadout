@@ -144,7 +144,7 @@ fn background_update_check(app: AppHandle) {
     std::thread::sleep(Duration::from_secs(2 * 60));
 
     let mut notified_outdated: HashSet<String> = HashSet::new();
-    let mut notified_tag: Option<String> = None;
+    let mut notified_version: Option<semver::Version> = None;
 
     loop {
         let store: State<'_, Store> = app.state();
@@ -187,14 +187,13 @@ fn background_update_check(app: AppHandle) {
         }
 
         match update::latest_release() {
-            Ok((latest, release)) => {
-                let tag = release["tag_name"].as_str().unwrap_or_default();
-                if latest > app.package_info().version && notified_tag.as_deref() != Some(tag) {
+            Ok(latest) => {
+                if latest > app.package_info().version && notified_version.as_ref() != Some(&latest) {
                     notify(
                         &app,
                         &format!("Loadout {latest} is available \u{2014} use Check for Updates in the tray."),
                     );
-                    notified_tag = Some(tag.to_string());
+                    notified_version = Some(latest);
                 }
             }
             Err(e) => eprintln!("background update check: {e}"),

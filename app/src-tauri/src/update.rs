@@ -1,6 +1,6 @@
-//! Tray > Check for Updates. Asks the GitHub releases API for the newest
-//! release, compares its tag with the running version and installs the dmg
-//! (macOS) or NSIS exe (Windows) - see CLAUDE.md "Loadout".
+//! Tray > Check for Updates. Reads the newest release tag from github.com,
+//! compares it with the running version and installs the dmg (macOS) or NSIS
+//! exe (Windows) - see CLAUDE.md "Loadout".
 use crate::emit_line;
 #[cfg(target_os = "macos")]
 use std::path::{Path, PathBuf};
@@ -12,7 +12,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 /// Set across the relaunch so the new process brings the window back up.
 pub const REOPEN: &str = "LOADOUT_REOPEN_AFTER_UPDATE";
 
-const LATEST: &str = "https://api.github.com/repos/ajhaworth/ops-loadout/releases/latest";
+const REPO: &str = "https://github.com/ajhaworth/ops-loadout";
 
 /// Checks, asks, installs and relaunches. Runs off the main thread, since the
 /// dialogs block and the download takes as long as it takes.
@@ -30,21 +30,25 @@ pub fn check_for_updates(app: &AppHandle) {
     });
 }
 
-/// Fetches the latest GitHub release and parses its tag as a version. Shared
-/// by the tray's "Check for Updates" and the background checker.
-pub fn latest_release() -> Result<(semver::Version, serde_json::Value), String> {
-    let body = sh("curl", &["-fsSL", "-H", "User-Agent: Loadout", LATEST])?;
-    let release: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
-    let tag = release["tag_name"]
-        .as_str()
-        .ok_or("no tag in the latest release")?
-        .to_string();
-    let version = semver::Version::parse(tag.trim_start_matches('v')).map_err(|e| format!("{tag}: {e}"))?;
-    Ok((version, release))
+/// The newest release's version, read from where `<repo>/releases/latest`
+/// redirects (`.../releases/tag/vX.Y.Z`). Shared by the tray's "Check for
+/// Updates" and the background checker. Not the REST API: unauthenticated it
+/// allows 60 requests an hour per IP, shared with every other GitHub lookup on
+/// the network (Windows tile status, Blender extensions), and answers 403 once
+/// they are spent - which broke updates on both platforms.
+pub fn latest_release() -> Result<semver::Version, String> {
+    let null = if cfg!(windows) { "NUL" } else { "/dev/null" };
+    let url = sh("curl", &["-sS", "-o", null, "-w", "%{redirect_url}", &format!("{REPO}/releases/latest")])?;
+    let tag = url
+        .trim()
+        .rsplit_once("/tag/")
+        .map(|(_, tag)| tag)
+        .ok_or_else(|| format!("no release tag in redirect {url:?}"))?;
+    semver::Version::parse(tag.trim_start_matches('v')).map_err(|e| format!("{tag}: {e}"))
 }
 
 async fn run(app: &AppHandle) {
-    let (latest, release) = match latest_release() {
+    let latest = match latest_release() {
         Ok(v) => v,
         Err(e) => return say(app, &format!("Update check failed: {e}")),
     };
@@ -52,44 +56,15 @@ async fn run(app: &AppHandle) {
         let version = app.package_info().version.to_string();
         return say(app, &format!("Loadout {version} is up to date."));
     }
-    let tag = release["tag_name"].as_str().unwrap_or_default();
 
-    let ext = if cfg!(target_os = "macos") {
-        ".dmg"
+    // tauri-action's names for release.yml's two bundles (Apple silicon dmg,
+    // x64 NSIS); a rename there must change these.
+    let name = if cfg!(target_os = "macos") {
+        format!("Loadout_{latest}_aarch64.dmg")
     } else {
-        ".exe"
+        format!("Loadout_{latest}_x64-setup.exe")
     };
-    let asset = release["assets"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .find(|a| {
-            a["name"]
-                .as_str()
-                .is_some_and(|n| n.to_lowercase().ends_with(ext))
-        });
-    let (name, url) = match asset {
-        Some(a) => (
-            a["name"].as_str().unwrap_or_default().to_string(),
-            a["browser_download_url"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string(),
-        ),
-        None => {
-            return say(
-                app,
-                &format!("Release {tag} has no installer for this platform."),
-            )
-        }
-    };
-    // The name goes into a path: keep it a bare file name.
-    if name.is_empty() || name.contains(['/', '\\']) || !url.starts_with("https://github.com/") {
-        return say(
-            app,
-            &format!("Update check failed: unexpected asset {name}"),
-        );
-    }
+    let url = format!("{REPO}/releases/download/v{latest}/{name}");
 
     let install = app
         .dialog()
@@ -108,7 +83,7 @@ async fn run(app: &AppHandle) {
 
     log(app, &format!("Downloading Loadout {latest}"));
     let file = std::env::temp_dir().join(&name);
-    if let Err(e) = sh("curl", &["-fL", "-o", &file.to_string_lossy(), &url]) {
+    if let Err(e) = sh("curl", &["-fsSL", "-o", &file.to_string_lossy(), &url]) {
         return say(app, &format!("Update failed: {e}"));
     }
 
@@ -255,5 +230,16 @@ mod tests {
         std::fs::create_dir(mnt.join("Launchbay.app")).unwrap();
         assert!(mounted_app(&mnt).is_err(), "ambiguous with two bundles");
         std::fs::remove_dir_all(&mnt).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod live {
+    /// Network: the redirect still names a tag (run with --ignored).
+    #[test]
+    #[ignore]
+    fn latest_release_reads_the_redirect() {
+        let v = super::latest_release().unwrap();
+        assert!(v >= semver::Version::new(0, 24, 0), "{v}");
     }
 }

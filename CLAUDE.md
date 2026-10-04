@@ -592,9 +592,12 @@ release build on a machine that has one. The seeded
 copy has no `app/` — `serve_ui` finds no file there and falls back to the
 embedded UI, which is the built-in behaviour.
 
-**Self-update.** The tray's "Check for Updates..." (`src/update.rs`) asks the
-GitHub releases API for the latest release and compares its tag with the running
-version. On macOS it `curl`s the `.dmg`, mounts it with `hdiutil` and replaces
+**Self-update.** The tray's "Check for Updates..." (`src/update.rs`) reads the
+latest tag from where `github.com/<repo>/releases/latest` redirects and compares
+it with the running version, then downloads the asset by its tauri-action name
+(`Loadout_<v>_aarch64.dmg`, `Loadout_<v>_x64-setup.exe`). **Not the REST API**:
+its 60/hour unauthenticated limit is per IP and shared with every other GitHub
+lookup on the network, and once spent it answered 403 on both platforms. On macOS it `curl`s the `.dmg`, mounts it with `hdiutil` and replaces
 the running bundle with `ditto`, then `AppHandle::restart` - no
 tauri-plugin-process, since restart is core Tauri. On Windows it runs the NSIS
 `.exe` with `/P /R` (passive install, relaunch) and exits. `release.yml` builds
