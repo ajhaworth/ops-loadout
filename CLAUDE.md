@@ -260,7 +260,8 @@ choice and installs that build - Loadout then shows a "Build" section in the
 tile's right-click menu. `moonlight.sh` does this (`release` = latest GitHub
 release, the default; `nightly` = newest master build via `gh`), keeping the
 choice in `~/Library/Application Support/ops-loadout/moonlight.channel`. Only Loadout consumes
-this kind (`catalog.rs` kind `installer`, `platform/macos.rs`); `setup.sh`
+this kind (`catalog.rs` kind `installer`, `platform/macos.rs`; Windows has its
+own, see "Windows installer scripts"); `setup.sh`
 does not. Root work goes through `sudo -A` so Loadout's askpass dialog
 can answer it.
 
@@ -442,20 +443,42 @@ the closest stock preset — never justify a setting or a key by "that's how May
 or Max does it", justify it by what it does for environment work. Target engine
 is Unreal (scene displays centimeters, 1 BU stays 1 m).
 
-**Blender on Windows.** winget installs it (`BlenderFoundation.Blender` in
-`winget/creative.txt`, an MSI per X.Y series under `Program Files\Blender
-Foundation`), and `lib/windows/blender.psm1` (`Install-BlenderConfig`) is
-`blender.sh`'s configure half, run by `Invoke-WingetAppConfig` after every
-install/update and alone by the `configure` bridge verb (Reapply Settings).
-Instead of a `portable/` dir beside `blender.exe` - Program Files, so admin -
-it makes `%APPDATA%\Blender Foundation\Blender\<X.Y>` a junction to
-`config/dcc/blender/portable` (no admin or Developer Mode needed), moving a
-real directory already there aside to `<X.Y>.bak-<timestamp>`. Then the same
-extensions.txt install, windowed `setup.py` (`blender.exe`, the console build,
-so output streams) and MCP registration. The `.configured` stamp hash drives
-the tile's outdated flag, as on macOS. `dcc_claude.py`'s Ghostty/AeroSpace
-button is macOS-only. The Start Menu shortcut is per series ("Blender 5.2");
-`Get-ShortcutTarget` falls back to the newest `<name> <version>` shortcut.
+**Windows installer scripts.** Windows has the `installer` kind too:
+`config/packages/windows/installers/*.txt` (`token | name | homepage`, gated by
+`INSTALLERS_<CATEGORY>`), each token `platforms/windows/installers/<token>.ps1`
+taking `status|install|update|reinstall|configure|uninstall` with the same
+status contract as macOS (launch target, optional `outdated` line, exit 1 when
+absent). The scripts are thin; the logic is in `lib/windows/<token>.psm1`.
+`bridge.ps1` runs them for status and jobs, so the ids match macOS
+(`installer:blender`, `installer:houdini`) and the UI's Blender menu items work
+unchanged. `setup.ps1` does not run them, like `setup.sh` on macOS.
+
+**Blender on Windows** (`blender.psm1`). Not winget: `BlenderFoundation.Blender`'s
+manifest downloads from download.blender.org, which answers 403 (the same
+Cloudflare block `blender.sh` avoids). The portable zip comes from the
+`ftp.nluug.nl` mirror into `%LOCALAPPDATA%\Programs\Blender` (per user, no
+admin; `loadout-version.txt` records the version), and `<that dir>\portable` is
+a junction to `config/dcc/blender/portable` - Blender's portable mode, as on
+macOS. Then extensions.txt, windowed `setup.py` (`blender.exe`, the console
+build, so output streams; the tile launches `blender-launcher.exe`, which opens
+no console) and MCP. The `.configured` stamp drives `outdated` as on macOS.
+**Remove the portable junction before any recursive delete of the install
+dir** (`Remove-Junction`): Windows PowerShell can follow it into the repo.
+Module functions run under the global `Continue` error preference, not the
+calling script's `Stop` - wrap calls whose failure must be counted in
+try/catch. `dcc_claude.py`'s Ghostty/AeroSpace button is macOS-only.
+
+**Houdini on Windows** (`houdini.psm1`), a port of `houdini.sh`. Same SideFX
+API and `config/sidefx.local` (written single-quoted by Settings, which
+`Read-ConfFile` handles), platform `win64`. The `.exe` installer runs silently
+and elevated (`Start-Process -Verb RunAs`: one UAC prompt) into
+`Program Files\Side Effects Software\Houdini X.Y.Z`, with
+`/AcceptEULA=2021-10-13`; success is judged by that dir existing, not the exit
+code. Per X.Y the prefs live in `Documents\houdiniX.Y` (Known Folder path, so
+OneDrive redirection is respected): `packages\loadout.json`, the ALX desk,
+SideFX Labs and `fxhoudinimcp.json` (uv tool layout `Lib\site-packages`,
+`Scripts\python.exe`). Editions are `bin\happrentice|hindie|houdinifx|houdinicore.exe`.
+`Start-Process -ArgumentList` does not quote, so values with spaces are quoted by hand.
 
 **Houdini.** `platforms/macos/installers/houdini.sh` writes
 `~/Library/Preferences/houdini/<X.Y>/packages/loadout.json` pointing at
