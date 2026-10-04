@@ -200,7 +200,7 @@ pub fn task_command(
 
 fn bridge_job(verb: &str, app: &App, repo: &Path, resources: &Path) -> Result<Cmd, String> {
     let kind = match app.kind.as_str() {
-        "winget" | "github" => app.kind.clone(),
+        "installer" | "winget" | "github" => app.kind.clone(),
         other => return Err(format!("cannot {verb} a {other} on Windows")),
     };
     let mut args = base_args(resources);

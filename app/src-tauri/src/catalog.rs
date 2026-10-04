@@ -191,8 +191,9 @@ fn github(repo: &Path) -> Vec<App> {
         .collect()
 }
 
-fn installers(repo: &Path) -> Vec<App> {
-    read_dir_lists(&repo.join("config/packages/macos/installers"))
+/// `platform` is `macos` or `windows`: each has its own scripts and lists.
+fn installers(repo: &Path, platform: &str) -> Vec<App> {
+    read_dir_lists(&repo.join(format!("config/packages/{platform}/installers")))
         .into_iter()
         .flat_map(|(stem, entries)| {
             let category = title_case(&stem);
@@ -215,12 +216,13 @@ fn installers(repo: &Path) -> Vec<App> {
 /// saved in Settings.
 pub fn scan(repo: &Path) -> Vec<App> {
     if cfg!(target_os = "windows") {
-        let mut apps = winget(repo);
+        let mut apps = installers(repo, "windows");
+        apps.extend(winget(repo));
         apps.extend(github(repo));
         apps
     } else {
         let mut apps = casks(repo);
-        apps.extend(installers(repo));
+        apps.extend(installers(repo, "macos"));
         apps.extend(mas(repo));
         apps.extend(formulae(repo));
         apps

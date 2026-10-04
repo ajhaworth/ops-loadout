@@ -30,8 +30,7 @@ async function load() {
   }));
   actions = [
     all.some((a) => a.outdated) && { name: "Update all", run: inMain("update-all") },
-    (has("installer:blender") || has("winget:BlenderFoundation.Blender")) &&
-      { name: "Reapply Blender settings", run: inMain("blender-configure") },
+    has("installer:blender") && { name: "Reapply Blender settings", run: inMain("blender-configure") },
     { name: "Pull repo", run: inMain("pull") },
     ...[["installer:fork", "Fork"], ["installer:ghostty", "Ghostty"]].map(([id, name]) =>
       IS_MAC && has(id) && { name: `Open repo in ${name}`, run: () => invoke("open_repo_in", { id }) }),

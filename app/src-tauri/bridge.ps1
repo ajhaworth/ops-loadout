@@ -1,6 +1,6 @@
 # bridge.ps1 - Loadout <-> lib/windows/packages.psm1
 #
-# Package kinds: winget, github. ComfyUI's custom nodes install with the
+# Package kinds: installer (platforms/windows/installers/<token>.ps1), winget, github. ComfyUI's custom nodes install with the
 # Comfy.ComfyUI-Desktop winget entry.
 #
 # Invoked as:
@@ -36,7 +36,6 @@ function Import-OpsModules {
     Import-Module (Join-Path $RepoRoot 'lib\windows\common.psm1') -Force
     Import-Module (Join-Path $RepoRoot 'lib\windows\packages.psm1') -Force
     Import-Module (Join-Path $RepoRoot 'lib\windows\comfyui.psm1') -Force
-    Import-Module (Join-Path $RepoRoot 'lib\windows\blender.psm1') -Force
 }
 
 # tasks-status/tasks-apply need the registry and dotfiles helpers too, plus
@@ -453,7 +452,12 @@ function Invoke-TaskApply {
     }
 }
 
-# owner/repo from a pipe-delimited spec line
+function Get-InstallerScript {
+    param([string]$RepoRoot, [string]$Token)
+    return (Join-Path $RepoRoot "platforms\windows\installers\$Token.ps1")
+}
+
+# owner/repo (or installer token) from a pipe-delimited spec line
 function Get-SpecRepo {
     param([string]$Spec)
     return ($Spec -split '\|')[0].Trim()
@@ -513,6 +517,20 @@ switch ($Verb) {
         Import-OpsModules -RepoRoot $repoRoot
         $result = @()
 
+        # Installer scripts answer status like the macOS ones: the launch
+        # target on the first line, `outdated` on a second, exit 1 when absent.
+        foreach ($spec in Get-SpecsIn (Join-Path $repoRoot 'config\packages\windows\installers')) {
+            $token = Get-SpecRepo $spec
+            $out = @(& (Get-InstallerScript -RepoRoot $repoRoot -Token $token) status 2>$null)
+            $installed = ($LASTEXITCODE -eq 0 -and $out.Count -gt 0)
+            $result += [pscustomobject]@{
+                id        = "installer:$token"
+                installed = $installed
+                outdated  = ($installed -and $out -contains 'outdated')
+                exe       = $(if ($installed) { [string]$out[0] } else { '' })
+            }
+        }
+
         $wingetSpecs = @(Get-SpecsIn (Join-Path $repoRoot 'config\packages\windows\winget'))
         if ($wingetSpecs.Count -gt 0) {
             $parsed = @(foreach ($spec in $wingetSpecs) {
@@ -526,10 +544,6 @@ switch ($Verb) {
                 if ($installed) {
                     $exe = Get-ShortcutTarget -Name $p.Name
                     $outdated = $state[$p.Id]
-                    # Like blender.sh's status: config drift reads as an update.
-                    if ($p.Id -eq 'BlenderFoundation.Blender' -and -not (Test-BlenderConfigCurrent -RepoRoot $repoRoot)) {
-                        $outdated = $true
-                    }
                 }
                 $result += [pscustomobject]@{
                     id        = "winget:$($p.Id)"
@@ -571,6 +585,10 @@ switch ($Verb) {
         $spec = $Args2[2]
         Import-OpsModules -RepoRoot $repoRoot
 
+        if ($kind -eq 'installer') {
+            & (Get-InstallerScript -RepoRoot $repoRoot -Token (Get-SpecRepo $spec)) $Verb
+            exit $LASTEXITCODE
+        }
         if ($kind -eq 'winget') {
             $wingetVerb = 'install'
             if ($force) { $wingetVerb = 'upgrade' }
@@ -586,9 +604,14 @@ switch ($Verb) {
     }
 
     'configure' {
-        # Reapply an app's config without touching the app (winget only).
+        # Reapply an app's config without touching the app.
         $repoRoot = $Args2[0]
+        $kind = $Args2[1]
         $spec = $Args2[2]
+        if ($kind -eq 'installer') {
+            & (Get-InstallerScript -RepoRoot $repoRoot -Token (Get-SpecRepo $spec)) configure
+            exit $LASTEXITCODE
+        }
         Import-OpsModules -RepoRoot $repoRoot
         $config = Get-BridgeProfileConfig -ProfileName $env:LOADOUT_PROFILE
         Invoke-WingetAppConfig -Spec $spec -RepoRoot $repoRoot -ProfileConfig $config
@@ -601,6 +624,10 @@ switch ($Verb) {
         $spec = $Args2[2]
         Import-OpsModules -RepoRoot $repoRoot
 
+        if ($kind -eq 'installer') {
+            & (Get-InstallerScript -RepoRoot $repoRoot -Token (Get-SpecRepo $spec)) uninstall
+            exit $LASTEXITCODE
+        }
         if ($kind -eq 'winget') {
             if (-not (Invoke-WingetPackage -Verb 'uninstall' -Spec $spec)) { exit 1 }
         } elseif ($kind -eq 'github') {

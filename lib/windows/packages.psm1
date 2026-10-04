@@ -671,8 +671,8 @@ function Get-ShortcutTarget {
 }
 
 # Config Loadout applies with an app, the way the macOS installer scripts do:
-# after every install/update, and alone from "Reapply Settings". The functions
-# come from comfyui.psm1 and blender.psm1, which callers import alongside.
+# after every install/update, and alone from "Reapply Settings". The function
+# comes from comfyui.psm1, which callers import alongside.
 function Invoke-WingetAppConfig {
     param(
         [Parameter(Mandatory)][string]$Spec,
@@ -685,9 +685,6 @@ function Invoke-WingetAppConfig {
     switch ((ConvertFrom-WingetPackageSpec -Spec $Spec).Id) {
         'Comfy.ComfyUI-Desktop' {
             Install-ComfyNodeLists -RepoRoot $RepoRoot -ProfileConfig $ProfileConfig -DryRun:$DryRun -Force:$Force
-        }
-        'BlenderFoundation.Blender' {
-            Install-BlenderConfig -RepoRoot $RepoRoot -DryRun:$DryRun | Out-Null
         }
     }
 }

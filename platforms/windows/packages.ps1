@@ -19,7 +19,6 @@ $repoRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 Import-Module (Join-Path $repoRoot "lib\windows\common.psm1") -Force
 Import-Module (Join-Path $repoRoot "lib\windows\packages.psm1") -Force
 Import-Module (Join-Path $repoRoot "lib\windows\comfyui.psm1") -Force
-Import-Module (Join-Path $repoRoot "lib\windows\blender.psm1") -Force
 
 # Load profile
 $config = Read-Profile -ProfileName $ProfileName
@@ -139,7 +138,7 @@ function Install-AllPackages {
             Write-SubStep $category
             foreach ($package in $wingetPackages[$category]) {
                 Invoke-WingetPackage -Verb 'install' -Spec $package -DryRun:$DryRun | Out-Null
-                # Blender's repo config, ComfyUI's custom nodes
+                # ComfyUI's custom nodes
                 Invoke-WingetAppConfig -Spec $package -RepoRoot $repoRoot -ProfileConfig $config `
                     -DryRun:$DryRun -Force:$Force
             }

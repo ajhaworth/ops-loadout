@@ -1,34 +1,83 @@
-# blender.psm1 - Blender's repo config on Windows
+# blender.psm1 - Blender on Windows, installed and configured from the repo
 #
-# The Windows half of platforms/macos/installers/blender.sh. winget installs
-# the app (BlenderFoundation.Blender, an MSI per X.Y series under
-# Program Files); this applies the repo's config to it, on every install,
-# update and "Reapply Settings":
+# The Windows twin of platforms/macos/installers/blender.sh, driven by
+# platforms/windows/installers/blender.ps1 (Loadout kind `installer`). Not
+# winget: BlenderFoundation.Blender's manifest downloads from
+# download.blender.org, which sits behind a Cloudflare challenge and answers
+# 403, so winget cannot install it at all. Instead:
 #
-#   1. %APPDATA%\Blender Foundation\Blender\<X.Y> becomes a junction to
-#      config/dcc/blender/portable, so everything Blender saves lands in the
-#      repo - the same tree macOS reaches through its portable/ symlink
-#   2. extensions.txt is installed into it
-#   3. setup.py runs windowed to regenerate prefs, keymap and startup layout
-#   4. the Blender Lab MCP server is registered with Claude Code
-#
-# A junction rather than a portable/ folder beside blender.exe: that one sits
-# in Program Files and would need Administrator. Junctions need neither admin
-# nor Developer Mode.
+#   1. the portable .zip comes from the same mirror blender.sh uses, into
+#      %LOCALAPPDATA%\Programs\Blender - per user, no MSI, no admin
+#   2. <that dir>\portable is a junction to config/dcc/blender/portable;
+#      Blender treats a portable\ dir beside blender.exe as its config root,
+#      so everything it saves lands in the repo, exactly as on macOS
+#   3. extensions.txt is installed into it, setup.py runs windowed to
+#      regenerate prefs, keymap and startup layout, and the Blender Lab MCP
+#      server is registered with Claude Code
 #
 # Compatible with Windows PowerShell 5.1 and PowerShell 7+.
 
 Import-Module (Join-Path $PSScriptRoot "common.psm1") -Global -Force
 
-# Newest installed series, e.g. C:\Program Files\Blender Foundation\Blender 5.2\blender.exe
-function Get-BlenderExe {
-    $root = Join-Path $env:ProgramFiles 'Blender Foundation'
-    $dir = Get-ChildItem -LiteralPath $root -Directory -Filter 'Blender *' -ErrorAction SilentlyContinue |
-        Where-Object { ($_.Name -match '^Blender \d+\.\d+$') -and (Test-Path -LiteralPath (Join-Path $_.FullName 'blender.exe')) } |
-        Sort-Object { [version]($_.Name -replace '^Blender ', '') } -Descending |
-        Select-Object -First 1
-    if ($dir) { return (Join-Path $dir.FullName 'blender.exe') }
-    return ''
+$script:Mirror = 'https://ftp.nluug.nl/pub/graphics/blender/release'
+
+function Get-BlenderDir { return (Join-Path $env:LOCALAPPDATA 'Programs\Blender') }
+
+# The installed version, recorded at install time (blender --version is slow).
+function Get-BlenderVersion {
+    $dir = Get-BlenderDir
+    $file = Join-Path $dir 'loadout-version.txt'
+    if (-not (Test-Path -LiteralPath (Join-Path $dir 'blender.exe')) -or -not (Test-Path -LiteralPath $file)) { return '' }
+    return (Get-Content -LiteralPath $file -Raw).Trim()
+}
+
+# Latest release on the mirror as @{ Version; Url }, or $null.
+function Get-BlenderLatest {
+    $ProgressPreference = 'SilentlyContinue'
+    try {
+        $listing = (Invoke-WebRequest -Uri "$script:Mirror/" -UseBasicParsing -TimeoutSec 35).Content
+        $series = @([regex]::Matches($listing, 'Blender(\d+\.\d+)/') | ForEach-Object { $_.Groups[1].Value } |
+            Sort-Object -Unique | Sort-Object { [version]$_ })[-1]
+        if (-not $series) { return $null }
+        $listing = (Invoke-WebRequest -Uri "$script:Mirror/Blender$series/" -UseBasicParsing -TimeoutSec 35).Content
+        $version = @([regex]::Matches($listing, 'blender-([\d.]+)-windows-x64\.zip') | ForEach-Object { $_.Groups[1].Value } |
+            Sort-Object -Unique | Sort-Object { [version]$_ })[-1]
+        if (-not $version) { return $null }
+        return @{ Version = $version; Url = "$script:Mirror/Blender$series/blender-$version-windows-x64.zip" }
+    } catch {
+        return $null
+    }
+}
+
+# A junction's target, without the \\?\ prefix PowerShell 5.1 can report.
+function Get-JunctionTarget {
+    param([string]$Path)
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    if (-not $item -or -not $item.LinkType) { return '' }
+    return ((@($item.Target)[0]) -replace '^\\\\\?\\', '').TrimEnd('\')
+}
+
+# Remove a junction itself. Never Remove-Item -Recurse a tree that still holds
+# the portable junction: Windows PowerShell can follow it into the repo.
+function Remove-Junction {
+    param([string]$Path)
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    if ($item -and $item.LinkType) { $item.Delete() }
+}
+
+# Launch target and drift, for the bridge's status: ours only when portable\
+# is our junction, so a Blender unpacked by hand reads as not installed.
+function Get-BlenderStatus {
+    param([Parameter(Mandatory)][string]$RepoRoot)
+
+    $dir = Get-BlenderDir
+    $portable = Join-Path $RepoRoot 'config\dcc\blender\portable'
+    if (-not (Test-Path -LiteralPath (Join-Path $dir 'blender.exe'))) { return $null }
+    if ((Get-JunctionTarget -Path (Join-Path $dir 'portable')) -ne $portable.TrimEnd('\')) { return $null }
+    # blender-launcher.exe is the GUI build: no console window behind Blender.
+    $launcher = Join-Path $dir 'blender-launcher.exe'
+    if (-not (Test-Path -LiteralPath $launcher)) { $launcher = Join-Path $dir 'blender.exe' }
+    return @{ Exe = $launcher; Outdated = -not (Test-BlenderConfigCurrent -RepoRoot $RepoRoot) }
 }
 
 # What setup applies once rather than reading live through the junction. A
@@ -51,31 +100,6 @@ function Test-BlenderConfigCurrent {
     $stamp = Join-Path $RepoRoot 'config\dcc\blender\.configured'
     if (-not (Test-Path -LiteralPath $stamp)) { return $false }
     return ((Get-Content -LiteralPath $stamp -Raw).Trim() -eq (Get-BlenderConfigHash -RepoRoot $RepoRoot))
-}
-
-# The series' user config dir -> the repo. A real directory already there (a
-# Blender run before this) is moved aside, never deleted.
-function Set-BlenderConfigLink {
-    param(
-        [Parameter(Mandatory)][string]$Series,
-        [Parameter(Mandatory)][string]$Target
-    )
-
-    $root = Join-Path $env:APPDATA 'Blender Foundation\Blender'
-    $link = Join-Path $root $Series
-    $item = Get-Item -LiteralPath $link -Force -ErrorAction SilentlyContinue
-    if ($item) {
-        if ($item.LinkType) {
-            # DirectoryInfo.Delete() on a junction removes the link, not the repo files
-            $item.Delete()
-        } else {
-            $aside = "$Series.bak-$(Get-Date -Format 'yyyyMMdd_HHmmss')"
-            Rename-Item -LiteralPath $link -NewName $aside
-            Write-Host "Moved the existing Blender $Series config aside to $aside"
-        }
-    }
-    New-Item -ItemType Directory -Path $root -Force | Out-Null
-    New-Item -ItemType Junction -Path $link -Target $Target | Out-Null
 }
 
 # Run Blender, streaming its output without the per-chunk PROGRESS lines.
@@ -122,7 +146,7 @@ function Install-BlenderExtension {
         [Parameter(Mandatory)][string]$Exe,
         [Parameter(Mandatory)][string]$Portable,
         [Parameter(Mandatory)][string]$Line,
-        [Parameter(Mandatory)][System.Collections.Generic.List[string]]$Addons
+        [Parameter(Mandatory)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$Addons
     )
 
     $kind, $ref, $id = @($Line -split '\s+')
@@ -195,38 +219,128 @@ function Install-BlenderExtension {
     }
 }
 
-function Install-BlenderConfig {
+# install | update | reinstall | configure. Update downloads only when the
+# mirror has a newer build, and a failed check keeps a working install and
+# still reapplies config; reinstall always downloads; configure never does.
+function Install-Blender {
     param(
         [Parameter(Mandatory)][string]$RepoRoot,
-        [switch]$DryRun
+        [Parameter(Mandatory)][ValidateSet('install', 'update', 'reinstall', 'configure')][string]$Action
     )
+
+    $dir = Get-BlenderDir
+    $cfg = Join-Path $RepoRoot 'config\dcc\blender'
+    $portable = Join-Path $cfg 'portable'
+    $current = Get-BlenderVersion
+    if ($current) { Write-Host "    installed: $current" }
+
+    if ($Action -eq 'configure') {
+        if (-not $current) { Write-Err 'Blender is not installed; install it first'; return $false }
+    } else {
+        Write-Step 'Resolving latest Blender release'
+        $latest = Get-BlenderLatest
+        if ($latest) {
+            Write-Host "    latest: $($latest.Version)"
+        } elseif ($current -and $Action -ne 'reinstall') {
+            Write-Warn "Could not check for a newer Blender; keeping $current and reapplying configuration"
+        } else {
+            Write-Err 'Could not resolve a Blender release on the mirror'
+            return $false
+        }
+
+        if ($latest -and ($Action -eq 'reinstall' -or -not $current -or ([version]$latest.Version -gt [version]$current))) {
+            if (Get-Process -Name 'blender', 'blender-launcher' -ErrorAction SilentlyContinue) {
+                Write-Err 'Blender is running; close it and try again'
+                return $false
+            }
+            if (-not (Install-BlenderBuild -Url $latest.Url -Version $latest.Version -Dir $dir)) { return $false }
+            $current = $latest.Version
+        } else {
+            Write-Host "Keeping Blender $current; no download needed."
+        }
+    }
+
+    # Before the extensions, so they land in the repo's portable\extensions\.
+    $link = Join-Path $dir 'portable'
+    Remove-Junction -Path $link
+    if (Test-Path -LiteralPath $link) {
+        Rename-Item -LiteralPath $link -NewName "portable.bak-$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+    }
+    New-Item -ItemType Junction -Path $link -Target $portable | Out-Null
+
+    return (Invoke-BlenderSetup -Exe (Join-Path $dir 'blender.exe') -RepoRoot $RepoRoot -Version $current)
+}
+
+# Download and unpack one build, then swap it in for the old one, which is
+# restored if the swap fails.
+function Install-BlenderBuild {
+    param([string]$Url, [string]$Version, [string]$Dir)
+
+    $parent = Split-Path $Dir -Parent
+    New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    $stage = Join-Path $parent ".blender-install-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+    New-Item -ItemType Directory -Path $stage | Out-Null
+    try {
+        $zip = Join-Path $stage 'blender.zip'
+        # ponytail: no progress lines for the ~400MB download; curl's own bar is not line-based.
+        Write-Step "Downloading Blender $Version"
+        & curl.exe -fsSL --connect-timeout 30 --speed-limit 1024 --speed-time 60 -o $zip $Url
+        if ($LASTEXITCODE -ne 0) { Write-Err "Download failed (curl exit $LASTEXITCODE): $Url"; return $false }
+
+        Write-Step 'Unpacking'
+        # bsdtar reads zips, and is far faster than Expand-Archive on 400MB.
+        & tar.exe -xf $zip -C $stage
+        if ($LASTEXITCODE -ne 0) { Write-Err 'Could not unpack the Blender zip'; return $false }
+        $build = @(Get-ChildItem -LiteralPath $stage -Directory | Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'blender.exe') })[0]
+        if (-not $build) { Write-Err 'The zip holds no blender.exe'; return $false }
+        Set-Content -LiteralPath (Join-Path $build.FullName 'loadout-version.txt') -Value $Version -NoNewline
+
+        Write-Step "Installing into $Dir"
+        $old = ''
+        if (Test-Path -LiteralPath $Dir) {
+            Remove-Junction -Path (Join-Path $Dir 'portable')
+            $old = Join-Path $stage 'previous'
+            Move-Item -LiteralPath $Dir -Destination $old
+        }
+        try {
+            Move-Item -LiteralPath $build.FullName -Destination $Dir
+        } catch {
+            if ($old) { Move-Item -LiteralPath $old -Destination $Dir }
+            Write-Err "Could not move the new build into place: $_"
+            return $false
+        }
+        return $true
+    } finally {
+        Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Config stays in the repo; only the app goes.
+function Uninstall-Blender {
+    $dir = Get-BlenderDir
+    if (-not (Test-Path -LiteralPath $dir)) { Write-Host 'Blender is not installed'; return $true }
+    Remove-Junction -Path (Join-Path $dir 'portable')
+    Remove-Item -LiteralPath $dir -Recurse -Force
+    Write-Host "Removed $dir"
+    return $true
+}
+
+# extensions.txt, setup.py, MCP, stamp. Returns $false when any step failed.
+function Invoke-BlenderSetup {
+    param([string]$Exe, [string]$RepoRoot, [string]$Version)
 
     $cfg = Join-Path $RepoRoot 'config\dcc\blender'
     $portable = Join-Path $cfg 'portable'
-    # Before the exe lookup: a dry run never installed the Blender it would configure.
-    if ($DryRun) {
-        Write-DryRun "Would link %APPDATA%\Blender Foundation\Blender\<X.Y> -> $portable, install extensions.txt and run setup.py"
-        return $true
-    }
-
-    $exe = Get-BlenderExe
-    if (-not $exe) {
-        Write-Err 'Blender is not installed (no Program Files\Blender Foundation\Blender X.Y\blender.exe)'
-        (Get-Results).Failed += 'blender config'
-        return $false
-    }
-    $series = (Split-Path (Split-Path $exe -Parent) -Leaf) -replace '^Blender ', ''
-
-    Write-Step "Blender $series configuration"
-
-    # Before the extensions, so they land in the repo's portable\extensions\.
-    Set-BlenderConfigLink -Series $series -Target $portable
     $failures = 0
 
     Write-SubStep 'Checking extensions'
     $addons = New-Object System.Collections.Generic.List[string]
     foreach ($line in @(Read-PackageList -FilePath (Join-Path $cfg 'extensions.txt'))) {
-        if (-not (Install-BlenderExtension -Exe $exe -Portable $portable -Line $line -Addons $addons)) {
+        # try: a module function runs under the global (Continue) error
+        # preference, so an error would otherwise skip the count silently.
+        $ok = $false
+        try { $ok = Install-BlenderExtension -Exe $Exe -Portable $portable -Line $line -Addons $addons } catch { Write-Err "$_" }
+        if (-not $ok) {
             Write-Err "Failed to set up extension: $line; continuing with custom configuration"
             $failures++
         }
@@ -262,18 +376,18 @@ function Install-BlenderConfig {
     }
 
     if ($failures -gt 0) {
-        Write-Err "Blender $series is installed, but $failures setup step(s) failed; see above"
-        (Get-Results).Failed += 'blender config'
+        Write-Err "Blender $Version retained, but $failures setup step(s) failed; see above"
         return $false
     }
     Set-Content -LiteralPath (Join-Path $cfg '.configured') -Value (Get-BlenderConfigHash -RepoRoot $RepoRoot) -NoNewline
-    Write-Success "Blender $series configured"
+    Write-Success "Blender $Version configured"
     return $true
 }
 
 Export-ModuleMember -Function @(
-    'Get-BlenderExe',
     'Get-BlenderConfigHash',
     'Test-BlenderConfigCurrent',
-    'Install-BlenderConfig'
+    'Get-BlenderStatus',
+    'Install-Blender',
+    'Uninstall-Blender'
 )

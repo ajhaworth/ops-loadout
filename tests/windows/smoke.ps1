@@ -136,7 +136,7 @@ Write-Section "Package lists match profile variables"
 $packagesDir = Join-Path $repoRoot "config\packages\windows"
 $knownVars = @{}
 
-foreach ($manager in @('winget', 'github', 'comfynodes')) {
+foreach ($manager in @('installers', 'winget', 'github', 'comfynodes')) {
     $prefix = $manager.ToUpper()
 
     $managerDir = Join-Path $packagesDir $manager
@@ -149,6 +149,13 @@ foreach ($manager in @('winget', 'github', 'comfynodes')) {
         Assert-True ($packages.Count -gt 0) "$manager/$($file.Name) is not empty"
 
         # A malformed spec only fails at install time otherwise
+        if ($manager -eq 'installers') {
+            foreach ($package in $packages) {
+                $token = ($package -split '\|')[0].Trim()
+                $script = Join-Path $repoRoot "platforms\windows\installers\$token.ps1"
+                Assert-True (Test-Path -LiteralPath $script) "installer script exists: $token.ps1"
+            }
+        }
         if ($manager -eq 'winget') {
             foreach ($package in $packages) {
                 $parsed = $null
@@ -173,10 +180,10 @@ foreach ($manager in @('winget', 'github', 'comfynodes')) {
     }
 }
 
-# Every WINGET_*/GITHUB_*/COMFYNODES_* variable in the profile must have a backing
+# Every INSTALLERS_*/WINGET_*/GITHUB_*/COMFYNODES_* variable in the profile must have a backing
 # file, otherwise a deleted category silently lingers in the profile.
 foreach ($key in $windowsProfile.Keys) {
-    if ($key -match '^(WINGET|GITHUB|COMFYNODES)_') {
+    if ($key -match '^(INSTALLERS|WINGET|GITHUB|COMFYNODES)_') {
         Assert-True $knownVars.ContainsKey($key) "profile var $key has a matching package list"
     }
 }

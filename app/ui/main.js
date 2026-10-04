@@ -43,9 +43,6 @@ function svgEl(name, size, cls = "") {
   return t.content.firstChild;
 }
 
-// Blender's installer on macOS, its winget entry on Windows; both apply the repo config.
-const isBlender = (a) => a.id === "installer:blender" || a.id === "winget:BlenderFoundation.Blender";
-
 const KIND_LABELS = {
   cask: "Homebrew cask", formula: "Homebrew formula", mas: "App Store",
   installer: "Loadout installer", winget: "winget", github: "GitHub release",
@@ -835,7 +832,7 @@ function menuItems(app, launchTargets = [], channels = []) {
     if (app.outdated) items.push(update);
     if (app.launchable) items.push({ label: "Open", run: () => call("launch", app) });
     // ponytail: hardcoded; add a page column to installers/*.txt when a second DCC needs one.
-    if (isBlender(app)) {
+    if (app.id === "installer:blender") {
       items.push({
         label: "Keymap",
         run: () =>
@@ -1006,7 +1003,7 @@ listen("quick-action", ({ payload }) => {
   if (payload === "update-all") {
     updateAll();
   } else if (payload === "blender-configure") {
-    const blender = apps.find(isBlender);
+    const blender = apps.find((a) => a.id === "installer:blender");
     if (blender) doJob(blender, "configure");
   } else if (payload === "pull") {
     startJob("repo", "pull", "$ git pull --ff-only", () => invoke("pull_repo"))
