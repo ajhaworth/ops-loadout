@@ -45,7 +45,7 @@ function svgEl(name, size, cls = "") {
 
 const KIND_LABELS = {
   cask: "Homebrew cask", formula: "Homebrew formula", mas: "App Store",
-  installer: "Loadout installer", winget: "winget", github: "GitHub release", comfynode: "ComfyUI node",
+  installer: "Loadout installer", winget: "winget", github: "GitHub release",
 };
 
 // Two top-level tabs: Apps is the grid, Updates is outdated packages plus the
@@ -55,7 +55,7 @@ const TABS = ["Apps", "Updates"];
 const CATEGORIES = {
   All: () => true,
   Learning: (a) => a.category === "Learning",
-  Creative: (a) => ["Creative", "3D", "Game Engines"].includes(a.category) || a.kind === "comfynode",
+  Creative: (a) => ["Creative", "3D", "Game Engines"].includes(a.category),
   Development: (a) => ["Development", "Software Dev", "Devops"].includes(a.category),
 };
 let tab = "Apps";
@@ -85,7 +85,6 @@ const GROUPS = [
   { kinds: ["cask", "installer"], open: true },
   { kinds: ["winget", "github"], open: true },
   { kinds: ["mas"], open: true },
-  { kinds: ["comfynode"], open: true },
   { kinds: ["formula"], open: false, wrap: "Command line" },
 ];
 

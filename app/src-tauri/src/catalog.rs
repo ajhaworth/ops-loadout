@@ -2,7 +2,8 @@
 //!
 //! Mirrors `lib/packages.sh:parse_package_list` (full-line and trailing `#`
 //! comments, trimmed, blanks skipped) plus the pipe-delimited formats used by
-//! the mas / windows-winget / windows-github / windows-comfynodes lists.
+//! the mas / windows-winget / windows-github lists. ComfyUI custom nodes are
+//! not apps: they install with ComfyUI Desktop (bridge.ps1).
 
 use serde::Serialize;
 use std::collections::HashMap;
@@ -17,7 +18,7 @@ pub struct App {
     /// The list file's stem (`software-dev`), as the profile variable spells
     /// it. `category` is its title case, which is not reliably reversible.
     pub list: String,
-    /// "cask" | "formula" | "mas" | "installer" | "winget" | "github" | "comfynode"
+    /// "cask" | "formula" | "mas" | "installer" | "winget" | "github"
     pub kind: String,
     pub installed: bool,
     /// An installed app with a newer version available.
@@ -207,25 +208,6 @@ fn installers(repo: &Path) -> Vec<App> {
         .collect()
 }
 
-fn comfynodes(repo: &Path) -> Vec<App> {
-    read_dir_lists(&repo.join("config/packages/windows/comfynodes"))
-        .into_iter()
-        .flat_map(|(stem, entries)| {
-            entries.into_iter().filter_map(move |line| {
-                // owner/repo | directory-name
-                let repo_slug = field(&line, 0)?;
-                let default_dir = repo_slug.split('/').nth(1)?.to_string();
-                let dir = field(&line, 1).unwrap_or(default_dir);
-                let mut app = App::new("comfynode", &repo_slug, &dir, "ComfyUI Nodes", &stem);
-                app.token = line.clone();
-                app.id = format!("comfynode:{repo_slug}");
-                app.homepage = Some(format!("https://github.com/{repo_slug}"));
-                Some(app)
-            })
-        })
-        .collect()
-}
-
 /// Every app this repo manages for the current platform, before the platform
 /// backend fills in installed state, homepage and icons.
 ///
@@ -235,7 +217,6 @@ pub fn scan(repo: &Path) -> Vec<App> {
     if cfg!(target_os = "windows") {
         let mut apps = winget(repo);
         apps.extend(github(repo));
-        apps.extend(comfynodes(repo));
         apps
     } else {
         let mut apps = casks(repo);
@@ -268,7 +249,6 @@ pub fn filter_by_profile(apps: Vec<App>, flags: &HashMap<String, String>) -> Vec
             "installer" => on(&category_var("INSTALLERS", &app.list)),
             "winget" => on(&category_var("WINGET", &app.list)),
             "github" => on(&category_var("GITHUB", &app.list)),
-            "comfynode" => on(&category_var("COMFYNODES", &app.list)),
             _ => true,
         })
         .collect()

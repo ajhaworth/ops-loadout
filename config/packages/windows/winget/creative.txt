@@ -1,0 +1,3 @@
+# Format: Winget.Id | name (tile name and the Start Menu shortcut it launches)
+# Installing or updating it also installs the comfynodes/*.txt custom nodes.
+Comfy.ComfyUI-Desktop | Comfy Desktop

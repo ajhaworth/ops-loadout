@@ -1,7 +1,7 @@
 # comfyui.psm1 - Locating a ComfyUI Desktop install
 #
-# Shared by platforms/windows/defaults/comfyui*.ps1 and the comfynodes half of
-# packages.ps1, so all of them agree on where the app and its backend live.
+# Shared by platforms/windows/defaults/comfyui*.ps1, packages.ps1 and
+# Loadout's bridge.ps1 (custom nodes), so all of them agree on where the app and its backend live.
 #
 # Desktop keeps its state in %APPDATA%\Comfy Desktop (note the space - there is
 # no %APPDATA%\ComfyUI) and records each install in installations.json.
@@ -303,6 +303,49 @@ function Install-ComfyNode {
     }
 }
 
+# Every node in the comfynodes lists the profile enables, into every local
+# backend. The nodes are ComfyUI's config rather than apps of their own:
+# Loadout applies them whenever it installs or updates Comfy Desktop (winget),
+# and setup.ps1 packages after its winget stage. A fresh Desktop has no backend
+# until it has been launched once, so that case skips with a pointer.
+function Install-ComfyNodeLists {
+    param(
+        [Parameter(Mandatory)]
+        [string]$RepoRoot,
+        [Parameter(Mandatory)]
+        [hashtable]$ProfileConfig,
+        [switch]$DryRun,
+        [switch]$Force
+    )
+
+    $specs = @()
+    $dir = Join-Path $RepoRoot 'config\packages\windows\comfynodes'
+    foreach ($file in @(Get-ChildItem -LiteralPath $dir -Filter '*.txt' -ErrorAction SilentlyContinue | Sort-Object Name)) {
+        $flag = Get-CategoryVar -Prefix 'COMFYNODES' -Category $file.BaseName
+        if (Test-ProfileFlag -Profile $ProfileConfig -Flag $flag) {
+            $specs += @(Read-PackageList -FilePath $file.FullName)
+        }
+    }
+    if ($specs.Count -eq 0) { return }
+
+    Write-Step "ComfyUI custom nodes"
+    $backends = @(Get-ComfyBackends)
+    if ($backends.Count -eq 0) {
+        Write-Skip "No ComfyUI install found - launch Comfy Desktop once, then update it to add its nodes"
+        return
+    }
+    # Nodes load at startup, so a running backend would not see them
+    if ((Test-ComfyDesktopRunning) -and -not $DryRun) {
+        Write-Warn "Comfy Desktop is running - restart it once this finishes"
+    }
+
+    foreach ($backend in $backends) {
+        foreach ($spec in $specs) {
+            Install-ComfyNode -PackageSpec $spec -BaseDir $backend.BaseDir -DryRun:$DryRun -Force:$Force | Out-Null
+        }
+    }
+}
+
 function Install-ComfyNodeRequirements {
     param(
         [Parameter(Mandatory)]
@@ -353,5 +396,6 @@ Export-ModuleMember -Function @(
     'ConvertFrom-ComfyNodeSpec',
     'Test-ComfyNodeInstalled',
     'Install-ComfyNode',
+    'Install-ComfyNodeLists',
     'Install-ComfyNodeRequirements'
 )

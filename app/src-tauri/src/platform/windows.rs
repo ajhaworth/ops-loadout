@@ -35,10 +35,12 @@ fn base_args(resources: &Path) -> Vec<String> {
 }
 
 fn icon(exe: &str, id: &str, cache_dir: &Path, resources: &Path) -> Option<String> {
-    let png = cache_dir.join(cache_name(id));
+    // Its own dir so the 32px icons cached before 256px extraction go unused.
+    let dir = cache_dir.join("icons-256");
+    let png = dir.join(cache_name(id));
 
     if !png.is_file() {
-        std::fs::create_dir_all(cache_dir).ok()?;
+        std::fs::create_dir_all(&dir).ok()?;
         let mut args = base_args(resources);
         args.push("icon".into());
         args.push(exe.to_string());
@@ -197,7 +199,7 @@ pub fn task_command(
 
 fn bridge_job(verb: &str, app: &App, repo: &Path, resources: &Path) -> Result<Cmd, String> {
     let kind = match app.kind.as_str() {
-        "winget" | "github" | "comfynode" => app.kind.clone(),
+        "winget" | "github" => app.kind.clone(),
         other => return Err(format!("cannot {verb} a {other} on Windows")),
     };
     let mut args = base_args(resources);

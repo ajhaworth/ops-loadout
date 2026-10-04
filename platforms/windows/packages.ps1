@@ -125,39 +125,6 @@ function Show-AllPackageStatus {
     }
 }
 
-# ComfyUI custom nodes. These install into the app's own tree rather than
-# through a package manager, so they are handled apart from Install-PackageBatch
-# and are simply skipped on a machine with no ComfyUI.
-function Install-AllComfyNodes {
-    $nodePackages = Get-EnabledPackages -Manager 'comfynodes'
-    if ($nodePackages.Count -eq 0) {
-        return
-    }
-
-    Write-Step "Installing ComfyUI Custom Nodes"
-
-    $backends = @(Get-ComfyBackends)
-    if ($backends.Count -eq 0) {
-        Write-Skip "No ComfyUI install found - launch Comfy Desktop once, then re-run"
-        return
-    }
-
-    # Nodes are loaded at startup, so a running backend would not see them
-    if ((Test-ComfyDesktopRunning) -and -not $DryRun) {
-        Write-Warn "Comfy Desktop is running - restart it once this finishes"
-    }
-
-    foreach ($backend in $backends) {
-        foreach ($category in $nodePackages.Keys | Sort-Object) {
-            Write-SubStep $category
-            foreach ($package in $nodePackages[$category]) {
-                Install-ComfyNode -PackageSpec $package -BaseDir $backend.BaseDir `
-                    -DryRun:$DryRun -Force:$Force | Out-Null
-            }
-        }
-    }
-}
-
 # Install all enabled packages
 function Install-AllPackages {
     Reset-Results
@@ -187,7 +154,8 @@ function Install-AllPackages {
         }
     }
 
-    Install-AllComfyNodes
+    # ComfyUI's custom nodes, after winget has installed ComfyUI itself.
+    Install-ComfyNodeLists -RepoRoot $repoRoot -ProfileConfig $config -DryRun:$DryRun -Force:$Force
 
     Write-ResultsSummary -Title "Package Installation Summary"
 }

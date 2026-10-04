@@ -236,8 +236,9 @@ Packages are defined in text files under `config/packages/`:
 - `comfynodes/*.txt` - ComfyUI custom nodes, `owner/repo | directory-name` (the
   directory defaults to the repo name). Cloned into every local ComfyUI
   backend's `custom_nodes/`, with `requirements.txt` installed into that
-  backend's own `.venv`. Existing nodes are skipped; `-Force` fast-forwards
-  them. Skipped entirely on a machine with no ComfyUI.
+  backend's own `.venv`, whenever ComfyUI Desktop is installed or updated
+  (no tile of their own). Existing nodes are skipped; updating ComfyUI
+  fast-forwards them. Skipped entirely on a machine with no ComfyUI.
 
 ### Local Overrides
 

@@ -131,6 +131,15 @@ used when set, lifting the 60/hour unauthenticated rate limit.
 
 ### ComfyUI Custom Nodes
 
+Nodes are ComfyUI's config, not apps: Loadout has no tile per node. They
+install with the `Comfy.ComfyUI-Desktop` winget entry (`winget/creative.txt`) -
+`bridge.ps1` calls `Install-ComfyNodeLists` after every install/update of it,
+the way `blender.sh` applies Blender's extensions - and `setup.ps1 packages`
+runs the same function after its winget stage. Lists stay gated by
+`COMFYNODES_<CATEGORY>`; Loadout passes its saved profile to jobs as
+`LOADOUT_PROFILE` for that. A fresh Desktop has no backend until launched once,
+so the first install skips the nodes and says to update ComfyUI afterwards.
+
 `config/packages/windows/comfynodes/*.txt`, one node per line:
 
 ```
@@ -146,7 +155,8 @@ importable but broken at runtime.
 
 An existing node directory is skipped; `-Force` runs `git pull --ff-only`, so
 local edits surface as a failure instead of a silent merge. Nodes load at
-startup, so the stage warns to restart Desktop when it is running.
+startup, so the stage warns to restart Desktop when it is running. Update on
+the ComfyUI tile is the `-Force` path.
 
 ### ComfyUI Network Access
 
@@ -489,7 +499,7 @@ points straight at `../ui`) over a Rust backend in `app/src-tauri/src/`:
   `install-log`/`install-done` events.
 - `catalog.rs` — pure parser of `config/packages/**` into `App` structs; never
   shells out. Kinds: `formula`, `cask`, `mas`, `installer` (macOS) and
-  `winget`, `github`, `comfynode` (Windows). `scan` reads every list file;
+  `winget`, `github` (Windows). `scan` reads every list file;
   `filter_by_profile` then drops what the profile saved in Settings disables,
   using the same `<PREFIX>_<CATEGORY>` / `PROFILE_MAS` / `PROFILE_HOMEBREW`
   semantics as the bash side, before `hydrate` runs. `hydrate` only shells to
@@ -764,8 +774,8 @@ Not every module writes to the registry. `comfyui.ps1` writes a YAML file; the
 
 ### ComfyUI
 
-Installed as `Comfy.ComfyUI-Desktop` via Ansible in `ops-server`
-(`roles/windows/packages`), at its own default location. Only the model
+Installed as `Comfy.ComfyUI-Desktop` through winget (`winget/creative.txt`),
+which also installs its custom nodes, at its own default location. Only the model
 library is redirected.
 
 Desktop keeps its state in `%APPDATA%\Comfy Desktop` (note the space — there is

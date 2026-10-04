@@ -1,6 +1,7 @@
 # bridge.ps1 - Loadout <-> lib/windows/packages.psm1
 #
-# Package kinds: winget, github, comfynode.
+# Package kinds: winget, github. ComfyUI's custom nodes install with the
+# Comfy.ComfyUI-Desktop winget entry.
 #
 # Invoked as:
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 status  <repo>
@@ -547,35 +548,13 @@ switch ($Verb) {
             }
         }
 
-        $nodeSpecs = @(Get-SpecsIn (Join-Path $repoRoot 'config\packages\windows\comfynodes'))
-        if ($nodeSpecs.Count -gt 0) {
-            $backends = @(Get-ComfyBackends)
-            $customNodes = ''
-            if ($backends.Count -gt 0) {
-                $customNodes = Join-ComfyPath -Base $backends[0].BaseDir -Child 'custom_nodes'
-            }
-            foreach ($spec in $nodeSpecs) {
-                $installed = $false
-                if ($customNodes) {
-                    $installed = Test-ComfyNodeInstalled -PackageSpec $spec -CustomNodesDir $customNodes
-                }
-                # No cheap way to know a node checkout is behind without fetching.
-                $result += [pscustomobject]@{
-                    id        = "comfynode:$(Get-SpecRepo $spec)"
-                    installed = $installed
-                    outdated  = $false
-                    exe       = ''
-                }
-            }
-        }
-
         # @() keeps a single entry from serialising as a bare object
         ConvertTo-Json -InputObject @($result) -Depth 4 -Compress
     }
 
     { $_ -in 'install', 'update' } {
         # -Force is the repo's upgrade path: it reinstalls a GitHub release at
-        # the latest tag and fast-forwards a node checkout. winget upgrades.
+        # the latest tag and fast-forwards node checkouts. winget upgrades.
         $force = ($Verb -eq 'update')
         $repoRoot = $Args2[0]
         $kind = $Args2[1]
@@ -586,17 +565,15 @@ switch ($Verb) {
             $wingetVerb = 'install'
             if ($force) { $wingetVerb = 'upgrade' }
             Invoke-WingetPackage -Verb $wingetVerb -Spec $spec | Out-Null
-        } elseif ($kind -eq 'github') {
-            Install-GitHubRelease -PackageSpec $spec -Force:$force | Out-Null
+
+            # Config applied with the app, like blender.sh on macOS: ComfyUI's
+            # custom nodes, gated by the profile Loadout passes in the env.
+            if ((ConvertFrom-WingetPackageSpec -Spec $spec).Id -eq 'Comfy.ComfyUI-Desktop') {
+                $config = Get-BridgeProfileConfig -ProfileName $env:LOADOUT_PROFILE
+                Install-ComfyNodeLists -RepoRoot $repoRoot -ProfileConfig $config -Force:$force
+            }
         } else {
-            $backends = @(Get-ComfyBackends)
-            if ($backends.Count -eq 0) {
-                Write-Host 'No ComfyUI install found - launch Comfy Desktop once, then retry'
-                exit 1
-            }
-            foreach ($backend in $backends) {
-                Install-ComfyNode -PackageSpec $spec -BaseDir $backend.BaseDir -Force:$force | Out-Null
-            }
+            Install-GitHubRelease -PackageSpec $spec -Force:$force | Out-Null
         }
 
         if ((Get-FailureCount) -gt 0) { exit 1 }
@@ -635,24 +612,6 @@ switch ($Verb) {
                 exit 1
             }
             Write-Host "Removed $($existing.Name)"
-        } else {
-            $parsed = ConvertFrom-ComfyNodeSpec -Spec $spec
-            $backends = @(Get-ComfyBackends)
-            if ($backends.Count -eq 0) {
-                Write-Host 'No ComfyUI install found'
-                exit 1
-            }
-            foreach ($backend in $backends) {
-                $customNodes = Join-ComfyPath -Base $backend.BaseDir -Child 'custom_nodes'
-                $target = Join-ComfyPath -Base $customNodes -Child $parsed.Directory
-                if (Test-ComfyPathReachable -Path $target) {
-                    Remove-Item -LiteralPath $target -Recurse -Force
-                    Write-Host "Removed $target"
-                } else {
-                    Write-Host "Not present: $target"
-                }
-            }
-            Write-Host 'Restart Comfy Desktop to unload the node'
         }
     }
 
@@ -679,7 +638,14 @@ switch ($Verb) {
     'icon' {
         try {
             Add-Type -AssemblyName System.Drawing
-            $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($Args2[0])
+            # ExtractAssociatedIcon only ever returns 32px, which blurs on a
+            # tile. ExtractIcon(path, index, size) is .NET 8+, so pwsh only;
+            # Windows PowerShell keeps the 32px fallback.
+            $icon = $null
+            if ([System.Drawing.Icon].GetMethod('ExtractIcon', [type[]]@([string], [int], [int]))) {
+                $icon = [System.Drawing.Icon]::ExtractIcon($Args2[0], 0, 256)
+            }
+            if ($null -eq $icon) { $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($Args2[0]) }
             if ($null -eq $icon) { exit 1 }
             $icon.ToBitmap().Save($Args2[1], [System.Drawing.Imaging.ImageFormat]::Png)
         } catch {

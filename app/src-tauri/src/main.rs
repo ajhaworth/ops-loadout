@@ -505,6 +505,10 @@ fn run_job_with(
     let cache = cache_dir(&handle);
     let mut cmd = platform::job_command(action, &target, &repo, &resources)?;
     cmd.args.extend(extra);
+    // For config applied with an app that the profile gates (ComfyUI's nodes).
+    if let Some(profile) = saved_profile(&handle) {
+        cmd.env.push(("LOADOUT_PROFILE".into(), profile));
+    }
 
     std::thread::spawn(move || {
         let ok = run_streaming(&handle, &id, action, cmd);
