@@ -127,7 +127,9 @@ pub(crate) fn find_repo_on_disk(app: &AppHandle) -> Option<PathBuf> {
 
     for path in candidates.into_iter().flatten() {
         if catalog::is_repo(&path) {
-            let path = path.canonicalize().unwrap_or(path);
+            // dunce, not std: std yields `\\?\C:\...` on Windows, which PowerShell's
+            // Join-Path rejects, so every bridge.ps1 call failed.
+            let path = dunce::canonicalize(&path).unwrap_or(path);
             save_repo(app, &path);
             return Some(path);
         }
