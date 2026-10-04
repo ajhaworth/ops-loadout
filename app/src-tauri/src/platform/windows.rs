@@ -2,14 +2,14 @@
 //! repo's own `lib/windows/*.psm1` so status and install logic stay in one place.
 
 use crate::catalog::App;
-use crate::platform::{cache_name, Cmd};
+use crate::platform::{cache_name, command, Cmd};
 use base64::Engine;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn shell() -> &'static str {
-    if Command::new("pwsh").arg("-Version").output().is_ok() {
+    if command("pwsh").arg("-Version").output().is_ok() {
         "pwsh"
     } else {
         "powershell.exe"
@@ -43,7 +43,7 @@ fn icon(exe: &str, id: &str, cache_dir: &Path, resources: &Path) -> Option<Strin
         args.push("icon".into());
         args.push(exe.to_string());
         args.push(png.to_string_lossy().to_string());
-        let ok = Command::new(shell())
+        let ok = command(shell())
             .args(&args)
             .output()
             .ok()
@@ -65,7 +65,7 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, resources: &Path
     args.push("status".into());
     args.push(repo.to_string_lossy().to_string());
 
-    let out = match Command::new(shell()).args(&args).output() {
+    let out = match command(shell()).args(&args).output() {
         Ok(o) if o.status.success() => o.stdout,
         _ => return,
     };
@@ -110,7 +110,7 @@ pub fn launch(app: &App, resources: &Path, _background: bool) -> Result<(), Stri
     args.push("launch".into());
     args.push(exe.to_string());
 
-    Command::new(shell())
+    command(shell())
         .args(&args)
         .status()
         .map_err(|e| e.to_string())?
@@ -157,7 +157,7 @@ pub fn open_url(url: &str, resources: &Path) -> Result<(), String> {
     args.push("open".into());
     args.push(url.to_string());
 
-    Command::new(shell())
+    command(shell())
         .args(&args)
         .status()
         .map_err(|e| e.to_string())?

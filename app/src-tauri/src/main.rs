@@ -395,7 +395,7 @@ async fn tasks_status(handle: AppHandle, store: State<'_, Store>, section: Strin
     let profile = saved_profile(&handle);
     let cmd = platform::task_command("status", &section, None, &repo, &resources, profile.as_deref())?;
 
-    let out = std::process::Command::new(&cmd.program)
+    let out = platform::command(&cmd.program)
         .args(&cmd.args)
         .envs(cmd.env.iter().cloned())
         .output()
@@ -555,7 +555,7 @@ fn run_job_with(
 }
 
 fn run_streaming(handle: &AppHandle, id: &str, action: &str, cmd: platform::Cmd) -> bool {
-    let child = std::process::Command::new(&cmd.program)
+    let child = platform::command(&cmd.program)
         .args(&cmd.args)
         .envs(cmd.env.iter().cloned())
         .stdout(Stdio::piped())

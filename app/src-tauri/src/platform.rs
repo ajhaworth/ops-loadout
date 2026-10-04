@@ -7,6 +7,21 @@ pub struct Cmd {
     pub env: Vec<(String, String)>,
 }
 
+/// `Command::new` that opens no console window on Windows. Loadout is a GUI
+/// process, so each console child (pwsh, and winget or git under it, which
+/// share its console) would otherwise pop up a terminal.
+pub fn command(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
+    #[allow(unused_mut)]
+    let mut cmd = std::process::Command::new(program);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
 /// Icon cache filename for an app id — shared by both backends' icon caches.
 pub(crate) fn cache_name(id: &str) -> String {
     format!("{}.png", id.replace(['/', ':', ' '], "_"))
