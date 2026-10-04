@@ -1,0 +1,4 @@
+# Format: token | display-name | homepage
+# Each token is platforms/windows/installers/<token>.ps1 (status|install|update|reinstall|configure|uninstall).
+# The NVIDIA app has no winget package; its script uses NVIDIA's own installer.
+nvidia-app | NVIDIA App | https://www.nvidia.com/en-us/software/nvidia-app/

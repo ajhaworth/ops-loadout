@@ -581,7 +581,9 @@ scripts write back into the repo (`config/sidefx.local`, Blender's portable
 prefs) and editing the .app would break its ad-hoc seal. `.bundled-version`
 holds the app version and content revision: a mismatch re-copies, preserving existing
 Blender `.blend` preferences/startup files and overwriting other tracked files but
-**never deleting**, so local state survives an update. The seed runs before the
+**never deleting** - except `config/packages/**/*.txt` the new bundle no longer
+ships (`prune_lists`; a renamed list would otherwise list its apps twice) - so
+local state survives an update. The seed runs before the
 candidate list is walked, since a saved path pointing at the seeded copy matches
 earlier. A real checkout still wins, so development is unaffected -
 `OPS_LOADOUT_DIR=bundled` forces the seeded copy instead, unsaved, for testing a

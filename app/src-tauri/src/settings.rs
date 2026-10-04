@@ -175,8 +175,26 @@ fn seed_dir(source: &Path, target: &Path, version: &str) -> std::io::Result<()> 
     if std::fs::read_to_string(&stamp).is_ok_and(|s| s.trim() == version) {
         return Ok(());
     }
+    prune_lists(&source.join("config/packages"), &target.join("config/packages"))?;
     copy_over(source, target)?;
     std::fs::write(stamp, version)
+}
+
+/// Package lists are the one part of the copy the bundle owns outright, so a
+/// list the new bundle no longer ships goes: after a rename the old file would
+/// otherwise list its apps a second time. Nothing else is ever deleted.
+fn prune_lists(source: &Path, target: &Path) -> std::io::Result<()> {
+    let Ok(entries) = std::fs::read_dir(target) else { return Ok(()) };
+    for entry in entries {
+        let entry = entry?;
+        let from = source.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            prune_lists(&from, &entry.path())?;
+        } else if entry.path().extension().is_some_and(|e| e == "txt") && !from.exists() {
+            std::fs::remove_file(entry.path())?;
+        }
+    }
+    Ok(())
 }
 
 fn copy_over(source: &Path, target: &Path) -> std::io::Result<()> {
@@ -415,7 +433,7 @@ mod tests {
     }
 
     #[test]
-    fn seeds_once_then_refreshes_on_a_new_version_without_deleting() {
+    fn seeds_once_then_refreshes_on_a_new_version_pruning_only_lists() {
         let tmp = std::env::temp_dir().join(format!("ops-seed-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         let (source, target) = (tmp.join("bundled"), tmp.join("repo"));
@@ -437,11 +455,19 @@ mod tests {
         seed_dir(&source, &target, "0.1.0").unwrap();
         assert_eq!(std::fs::read_to_string(target.join("lib/tasks.sh")).unwrap(), "edited\n");
 
-        // New version: tracked files are overwritten, extras are left alone.
+        // New version: tracked files are overwritten, extras are left alone -
+        // except a package list the bundle dropped (a rename), which goes.
         write(&source.join("lib/tasks.sh"), "v2\n");
+        std::fs::rename(
+            source.join("config/packages/macos/formulae/core.txt"),
+            source.join("config/packages/macos/formulae/base.txt"),
+        )
+        .unwrap();
         seed_dir(&source, &target, "0.2.0").unwrap();
         assert_eq!(std::fs::read_to_string(target.join("lib/tasks.sh")).unwrap(), "v2\n");
         assert_eq!(std::fs::read_to_string(target.join("config/sidefx.local")).unwrap(), "secret\n");
+        assert!(target.join("config/packages/macos/formulae/base.txt").exists());
+        assert!(!target.join("config/packages/macos/formulae/core.txt").exists(), "renamed list pruned");
         std::fs::remove_dir_all(&tmp).unwrap();
     }
 }
