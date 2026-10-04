@@ -46,15 +46,19 @@ pub(crate) fn repo_of(app: &AppHandle, store: &Store) -> Option<PathBuf> {
     guard.clone()
 }
 
+// Both are `\\?\C:\...` on Windows; PowerShell fails `-File` on such a path
+// with "AuthorizationManager check failed", so strip the prefix (dunce).
 fn cache_dir(app: &AppHandle) -> PathBuf {
     app.path()
         .app_cache_dir()
+        .map(|p| dunce::simplified(&p).to_path_buf())
         .unwrap_or_else(|_| std::env::temp_dir().join("loadout"))
 }
 
 fn resource_dir(app: &AppHandle) -> PathBuf {
     app.path()
         .resource_dir()
+        .map(|p| dunce::simplified(&p).to_path_buf())
         .unwrap_or_else(|_| PathBuf::from("."))
 }
 
