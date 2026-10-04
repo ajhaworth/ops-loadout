@@ -121,8 +121,17 @@ function Read-Profile {
         return $null
     }
 
+    return (Read-ConfFile -Path $profilePath)
+}
+
+# Bash-style KEY="value" lines (profiles, config/sidefx.local) into a
+# hashtable. A missing file is an empty one.
+function Read-ConfFile {
+    param([Parameter(Mandatory)][string]$Path)
+
     $config = @{}
-    Get-Content $profilePath | ForEach-Object {
+    if (-not (Test-Path -LiteralPath $Path)) { return $config }
+    Get-Content -LiteralPath $Path | ForEach-Object {
         $line = $_.Trim()
         # Skip empty lines and comments
         if ($line -and -not $line.StartsWith('#')) {
@@ -262,6 +271,7 @@ Export-ModuleMember -Function @(
     'Get-RepoRoot',
     'Test-IsWindowsPlatform',
     'Read-Profile',
+    'Read-ConfFile',
     'Test-ProfileFlag',
     'Assert-ProfileOS',
     'Read-PackageList',

@@ -2,3 +2,4 @@
 # Each token is platforms/windows/installers/<token>.ps1 (status|install|update|reinstall|configure|uninstall).
 # Blender is not a winget entry: its winget manifest downloads from download.blender.org, which answers 403.
 blender | Blender | https://www.blender.org/
+houdini | Houdini | https://www.sidefx.com/
