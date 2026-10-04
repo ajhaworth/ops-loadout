@@ -188,6 +188,17 @@ foreach ($key in $windowsProfile.Keys) {
     }
 }
 
+# --- Read-ConfFile: sidefx.local is written single-quoted by Loadout ---------
+
+$conf = Join-Path ([IO.Path]::GetTempPath()) "ops-conf-$PID.local"
+Set-Content -LiteralPath $conf -Value @("A='one two'", 'B="three"', "C=''", 'D=four')
+$parsedConf = Read-ConfFile -Path $conf
+Remove-Item -LiteralPath $conf
+Assert-Equal 'one two' $parsedConf['A'] "Read-ConfFile single-quoted"
+Assert-Equal 'three' $parsedConf['B'] "Read-ConfFile double-quoted"
+Assert-Equal '' $parsedConf['C'] "Read-ConfFile empty single-quoted"
+Assert-Equal 'four' $parsedConf['D'] "Read-ConfFile bare"
+
 # --- winget specs ------------------------------------------------------------
 
 $wg = ConvertFrom-WingetPackageSpec -Spec 'Perforce.P4V | P4V'

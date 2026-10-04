@@ -139,6 +139,9 @@ function Read-ConfFile {
             $line = $line -replace '\s+#.*$', ''
             if ($line -match '^([A-Z_]+)="([^"]*)"') {
                 $config[$matches[1]] = $matches[2]
+            } elseif ($line -match "^([A-Z_]+)='([^']*)'") {
+                # Loadout's Settings writes sidefx.local single-quoted
+                $config[$matches[1]] = $matches[2]
             } elseif ($line -match '^([A-Z_]+)=([^\s]*)') {
                 $config[$matches[1]] = $matches[2]
             }
