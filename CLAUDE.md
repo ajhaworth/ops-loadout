@@ -442,6 +442,21 @@ the closest stock preset — never justify a setting or a key by "that's how May
 or Max does it", justify it by what it does for environment work. Target engine
 is Unreal (scene displays centimeters, 1 BU stays 1 m).
 
+**Blender on Windows.** winget installs it (`BlenderFoundation.Blender` in
+`winget/creative.txt`, an MSI per X.Y series under `Program Files\Blender
+Foundation`), and `lib/windows/blender.psm1` (`Install-BlenderConfig`) is
+`blender.sh`'s configure half, run by `Invoke-WingetAppConfig` after every
+install/update and alone by the `configure` bridge verb (Reapply Settings).
+Instead of a `portable/` dir beside `blender.exe` - Program Files, so admin -
+it makes `%APPDATA%\Blender Foundation\Blender\<X.Y>` a junction to
+`config/dcc/blender/portable` (no admin or Developer Mode needed), moving a
+real directory already there aside to `<X.Y>.bak-<timestamp>`. Then the same
+extensions.txt install, windowed `setup.py` (`blender.exe`, the console build,
+so output streams) and MCP registration. The `.configured` stamp hash drives
+the tile's outdated flag, as on macOS. `dcc_claude.py`'s Ghostty/AeroSpace
+button is macOS-only. The Start Menu shortcut is per series ("Blender 5.2");
+`Get-ShortcutTarget` falls back to the newest `<name> <version>` shortcut.
+
 **Houdini.** `platforms/macos/installers/houdini.sh` writes
 `~/Library/Preferences/houdini/<X.Y>/packages/loadout.json` pointing at
 `config/dcc/houdini`, putting it on `HOUDINI_PATH` so `desktop/` and `otls/`
@@ -508,8 +523,8 @@ points straight at `../ui`) over a Rust backend in `app/src-tauri/src/`:
 - `platform.rs` picks `platform/macos.rs` or `platform/windows.rs` by
   `cfg(target_os)`; Linux is a stub that errors. macOS talks to `brew`/`mas`/
   the installer scripts directly. Windows shells *everything* to
-  `app/src-tauri/bridge.ps1` (verbs: `status|install|uninstall|update|icon|
-  launch|open|tasks-status|tasks-apply`), which is bundled as a Tauri
+  `app/src-tauri/bridge.ps1` (verbs: `status|install|uninstall|update|configure|
+  icon|launch|open|tasks-status|tasks-apply`), which is bundled as a Tauri
   resource so the built app can find it. Package/task logic lives in
   `lib/windows/*.psm1`, not in the bridge or in Rust — add features there.
 - `settings.rs` — `config.json`, repo discovery (`find_repo`), bundled-repo

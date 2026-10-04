@@ -567,6 +567,7 @@ if ($null -ne $verbParam) {
 }
 Assert-True ($verbValidateSet -contains 'tasks-status') "bridge.ps1 Verb ValidateSet includes tasks-status"
 Assert-True ($verbValidateSet -contains 'tasks-apply') "bridge.ps1 Verb ValidateSet includes tasks-apply"
+Assert-True ($verbValidateSet -contains 'configure') "bridge.ps1 Verb ValidateSet includes configure"
 
 # --- Get-DotfilesStatus on synthetic entries - runs everywhere, no real
 # dotfiles or $HOME involved.

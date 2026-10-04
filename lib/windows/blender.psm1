@@ -201,6 +201,14 @@ function Install-BlenderConfig {
         [switch]$DryRun
     )
 
+    $cfg = Join-Path $RepoRoot 'config\dcc\blender'
+    $portable = Join-Path $cfg 'portable'
+    # Before the exe lookup: a dry run never installed the Blender it would configure.
+    if ($DryRun) {
+        Write-DryRun "Would link %APPDATA%\Blender Foundation\Blender\<X.Y> -> $portable, install extensions.txt and run setup.py"
+        return $true
+    }
+
     $exe = Get-BlenderExe
     if (-not $exe) {
         Write-Err 'Blender is not installed (no Program Files\Blender Foundation\Blender X.Y\blender.exe)'
@@ -208,14 +216,8 @@ function Install-BlenderConfig {
         return $false
     }
     $series = (Split-Path (Split-Path $exe -Parent) -Leaf) -replace '^Blender ', ''
-    $cfg = Join-Path $RepoRoot 'config\dcc\blender'
-    $portable = Join-Path $cfg 'portable'
 
     Write-Step "Blender $series configuration"
-    if ($DryRun) {
-        Write-DryRun "Would link %APPDATA%\Blender Foundation\Blender\$series -> $portable, install extensions.txt and run setup.py"
-        return $true
-    }
 
     # Before the extensions, so they land in the repo's portable\extensions\.
     Set-BlenderConfigLink -Series $series -Target $portable
