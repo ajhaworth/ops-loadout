@@ -23,8 +23,6 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 Import-Module (Join-Path $repoRoot "lib\windows\common.psm1") -Force
 Import-Module (Join-Path $repoRoot "lib\windows\registry.psm1") -Force
-# defaults/comfyui*.ps1 locate the app through this
-Import-Module (Join-Path $repoRoot "lib\windows\comfyui.psm1") -Force
 
 # Load profile
 $config = Read-Profile -ProfileName $ProfileName

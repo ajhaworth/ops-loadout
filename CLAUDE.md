@@ -161,7 +161,7 @@ the ComfyUI tile is the `-Force` path.
 
 ### ComfyUI Network Access
 
-`defaults/comfyui-network.ps1` makes the backend reachable from the LAN, driven
+`Set-ComfyNetworkAccess` (`lib/windows/comfyui.psm1`) makes the backend reachable from the LAN, driven
 by `COMFYUI_LISTEN` and `COMFYUI_PORT`:
 
 - writes `--listen 0.0.0.0 --port <port>` into each install's `launchArgs` in
@@ -228,13 +228,12 @@ Do not "fix" this by pinning `bcrypt<5`: that restores silent truncation, so a
 long passphrase becomes its first 72 bytes and the stored credential is not the
 password the user thinks they set.
 
-`comfyui-network.ps1` will not create the firewall rule unless one of
+`Set-ComfyNetworkAccess` will not create the firewall rule unless one of
 `Get-ComfyAuthNodeNames` is installed (`Test-ComfyAuthInstalled`). Binding
 0.0.0.0 is inert while the firewall blocks the port, so the rule is the step
-that actually publishes ComfyUI, and it is the one gated. A full run installs
-the node in the packages stage first, but `setup.ps1 defaults` on its own would
-not — hence the check rather than relying on stage order. `COMFYUI_REQUIRE_AUTH`
-turns it off deliberately.
+that actually publishes ComfyUI, and it is the one gated. The node lists install
+just before it in the same hook, so this trips only when the node failed to
+install. `COMFYUI_REQUIRE_AUTH` turns it off deliberately.
 
 Adding another auth node means adding its directory name to
 `Get-ComfyAuthNodeNames`, or the interlock will not recognise it. A smoke test
@@ -819,15 +818,21 @@ smoke tests assert this — a missing parameter is a runtime binding error, not 
 parse error. Note the name is `ProfileConfig`, not `Profile`, to avoid shadowing
 the `$PROFILE` automatic variable.
 
-Not every module writes to the registry. `comfyui.ps1` writes a YAML file; the
-"defaults" concept is machine/app preferences generally, mirroring
-`platforms/macos/defaults/apps.sh`.
+Not every module writes to the registry (`vibepollo.ps1` edits a conf file);
+the "defaults" concept is machine/app preferences generally, mirroring
+`platforms/macos/defaults/apps.sh`. Config that belongs to one app goes with
+that app's install/update instead (`Invoke-WingetAppConfig`), not here - ComfyUI's
+model library and LAN access were defaults modules once, and showed up as
+confusing Updates-tab rows that duplicated the app's own update.
 
 ### ComfyUI
 
 Installed as `Comfy.ComfyUI-Desktop` through winget (`winget/creative.txt`),
-which also installs its custom nodes, at its own default location. Only the model
-library is redirected.
+at its own default location. Every install/update (and the tile's Reapply
+Settings) then runs `Invoke-WingetAppConfig`: custom nodes, the model library and
+LAN access, in that order, all in `lib/windows/comfyui.psm1`. A fresh Desktop
+has no config until launched once, so the first install skips them and says to
+update ComfyUI afterwards. Only the model library is redirected.
 
 Desktop keeps its state in `%APPDATA%\Comfy Desktop` (note the space — there is
 no `%APPDATA%\ComfyUI`). Two files there matter:
@@ -842,7 +847,7 @@ the file exists — and Desktop never writes that file, only shipping an
 `.example`. So the mapped library goes there, and the two mechanisms coexist:
 Desktop keeps its local folder for downloads, this adds the library on top.
 
-`defaults/comfyui.ps1` writes that file from `COMFYUI_MODEL_PATH`. It:
+`Set-ComfyModelLibrary` writes that file from `COMFYUI_MODEL_PATH`. It:
 - skips until `%APPDATA%\Comfy Desktop` exists and `installations.json` records
   a local install (cloud entries have no `installPath`)
 - finds the backend directory by looking for `main.py` under the recorded

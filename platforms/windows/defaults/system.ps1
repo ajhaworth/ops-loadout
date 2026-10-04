@@ -1,8 +1,10 @@
-# system.ps1 - Machine-wide prerequisites the rest of this repo leans on
+# system.ps1 - Machine-wide settings the rest of this repo leans on
+#
+# Developer Mode is not here: it is the prereq row (bridge.ps1), since the
+# dotfiles need it before any defaults run.
 #
 # All HKLM, so Administrator; without it each row reports needs_admin.
 #
-# - Developer Mode lets the dotfiles stage create symlinks unelevated.
 # - Long paths: ComfyUI node venvs, Houdini packages and git checkouts nest
 #   deep enough to pass MAX_PATH.
 # - Caps Lock -> F18 is GlazeWM's leader key, the Windows counterpart of
@@ -17,8 +19,6 @@ function Apply-System {
     )
 
     $settings = @(
-        @{ Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"
-           Name = 'AllowDevelopmentWithoutDevLicense'; Value = 1; Label = 'Developer Mode (symlinks without Administrator)' }
         @{ Path = "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem"
            Name = 'LongPathsEnabled'; Value = 1; Label = 'Allow paths longer than 260 characters' }
     )

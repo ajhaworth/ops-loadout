@@ -38,14 +38,12 @@ function Import-OpsModules {
     Import-Module (Join-Path $RepoRoot 'lib\windows\comfyui.psm1') -Force
 }
 
-# tasks-status/tasks-apply need the registry and dotfiles helpers too, plus
-# comfyui.psm1 for the comfyui*.ps1 defaults modules.
+# tasks-status/tasks-apply need the registry and dotfiles helpers too.
 function Import-TaskModules {
     param([string]$RepoRoot)
     Import-Module (Join-Path $RepoRoot 'lib\windows\common.psm1') -Force
     Import-Module (Join-Path $RepoRoot 'lib\windows\registry.psm1') -Force
     Import-Module (Join-Path $RepoRoot 'lib\windows\dotfiles.psm1') -Force
-    Import-Module (Join-Path $RepoRoot 'lib\windows\comfyui.psm1') -Force
 }
 
 # No --profile means every flag defaults to enabled, same as everywhere else
@@ -66,14 +64,6 @@ function Get-BridgeProfileConfig {
     }
     return @{}
 }
-
-# comfyui.ps1/comfyui-network.ps1 write files (yaml/json) and a firewall
-# rule, not registry values - Invoke-DefaultsModules has no way to tell what
-# they would do short of duplicating their own branchy checks externally,
-# which is exactly the "one code path" rule this repo's defaults follow. So
-# they get a single row each, always 'unknown', rather than a guess dressed
-# up as a real status.
-$script:FileBasedDefaultsModules = @('comfyui', 'comfyui-network')
 
 function New-TaskRow {
     param(
@@ -219,6 +209,12 @@ function Invoke-DotfilesApply {
         exit 1
     }
 
+    # Every row fails the same way without this, each as a bare exit 1.
+    if (-not (Test-SymlinkCapability)) {
+        Write-Host 'Cannot create symlinks: turn on Developer Mode (Updates > Tools > Developer Mode, needs Administrator once), or run Loadout as Administrator.'
+        exit 1
+    }
+
     Reset-DotfilesResults
     $sourceFull = Join-Path $RepoRoot $entry.Source
     # -Force: without it New-Symlink *skips* a destination that points
@@ -262,12 +258,6 @@ function Get-DefaultsStatusRowsForBridge {
 
     foreach ($m in $modules) {
         if (-not $m.Enabled) { continue }
-
-        if ($script:FileBasedDefaultsModules -contains $m.Module) {
-            $rows += New-TaskRow -Id "defaults:$($m.Module):module" -Section 'defaults' -Group $m.Module `
-                -Name $m.Module -State 'unknown' -Detail 'run to apply'
-            continue
-        }
 
         if ($m.MissingFunc) { continue }
 

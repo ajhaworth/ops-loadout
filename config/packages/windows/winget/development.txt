@@ -1,9 +1,6 @@
 # Format: Winget.Id | name (tile name and the Start Menu shortcut it launches)
 # Registers as "P4 Apps" in Add/Remove Programs; the shortcut is P4V.
 Perforce.P4V | P4V
-# ComfyUI custom nodes are git clones (comfyui.psm1), and the .gitconfig dotfile needs it.
-# No Start Menu shortcut of that name, so the tile has no Open.
-Git.Git | Git
 # Ghostty has no Windows build; WezTerm stands in, configured from config/dotfiles/wezterm.
 wez.wezterm | WezTerm
 # Portable zip: winget adds a `godot` alias but no Start Menu shortcut.

@@ -360,102 +360,88 @@ Assert-Equal 'update_check_interval = 0' $sunLines[1] "replaced line keeps its p
 # ---------------------------------------------------------------------------
 Write-Section "ComfyUI model config"
 
-$comfyModule = Join-Path $defaultsDir "comfyui.ps1"
-if (Test-Path -LiteralPath $comfyModule) {
-    . $comfyModule
+Assert-True ($windowsProfile.ContainsKey('COMFYUI_MODEL_PATH')) "COMFYUI_MODEL_PATH is set in windows.conf"
 
-    Assert-True ($windowsProfile.ContainsKey('COMFYUI_MODEL_PATH')) "COMFYUI_MODEL_PATH is set in windows.conf"
+$modelPath = $windowsProfile['COMFYUI_MODEL_PATH']
 
-    $modelPath = $windowsProfile['COMFYUI_MODEL_PATH']
+# A share already using ComfyUI's own names needs no renaming
+$native = @(Resolve-ComfyModelFolders -FolderNames @('checkpoints', 'loras', 'vae'))
+Assert-Equal 3 $native.Count "native folder names all resolve"
+Assert-Equal 0 @($native | Where-Object { $_.Key -ne $_.Folder }).Count "native names are not renamed"
 
-    # A share already using ComfyUI's own names needs no renaming
-    $native = @(Resolve-ComfyModelFolders -FolderNames @('checkpoints', 'loras', 'vae'))
-    Assert-Equal 3 $native.Count "native folder names all resolve"
-    Assert-Equal 0 @($native | Where-Object { $_.Key -ne $_.Folder }).Count "native names are not renamed"
+# The A1111-style layout this repo actually points at
+$a1111 = @(Resolve-ComfyModelFolders -FolderNames @('Stable-diffusion', 'Lora', 'ESRGAN', 'ControlNet', 'VAE'))
+$byKey = @{}
+foreach ($entry in $a1111) { $byKey[$entry.Key] = $entry.Folder }
+Assert-Equal 'Stable-diffusion' $byKey['checkpoints'] "checkpoints maps to Stable-diffusion"
+Assert-Equal 'Lora' $byKey['loras'] "loras maps to Lora"
+Assert-Equal 'ESRGAN' $byKey['upscale_models'] "upscale_models maps to ESRGAN"
+Assert-Equal 'ControlNet' $byKey['controlnet'] "controlnet keeps the share's casing"
+Assert-Equal 'VAE' $byKey['vae'] "vae keeps the share's casing"
 
-    # The A1111-style layout this repo actually points at
-    $a1111 = @(Resolve-ComfyModelFolders -FolderNames @('Stable-diffusion', 'Lora', 'ESRGAN', 'ControlNet', 'VAE'))
-    $byKey = @{}
-    foreach ($entry in $a1111) { $byKey[$entry.Key] = $entry.Folder }
-    Assert-Equal 'Stable-diffusion' $byKey['checkpoints'] "checkpoints maps to Stable-diffusion"
-    Assert-Equal 'Lora' $byKey['loras'] "loras maps to Lora"
-    Assert-Equal 'ESRGAN' $byKey['upscale_models'] "upscale_models maps to ESRGAN"
-    Assert-Equal 'ControlNet' $byKey['controlnet'] "controlnet keeps the share's casing"
-    Assert-Equal 'VAE' $byKey['vae'] "vae keeps the share's casing"
+# Folders that are not model types must not be invented into the config
+$sparse = @(Resolve-ComfyModelFolders -FolderNames @('checkpoints', 'random-junk'))
+Assert-Equal 1 $sparse.Count "unknown folders are ignored"
+Assert-Equal 0 @(Resolve-ComfyModelFolders -FolderNames @()).Count "an empty share resolves to nothing"
 
-    # Folders that are not model types must not be invented into the config
-    $sparse = @(Resolve-ComfyModelFolders -FolderNames @('checkpoints', 'random-junk'))
-    Assert-Equal 1 $sparse.Count "unknown folders are ignored"
-    Assert-Equal 0 @(Resolve-ComfyModelFolders -FolderNames @()).Count "an empty share resolves to nothing"
+# ComfyUI's own name wins when a share happens to have both spellings
+$both = @(Resolve-ComfyModelFolders -FolderNames @('checkpoints', 'Stable-diffusion'))
+Assert-Equal 'checkpoints' ($both | Where-Object { $_.Key -eq 'checkpoints' }).Folder "ComfyUI's own name is preferred"
 
-    # ComfyUI's own name wins when a share happens to have both spellings
-    $both = @(Resolve-ComfyModelFolders -FolderNames @('checkpoints', 'Stable-diffusion'))
-    Assert-Equal 'checkpoints' ($both | Where-Object { $_.Key -eq 'checkpoints' }).Folder "ComfyUI's own name is preferred"
+$config = New-ComfyModelsConfig -BasePath $modelPath -Folders $a1111
+Assert-True ($config -match [regex]::Escape("base_path: $modelPath")) "config carries the base_path verbatim"
+# Generated file is CRLF, so anchors must tolerate the trailing \r
+Assert-True ($config -match '(?m)^\s+checkpoints: Stable-diffusion\r?$') "config writes the mapped folder name"
+Assert-True ($config -match '(?m)^ops_workstation:\r?$') "config uses its own top-level key"
+# Desktop owns the download location; claiming it would fight the app
+Assert-True ($config -notmatch '(?m)^\s+is_default:') "config does not claim the default download target"
 
-    $config = New-ComfyModelsConfig -BasePath $modelPath -Folders $a1111
-    Assert-True ($config -match [regex]::Escape("base_path: $modelPath")) "config carries the base_path verbatim"
-    # Generated file is CRLF, so anchors must tolerate the trailing \r
-    Assert-True ($config -match '(?m)^\s+checkpoints: Stable-diffusion\r?$') "config writes the mapped folder name"
-    Assert-True ($config -match '(?m)^ops_workstation:\r?$') "config uses its own top-level key"
-    # Desktop owns the download location; claiming it would fight the app
-    Assert-True ($config -notmatch '(?m)^\s+is_default:') "config does not claim the default download target"
-
-    foreach ($entry in $a1111) {
-        $keyHits = ([regex]::Matches($config, "(?m)^\s+$([regex]::Escape($entry.Key)): ")).Count
-        Assert-Equal 1 $keyHits "config declares $($entry.Key) once"
-    }
-} else {
-    Write-Skipped "comfyui.ps1 not present"
+foreach ($entry in $a1111) {
+    $keyHits = ([regex]::Matches($config, "(?m)^\s+$([regex]::Escape($entry.Key)): ")).Count
+    Assert-Equal 1 $keyHits "config declares $($entry.Key) once"
 }
 
 # ---------------------------------------------------------------------------
 Write-Section "ComfyUI launch arguments"
 
-$comfyNetModule = Join-Path $defaultsDir "comfyui-network.ps1"
-if (Test-Path -LiteralPath $comfyNetModule) {
-    . $comfyNetModule
+Assert-Equal '--enable-manager --listen 0.0.0.0' `
+    (Merge-ComfyLaunchArgs -Existing '--enable-manager' -Flag '--listen' -Value '0.0.0.0') `
+    "merging appends without dropping existing args"
 
-    Assert-Equal '--enable-manager --listen 0.0.0.0' `
-        (Merge-ComfyLaunchArgs -Existing '--enable-manager' -Flag '--listen' -Value '0.0.0.0') `
-        "merging appends without dropping existing args"
+# Re-running must not accumulate duplicates
+$once = Merge-ComfyLaunchArgs -Existing '--enable-manager' -Flag '--listen' -Value '0.0.0.0'
+$twice = Merge-ComfyLaunchArgs -Existing $once -Flag '--listen' -Value '0.0.0.0'
+Assert-Equal $once $twice "merging is idempotent"
 
-    # Re-running must not accumulate duplicates
-    $once = Merge-ComfyLaunchArgs -Existing '--enable-manager' -Flag '--listen' -Value '0.0.0.0'
-    $twice = Merge-ComfyLaunchArgs -Existing $once -Flag '--listen' -Value '0.0.0.0'
-    Assert-Equal $once $twice "merging is idempotent"
+Assert-Equal '--listen 1.2.3.4' `
+    (Merge-ComfyLaunchArgs -Existing '--listen 0.0.0.0' -Flag '--listen' -Value '1.2.3.4') `
+    "merging replaces an existing value"
 
-    Assert-Equal '--listen 1.2.3.4' `
-        (Merge-ComfyLaunchArgs -Existing '--listen 0.0.0.0' -Flag '--listen' -Value '1.2.3.4') `
-        "merging replaces an existing value"
+Assert-Equal '--listen 0.0.0.0' `
+    (Merge-ComfyLaunchArgs -Existing '' -Flag '--listen' -Value '0.0.0.0') `
+    "merging into empty args works"
 
-    Assert-Equal '--listen 0.0.0.0' `
-        (Merge-ComfyLaunchArgs -Existing '' -Flag '--listen' -Value '0.0.0.0') `
-        "merging into empty args works"
+# A valueless flag must not swallow the next flag
+Assert-Equal '--enable-manager --listen 0.0.0.0' `
+    (Merge-ComfyLaunchArgs -Existing '--enable-manager --listen 0.0.0.0' -Flag '--enable-manager' -Value '') `
+    "a valueless flag leaves the following flag alone"
 
-    # A valueless flag must not swallow the next flag
-    Assert-Equal '--enable-manager --listen 0.0.0.0' `
-        (Merge-ComfyLaunchArgs -Existing '--enable-manager --listen 0.0.0.0' -Flag '--enable-manager' -Value '') `
-        "a valueless flag leaves the following flag alone"
+$chained = Merge-ComfyLaunchArgs -Existing '--enable-manager' -Flag '--listen' -Value '0.0.0.0'
+$chained = Merge-ComfyLaunchArgs -Existing $chained -Flag '--port' -Value '8188'
+Assert-Equal '--enable-manager --listen 0.0.0.0 --port 8188' $chained "listen and port compose"
 
-    $chained = Merge-ComfyLaunchArgs -Existing '--enable-manager' -Flag '--listen' -Value '0.0.0.0'
-    $chained = Merge-ComfyLaunchArgs -Existing $chained -Flag '--port' -Value '8188'
-    Assert-Equal '--enable-manager --listen 0.0.0.0 --port 8188' $chained "listen and port compose"
+# The firewall must stay shut unless an auth node is present, and the node
+# that provides it has to actually be in the package list.
+# @() because a single-name list unwraps to a bare string under StrictMode
+Assert-True (@(Get-ComfyAuthNodeNames).Count -gt 0) "at least one auth node is recognised"
+Assert-True ($windowsProfile.ContainsKey('COMFYUI_REQUIRE_AUTH')) "COMFYUI_REQUIRE_AUTH is declared"
 
-    # The firewall must stay shut unless an auth node is present, and the node
-    # that provides it has to actually be in the package list.
-    # @() because a single-name list unwraps to a bare string under StrictMode
-    Assert-True (@(Get-ComfyAuthNodeNames).Count -gt 0) "at least one auth node is recognised"
-    Assert-True ($windowsProfile.ContainsKey('COMFYUI_REQUIRE_AUTH')) "COMFYUI_REQUIRE_AUTH is declared"
-
-    $nodeList = Join-Path $repoRoot "config\packages\windows\comfynodes\core.txt"
-    if (Test-Path -LiteralPath $nodeList) {
-        $nodeSpecs = @(Read-PackageList -FilePath $nodeList)
-        $nodeDirs = @($nodeSpecs | ForEach-Object { (ConvertFrom-ComfyNodeSpec -Spec $_).Directory })
-        $authListed = @(Get-ComfyAuthNodeNames | Where-Object { $nodeDirs -contains $_ })
-        Assert-True ($authListed.Count -gt 0) "an auth node is in the comfynodes list"
-    }
-} else {
-    Write-Skipped "comfyui-network.ps1 not present"
+$nodeList = Join-Path $repoRoot "config\packages\windows\comfynodes\core.txt"
+if (Test-Path -LiteralPath $nodeList) {
+    $nodeSpecs = @(Read-PackageList -FilePath $nodeList)
+    $nodeDirs = @($nodeSpecs | ForEach-Object { (ConvertFrom-ComfyNodeSpec -Spec $_).Directory })
+    $authListed = @(Get-ComfyAuthNodeNames | Where-Object { $nodeDirs -contains $_ })
+    Assert-True ($authListed.Count -gt 0) "an auth node is in the comfynodes list"
 }
 
 # ---------------------------------------------------------------------------
