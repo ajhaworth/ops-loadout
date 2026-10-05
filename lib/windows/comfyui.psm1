@@ -1,6 +1,6 @@
 # comfyui.psm1 - ComfyUI Desktop's config: custom nodes, model library, LAN access
 #
-# All of it is applied with the app (packages.psm1 Invoke-WingetAppConfig), on
+# All of it is applied with the app (packages.psm1 Invoke-AppConfig), on
 # every install/update from Loadout or `setup.ps1 packages`, not as a separate
 # setting.
 #
@@ -966,7 +966,7 @@ function Set-ComfyNetworkAccess {
 
     # Binding 0.0.0.0 is inert while the firewall still blocks the port, so the
     # rule is the step that actually publishes ComfyUI. Refuse to take it until
-    # something is enforcing a login. Invoke-WingetAppConfig installs the node
+    # something is enforcing a login. Invoke-AppConfig installs the node
     # lists first, so this only trips when the node failed to install.
     $requireAuth = 'true'
     if ($ProfileConfig.ContainsKey('COMFYUI_REQUIRE_AUTH')) {

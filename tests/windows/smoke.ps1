@@ -62,6 +62,7 @@ Import-Module (Join-Path $repoRoot "lib\windows\dotfiles.psm1") -Force
 Import-Module (Join-Path $repoRoot "lib\windows\packages.psm1") -Force
 Import-Module (Join-Path $repoRoot "lib\windows\registry.psm1") -Force
 Import-Module (Join-Path $repoRoot "lib\windows\comfyui.psm1") -Force
+Import-Module (Join-Path $repoRoot "lib\windows\vibepollo.psm1") -Force
 
 $onWindows = Test-IsWindowsPlatform
 
@@ -348,7 +349,6 @@ foreach ($key in $windowsProfile.Keys) {
 # ---------------------------------------------------------------------------
 Write-Section "Vibepollo sunshine.conf"
 
-. (Join-Path $defaultsDir "vibepollo.ps1")
 $sunConf = Join-Path ([IO.Path]::GetTempPath()) "ops-sunshine-$PID.conf"
 Set-Content -LiteralPath $sunConf -Value @('sunshine_name = box', 'update_check_interval = 86400')
 Assert-Equal '86400' (Get-SunshineConfValue -Path $sunConf -Key 'update_check_interval') "reads an existing key"

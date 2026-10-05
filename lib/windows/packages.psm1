@@ -674,10 +674,10 @@ function Get-ShortcutTarget {
 }
 
 # Config Loadout applies with an app, the way the macOS installer scripts do:
-# after every install/update, and alone from "Reapply Settings". The functions
-# come from comfyui.psm1, which callers import alongside. Nodes go first: the
-# network step will not open the firewall until the auth node is in.
-function Invoke-WingetAppConfig {
+# after every install/update, and alone from "Reapply Settings". Keyed on the
+# spec's first field, so winget ids and GitHub repos share it. The functions
+# come from comfyui.psm1 and vibepollo.psm1, which callers import alongside.
+function Invoke-AppConfig {
     param(
         [Parameter(Mandatory)][string]$Spec,
         [Parameter(Mandatory)][string]$RepoRoot,
@@ -686,11 +686,16 @@ function Invoke-WingetAppConfig {
         [switch]$Force
     )
 
-    switch ((ConvertFrom-WingetPackageSpec -Spec $Spec).Id) {
+    switch (($Spec -split '\|')[0].Trim()) {
+        # Nodes go first: the network step will not open the firewall until
+        # the auth node is in.
         'Comfy.ComfyUI-Desktop' {
             Install-ComfyNodeLists -RepoRoot $RepoRoot -ProfileConfig $ProfileConfig -DryRun:$DryRun -Force:$Force
             Set-ComfyModelLibrary -ProfileConfig $ProfileConfig -DryRun:$DryRun
             Set-ComfyNetworkAccess -ProfileConfig $ProfileConfig -DryRun:$DryRun
+        }
+        'Nonary/Vibepollo' {
+            Set-VibepolloConfig -DryRun:$DryRun
         }
     }
 }
@@ -741,19 +746,6 @@ function Invoke-WingetPackage {
 }
 
 # Install multiple GitHub-release packages from a list.
-function Install-PackageBatch {
-    param(
-        [Parameter(Mandatory)]
-        [string[]]$Packages,
-        [switch]$DryRun,
-        [switch]$Force
-    )
-
-    foreach ($package in $Packages) {
-        Install-GitHubRelease -PackageSpec $package -DryRun:$DryRun -Force:$Force | Out-Null
-    }
-}
-
 # Display status for a list of GitHub-release packages
 function Show-PackageStatus {
     param(
@@ -832,7 +824,7 @@ Export-ModuleMember -Function @(
     'Get-WingetState',
     'Get-ShortcutTarget',
     'Invoke-WingetPackage',
-    'Invoke-WingetAppConfig',
+    'Invoke-AppConfig',
     'Reset-Results',
     'Get-Results',
     'Get-FailureCount',
@@ -850,7 +842,6 @@ Export-ModuleMember -Function @(
     'Get-ProgramExe',
     'Test-GitHubOutdated',
     'Invoke-UninstallString',
-    'Install-PackageBatch',
     'Show-PackageStatus',
     'Write-ResultsSummary'
 )

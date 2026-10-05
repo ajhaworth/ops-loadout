@@ -121,8 +121,12 @@ records a stamp on the way past so the next run is exact.
 
 (That same mismatch is why Vibepollo itself nags about an available update: its
 updater compares its internal version to the repo's git tags.
-`defaults/vibepollo.ps1` sets `update_check_interval = 0` in `sunshine.conf`
-to disable the check, editing that one key, never the whole file.)
+`lib/windows/vibepollo.psm1` disables the check by setting
+`update_check_interval = 0` in `sunshine.conf` with every Vibepollo
+install/update (`Invoke-AppConfig`), editing that one key, never the whole file.
+The file is under Program Files and Loadout runs unelevated, so a key that needs
+changing is written by one elevated child process - one UAC prompt, and none
+once the key is set.)
 
 Resolving the latest release requires the API, so this path is not offline —
 but a failed lookup during `-DryRun` degrades to a notice rather than an error,
@@ -819,18 +823,18 @@ smoke tests assert this — a missing parameter is a runtime binding error, not 
 parse error. Note the name is `ProfileConfig`, not `Profile`, to avoid shadowing
 the `$PROFILE` automatic variable.
 
-Not every module writes to the registry (`vibepollo.ps1` edits a conf file);
-the "defaults" concept is machine/app preferences generally, mirroring
+Not every module writes to the registry; the "defaults" concept is machine/app preferences generally, mirroring
 `platforms/macos/defaults/apps.sh`. Config that belongs to one app goes with
-that app's install/update instead (`Invoke-WingetAppConfig`), not here - ComfyUI's
-model library and LAN access were defaults modules once, and showed up as
+that app's install/update instead (`Invoke-AppConfig`, keyed on the winget id or
+GitHub repo), not here - ComfyUI's model library and LAN access and Vibepollo's
+`sunshine.conf` were defaults modules once, and showed up as
 confusing Updates-tab rows that duplicated the app's own update.
 
 ### ComfyUI
 
 Installed as `Comfy.ComfyUI-Desktop` through winget (`winget/creative.txt`),
 at its own default location. Every install/update (and the tile's Reapply
-Settings) then runs `Invoke-WingetAppConfig`: custom nodes, the model library and
+Settings) then runs `Invoke-AppConfig`: custom nodes, the model library and
 LAN access, in that order, all in `lib/windows/comfyui.psm1`. A fresh Desktop
 has no config until launched once, so the first install skips them and says to
 update ComfyUI afterwards. Only the model library is redirected.

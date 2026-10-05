@@ -19,6 +19,7 @@ $repoRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 Import-Module (Join-Path $repoRoot "lib\windows\common.psm1") -Force
 Import-Module (Join-Path $repoRoot "lib\windows\packages.psm1") -Force
 Import-Module (Join-Path $repoRoot "lib\windows\comfyui.psm1") -Force
+Import-Module (Join-Path $repoRoot "lib\windows\vibepollo.psm1") -Force
 
 # Load profile
 $config = Read-Profile -ProfileName $ProfileName
@@ -138,8 +139,8 @@ function Install-AllPackages {
             Write-SubStep $category
             foreach ($package in $wingetPackages[$category]) {
                 Invoke-WingetPackage -Verb 'install' -Spec $package -DryRun:$DryRun | Out-Null
-                # ComfyUI's custom nodes
-                Invoke-WingetAppConfig -Spec $package -RepoRoot $repoRoot -ProfileConfig $config `
+                # The app's own config (ComfyUI's nodes, model library, LAN access)
+                Invoke-AppConfig -Spec $package -RepoRoot $repoRoot -ProfileConfig $config `
                     -DryRun:$DryRun -Force:$Force
             }
         }
@@ -153,7 +154,11 @@ function Install-AllPackages {
 
         foreach ($category in $githubPackages.Keys | Sort-Object) {
             Write-SubStep $category
-            Install-PackageBatch -Packages $githubPackages[$category] -DryRun:$DryRun -Force:$Force
+            foreach ($package in $githubPackages[$category]) {
+                if (Install-GitHubRelease -PackageSpec $package -DryRun:$DryRun -Force:$Force) {
+                    Invoke-AppConfig -Spec $package -RepoRoot $repoRoot -ProfileConfig $config -DryRun:$DryRun
+                }
+            }
         }
     }
 

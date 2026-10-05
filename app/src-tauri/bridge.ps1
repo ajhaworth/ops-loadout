@@ -36,6 +36,7 @@ function Import-OpsModules {
     Import-Module (Join-Path $RepoRoot 'lib\windows\common.psm1') -Force
     Import-Module (Join-Path $RepoRoot 'lib\windows\packages.psm1') -Force
     Import-Module (Join-Path $RepoRoot 'lib\windows\comfyui.psm1') -Force
+    Import-Module (Join-Path $RepoRoot 'lib\windows\vibepollo.psm1') -Force
 }
 
 # tasks-status/tasks-apply need the registry and dotfiles helpers too.
@@ -583,12 +584,12 @@ switch ($Verb) {
             $wingetVerb = 'install'
             if ($force) { $wingetVerb = 'upgrade' }
             Invoke-WingetPackage -Verb $wingetVerb -Spec $spec | Out-Null
-            # Profile-gated parts (ComfyUI's node lists) read the profile Loadout passes.
-            $config = Get-BridgeProfileConfig -ProfileName $env:LOADOUT_PROFILE
-            Invoke-WingetAppConfig -Spec $spec -RepoRoot $repoRoot -ProfileConfig $config -Force:$force
         } else {
             Install-GitHubRelease -PackageSpec $spec -Force:$force | Out-Null
         }
+        # Profile-gated parts (ComfyUI's node lists) read the profile Loadout passes.
+        $config = Get-BridgeProfileConfig -ProfileName $env:LOADOUT_PROFILE
+        Invoke-AppConfig -Spec $spec -RepoRoot $repoRoot -ProfileConfig $config -Force:$force
 
         if ((Get-FailureCount) -gt 0) { exit 1 }
     }
@@ -604,7 +605,7 @@ switch ($Verb) {
         }
         Import-OpsModules -RepoRoot $repoRoot
         $config = Get-BridgeProfileConfig -ProfileName $env:LOADOUT_PROFILE
-        Invoke-WingetAppConfig -Spec $spec -RepoRoot $repoRoot -ProfileConfig $config
+        Invoke-AppConfig -Spec $spec -RepoRoot $repoRoot -ProfileConfig $config
         if ((Get-FailureCount) -gt 0) { exit 1 }
     }
 
