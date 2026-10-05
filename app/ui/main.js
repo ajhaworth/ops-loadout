@@ -66,7 +66,7 @@ const IS_WINDOWS = navigator.userAgent.includes("Windows");
 // Setup tab: sections of non-package tasks (prereqs, dotfiles, defaults, debloat).
 const SETUP = [
   { id: "prereq", name: "Prerequisites", desc: "Tools the rest of this page needs: Xcode CLT, Homebrew, mas, git on macOS; winget, git, PowerShell, Developer Mode on Windows.", open: true },
-  { id: "dotfiles", name: "Dotfiles", desc: "Symlinks from this repo's config/dotfiles into your home directory. Existing files are backed up to ~/.dotfiles_backup.", open: true },
+  { id: "dotfiles", name: "Dotfiles", desc: "Symlinks from this repo's config/dotfiles into your home directory. Existing files are backed up to ~/.dotfiles_backup. On macOS, Accounts logs gh into GitHub and tea into Gitea.", open: true },
   { id: "defaults", name: "System defaults", desc: "Finder, Dock, keyboard, screenshot and app preferences. Each row shows the current value against the wanted one.", open: true },
   { id: "debloat", name: "Windows debloat", desc: "Removes preinstalled apps, disables Xbox services and Game DVR. Opt-in via PROFILE_DEBLOAT.", open: false, win: true },
   { id: "cleanup", name: "Cleanup", desc: "Homebrew, Blender and Houdini caches, and old Houdini builds you can reclaim space from. Each row is deleted only when you click it.", mac: true, manual: true, open: false },

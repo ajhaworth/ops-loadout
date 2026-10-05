@@ -215,10 +215,48 @@ setup_gh_auth() {
     fi
 }
 
-# Log tea (Gitea CLI) into the home Gitea. The token is read at the prompt
-# and stored only in tea's own config, never in this repo.
+# Logins for gh and tea. setup.sh asks in the terminal; Loadout has none, so
+# under it (SUDO_ASKPASS set - Loadout alone sets that) gh uses the browser
+# device flow and tea's token comes from a native dialog. Loadout shows these
+# as the "Accounts" rows of its Dotfiles section (lib/tasks.sh).
+
+gh_logged_in() { gh auth token -h github.com &>/dev/null; }
+
+# No terminal needed: gh copies the one-time code to the clipboard (and prints
+# it), and polls until the device page we open approves it.
+gh_login_web() {
+    open "https://github.com/login/device" 2>/dev/null || true
+    gh auth login --web --clipboard -h github.com -p https </dev/null || return 1
+    configure_gh_credential_helper
+}
+
+# The token is read at a hidden prompt and stored only in tea's own config,
+# never in this repo. Returns 2 when the dialog is cancelled.
 TEA_LOGIN_NAME="home"
 TEA_LOGIN_URL="https://gitea.example.com"
+
+tea_logged_in() {
+    tea login list -o simple 2>/dev/null | awk '{print $1}' | grep -qx "$TEA_LOGIN_NAME"
+}
+
+tea_login() {
+    local token
+    if [[ -n "${SUDO_ASKPASS:-}" ]]; then
+        open "$TEA_LOGIN_URL/user/settings/applications" 2>/dev/null || true
+        token="$(osascript -e "display dialog \"Paste a Gitea access token for $TEA_LOGIN_URL\" with title \"Loadout\" default answer \"\" with hidden answer buttons {\"Cancel\", \"OK\"} default button \"OK\"" \
+            -e 'text returned of result' 2>/dev/null)" || return 2
+    else
+        log_info "Create a token at $TEA_LOGIN_URL/user/settings/applications"
+        read -r -s -p "Gitea token: " token
+        echo ""
+    fi
+    if [[ -z "$token" ]]; then
+        log_warn "No Gitea token entered"
+        return 1
+    fi
+    # Via the environment, not --token: argv is readable by anyone through ps.
+    GITEA_SERVER_TOKEN="$token" tea login add --name "$TEA_LOGIN_NAME" --url "$TEA_LOGIN_URL"
+}
 
 setup_tea_auth() {
     log_step "Checking Gitea CLI authentication"
@@ -228,7 +266,7 @@ setup_tea_auth() {
         return 0
     fi
 
-    if tea login list -o simple 2>/dev/null | awk '{print $1}' | grep -qx "$TEA_LOGIN_NAME"; then
+    if tea_logged_in; then
         log_substep "Gitea CLI already logged in ($TEA_LOGIN_NAME)"
         return 0
     fi
@@ -250,17 +288,7 @@ setup_tea_auth() {
         return 0
     fi
 
-    log_info "Create a token at $TEA_LOGIN_URL/user/settings/applications"
-    local token
-    read -r -s -p "Gitea token: " token
-    echo ""
-    if [[ -z "$token" ]]; then
-        log_info "No token entered. You can authenticate later with: $hint"
-        return 0
-    fi
-
-    # Via the environment, not --token: argv is readable by anyone through ps.
-    if GITEA_SERVER_TOKEN="$token" tea login add --name "$TEA_LOGIN_NAME" --url "$TEA_LOGIN_URL"; then
+    if tea_login; then
         log_success "Gitea CLI logged in as '$TEA_LOGIN_NAME'"
     else
         log_warn "tea login failed. Retry with: $hint"

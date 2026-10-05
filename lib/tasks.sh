@@ -340,6 +340,64 @@ tasks_dotfiles() {
 
         create_symlink "$MANIFEST_ABS_SOURCE" "$destination"
     done < <(manifest_entries "$manifest")
+
+    tasks_logins
+}
+
+# CLI logins, shown as the "Accounts" group of the dotfiles section.
+# Usage: tasks_login_row id name check_fn apply_fn
+tasks_login_row() {
+    local id="$1" name="$2" check_fn="$3" apply_fn="$4"
+    local state="pending" detail="not logged in"
+    if "$check_fn"; then
+        state="applied"
+        detail="logged in"
+    fi
+
+    if [[ "${TASK_MODE:-apply}" == "status" ]]; then
+        emit_row "$id" "dotfiles" "Accounts" "$name" "$state" "$detail"
+        return 0
+    fi
+
+    if [[ -n "$TASK_ONLY" ]] && [[ "$TASK_ONLY" != "$id" ]]; then
+        return 0
+    fi
+    if [[ -n "$TASK_ONLY" ]]; then
+        TASK_MATCHED="true"
+    fi
+
+    if [[ "$state" == "applied" ]]; then
+        log_substep "Skip: $name ($detail)"
+        return 0
+    fi
+    if is_dry_run; then
+        log_dry "Log in: $name"
+        return 0
+    fi
+
+    local rc=0
+    "$apply_fn" || rc=$?
+    if [[ $rc -eq 0 ]]; then
+        log_substep "$name logged in"
+        return 0
+    fi
+    TASK_FAILED=$((TASK_FAILED + 1))
+    # 2 = the user dismissed the prompt. The UI reads a last line saying
+    # "cancelled" as a choice rather than a failure.
+    if [[ $rc -eq 2 ]]; then
+        log_warn "$name: login cancelled"
+    else
+        log_error "$name: login failed"
+    fi
+}
+
+tasks_logins() {
+    if command_exists gh; then
+        tasks_login_row "dotfiles:login:gh" "GitHub CLI (gh)" gh_logged_in gh_login_web
+    fi
+    if command_exists tea; then
+        tasks_login_row "dotfiles:login:tea" "Gitea CLI (tea) - $TEA_LOGIN_NAME" tea_logged_in tea_login
+    fi
 }
 
 # ============================================================================

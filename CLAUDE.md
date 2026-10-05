@@ -688,6 +688,14 @@ Sections: `prereq`, `dotfiles`, `defaults`, `debloat` (Windows only), `cleanup`
 row confirms first. Old Houdini builds get a row only when they are neither
 the newest, the pinned nor `Current`, so their ids cannot be applied).
 
+The macOS dotfiles section also carries an "Accounts" group (`tasks_logins`):
+CLI logins for `gh` (github.com) and `tea` (the home Gitea), each shown only
+while that CLI is installed. Loadout has no terminal, so the login functions in
+`lib/dotfiles.sh` branch on `SUDO_ASKPASS`: `gh` runs the browser device flow
+(`--web --clipboard`), and `tea`'s token comes from a hidden `osascript` dialog
+and reaches `tea` as `GITEA_SERVER_TOKEN`, never argv. `setup.sh` reuses the
+same functions with terminal prompts.
+
 A status verb prints exactly one JSON array on stdout and nothing else:
 
 ```json
