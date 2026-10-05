@@ -693,8 +693,8 @@ CLI logins for `gh` (github.com) and `tea` (the home Gitea), each shown only
 while that CLI is installed. Loadout has no terminal, so the login functions in
 `lib/dotfiles.sh` branch on `SUDO_ASKPASS`: `gh` runs the browser device flow
 (`--web --clipboard`), and `tea`'s token comes from a hidden `osascript` dialog
-and reaches `tea` as `GITEA_SERVER_TOKEN`, never argv. `setup.sh` reuses the
-same functions with terminal prompts.
+and reaches `tea` as `GITEA_SERVER_TOKEN`, never argv. `setup.sh` keeps
+`gh`'s interactive login and reuses `tea_login` with a terminal prompt.
 
 A status verb prints exactly one JSON array on stdout and nothing else:
 
