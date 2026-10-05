@@ -215,7 +215,7 @@ at the default depth of 2, which would corrupt the file.
 
 **ComfyUI has no authentication of its own.** Anything that can reach the port
 can drive the GPU, read generated images and browse the model library — which on
-this machine includes the whole TrueNAS share.
+this machine includes the whole NAS share.
 
 `liusida/ComfyUI-Login` in `comfynodes/core.txt` supplies it: a login page for
 the UI, and `Authorization: Bearer <token>` (or a `token=` argument) for API
@@ -689,7 +689,8 @@ row confirms first. Old Houdini builds get a row only when they are neither
 the newest, the pinned nor `Current`, so their ids cannot be applied).
 
 The macOS dotfiles section also carries an "Accounts" group (`tasks_logins`):
-CLI logins for `gh` (github.com) and `tea` (the home Gitea), each shown only
+CLI logins for `gh` (github.com) and `tea` (a self-hosted Gitea, whose URL is
+asked for at login and kept only in tea's config), each shown only
 while that CLI is installed. Loadout has no terminal, so the login functions in
 `lib/dotfiles.sh` branch on `SUDO_ASKPASS`: `gh` runs the browser device flow
 (`--web --clipboard`), and `tea`'s token comes from a hidden `osascript` dialog
@@ -875,7 +876,7 @@ Desktop keeps its local folder for downloads, this adds the library on top.
 
 `COMFYUI_MODEL_PATH` is `D:\diffusion`, which uses ComfyUI's own folder names, so
 the mapping is 1:1 and the generated yaml is plain identity entries. It was
-`\\TRUENAS\apps\diffusion` until loading models over SMB proved too slow; that
+a NAS share until loading models over SMB proved too slow; that
 copy is kept as a manual archive and the "unreachable" branch above no longer
 fires in practice.
 
@@ -1062,4 +1063,7 @@ Variables map to package directories via naming convention:
 
 This repo is public-safe:
 - Personal data goes in `.local` files (gitignored)
+- No personal hostnames, domains, IPs, share paths, webhook URLs or emails in
+  tracked files. Ask for them at runtime (as `tea_login` does) or read them
+  from a gitignored `*.local` file (as `config/sidefx.local` is)
 - Git user.email is set in `~/.gitconfig.local`

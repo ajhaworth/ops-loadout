@@ -230,23 +230,43 @@ gh_login_web() {
     configure_gh_credential_helper
 }
 
-# The token is read at a hidden prompt and stored only in tea's own config,
-# never in this repo. Returns 2 when the dialog is cancelled.
+# The server URL and token are asked for at login and kept only in tea's own
+# config: neither belongs in this public repo. Returns 2 when a dialog is
+# cancelled.
 TEA_LOGIN_NAME="home"
-TEA_LOGIN_URL="https://gitea.example.com"
 
 tea_logged_in() {
     tea login list -o simple 2>/dev/null | awk '{print $1}' | grep -qx "$TEA_LOGIN_NAME"
 }
 
+# Usage: tea_ask "prompt" [hidden] - a native dialog, answer on stdout.
+tea_ask() {
+    local hidden=""
+    [[ "${2:-}" == "hidden" ]] && hidden=" with hidden answer"
+    osascript -e "display dialog \"$1\" with title \"Loadout\" default answer \"\"$hidden buttons {\"Cancel\", \"OK\"} default button \"OK\"" \
+        -e 'text returned of result' 2>/dev/null
+}
+
 tea_login() {
-    local token
+    local url token
     if [[ -n "${SUDO_ASKPASS:-}" ]]; then
-        open "$TEA_LOGIN_URL/user/settings/applications" 2>/dev/null || true
-        token="$(osascript -e "display dialog \"Paste a Gitea access token for $TEA_LOGIN_URL\" with title \"Loadout\" default answer \"\" with hidden answer buttons {\"Cancel\", \"OK\"} default button \"OK\"" \
-            -e 'text returned of result' 2>/dev/null)" || return 2
+        url="$(tea_ask "Gitea server URL (https://...)")" || return 2
     else
-        log_info "Create a token at $TEA_LOGIN_URL/user/settings/applications"
+        read -r -p "Gitea server URL: " url
+    fi
+    url="${url%/}"
+    # No quotes, backslashes or spaces: the URL is interpolated into AppleScript below.
+    local url_re='^https?://[^[:space:]"\\]+$'
+    if [[ ! "$url" =~ $url_re ]]; then
+        log_warn "Not an http(s) URL: $url"
+        return 1
+    fi
+
+    if [[ -n "${SUDO_ASKPASS:-}" ]]; then
+        open "$url/user/settings/applications" 2>/dev/null || true
+        token="$(tea_ask "Paste a Gitea access token for $url" hidden)" || return 2
+    else
+        log_info "Create a token at $url/user/settings/applications"
         read -r -s -p "Gitea token: " token
         echo ""
     fi
@@ -255,7 +275,7 @@ tea_login() {
         return 1
     fi
     # Via the environment, not --token: argv is readable by anyone through ps.
-    GITEA_SERVER_TOKEN="$token" tea login add --name "$TEA_LOGIN_NAME" --url "$TEA_LOGIN_URL"
+    GITEA_SERVER_TOKEN="$token" tea login add --name "$TEA_LOGIN_NAME" --url "$url"
 }
 
 setup_tea_auth() {
@@ -271,10 +291,10 @@ setup_tea_auth() {
         return 0
     fi
 
-    local hint="tea login add --name $TEA_LOGIN_NAME --url $TEA_LOGIN_URL --token <token>"
+    local hint="tea login add --name $TEA_LOGIN_NAME --url <your-gitea-url> --token <token>"
 
     if is_dry_run; then
-        log_dry "Would prompt for a Gitea token for $TEA_LOGIN_URL"
+        log_dry "Would prompt for a Gitea URL and token"
         return 0
     fi
 
@@ -283,7 +303,7 @@ setup_tea_auth() {
         return 0
     fi
 
-    if ! yes_no "Log tea into $TEA_LOGIN_URL now?" "y"; then
+    if ! yes_no "Log tea into your Gitea server now?" "y"; then
         log_info "Skipped. You can authenticate later with: $hint"
         return 0
     fi
