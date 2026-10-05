@@ -17,6 +17,7 @@ shellcheck
 
 # Dev tools
 gh                  # GitHub CLI
+tea                 # Gitea CLI
 graphviz
 doxygen
 hugo

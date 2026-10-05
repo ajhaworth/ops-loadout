@@ -215,6 +215,57 @@ setup_gh_auth() {
     fi
 }
 
+# Log tea (Gitea CLI) into the home Gitea. The token is read at the prompt
+# and stored only in tea's own config, never in this repo.
+TEA_LOGIN_NAME="home"
+TEA_LOGIN_URL="https://gitea.example.com"
+
+setup_tea_auth() {
+    log_step "Checking Gitea CLI authentication"
+
+    if ! command_exists tea; then
+        log_substep "Gitea CLI (tea) not installed - skipping"
+        return 0
+    fi
+
+    if tea login list -o simple 2>/dev/null | awk '{print $1}' | grep -qx "$TEA_LOGIN_NAME"; then
+        log_substep "Gitea CLI already logged in ($TEA_LOGIN_NAME)"
+        return 0
+    fi
+
+    local hint="tea login add --name $TEA_LOGIN_NAME --url $TEA_LOGIN_URL --token <token>"
+
+    if is_dry_run; then
+        log_dry "Would prompt for a Gitea token for $TEA_LOGIN_URL"
+        return 0
+    fi
+
+    if [[ ! -t 0 ]] || [[ "${FORCE:-false}" == "true" ]]; then
+        log_info "Run '$hint' to authenticate"
+        return 0
+    fi
+
+    if ! yes_no "Log tea into $TEA_LOGIN_URL now?" "y"; then
+        log_info "Skipped. You can authenticate later with: $hint"
+        return 0
+    fi
+
+    log_info "Create a token at $TEA_LOGIN_URL/user/settings/applications"
+    local token
+    read -r -s -p "Gitea token: " token
+    echo ""
+    if [[ -z "$token" ]]; then
+        log_info "No token entered. You can authenticate later with: $hint"
+        return 0
+    fi
+
+    if tea login add --name "$TEA_LOGIN_NAME" --url "$TEA_LOGIN_URL" --token "$token"; then
+        log_success "Gitea CLI logged in as '$TEA_LOGIN_NAME'"
+    else
+        log_warn "tea login failed. Retry with: $hint"
+    fi
+}
+
 # List dotfiles and their symlink status
 cmd_dotfiles_ls() {
     local manifest="$SCRIPT_DIR/config/dotfiles/manifest.txt"
@@ -357,6 +408,7 @@ setup_dotfiles() {
 
     create_local_overrides
     setup_gh_auth
+    setup_tea_auth
 
     if [[ "$(detect_os)" == "linux" ]]; then
         setup_docker_ghcr_auth

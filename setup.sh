@@ -157,6 +157,10 @@ cmd_dotfiles_install() {
     echo ""
     setup_gh_auth
 
+    # Check Gitea CLI login
+    echo ""
+    setup_tea_auth
+
     # Configure Docker for GitHub Container Registry
     echo ""
     setup_docker_ghcr_auth
