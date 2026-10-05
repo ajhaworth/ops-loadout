@@ -1,7 +1,8 @@
 # GlazeWM on the Windows box, a port of config/dotfiles/aerospace/aerospace.toml: each everyday app gets its own
 # workspace, where its main window tiles to fill the screen like a macOS full-screen Space - Blender, Houdini, Godot,
-# Unreal, WezTerm (Ghostty's stand-in), Zen, Claude, Spotify, ComfyUI, P4V, Steam, Explorer and Loadout. Every other
-# window floats. Opening an app switches to its workspace.
+# Unreal, WezTerm (Ghostty's stand-in), Zen, Claude, Spotify, ComfyUI, P4V, Steam and Explorer. Every other window
+# floats, Loadout included: unlike on the Mac it gets no workspace of its own and opens centered over whatever is
+# showing. Opening an app switches to its workspace.
 # Key bindings sit behind Caps Lock, which platforms/windows/defaults/system.ps1 remaps to F18 as on the Mac: Alt chords
 # would take keys Blender's keymap uses.
 # GlazeWM has no start-at-login setting in this file: tick "Run on system startup" in its tray menu once.
@@ -63,7 +64,6 @@ workspaces:
   - name: 'P4V'
   - name: 'Steam'
   - name: 'Explorer'
-  - name: 'Loadout'
 
 window_rules:
   # Games are left alone entirely: a fullscreen game, or one streamed through Vibepollo, must not be moved or resized.
@@ -111,13 +111,6 @@ window_rules:
     match:
       - window_process: { regex: '(?i)^UnrealEditor$' }
         window_title: { regex: ' - Unreal Editor' }
-
-  # Loadout's main window ("Loadout"), not its tray popup ("Loadout Tray"). Its max width would leave it tiled against
-  # the left edge, so it floats, centered at full height.
-  - commands: ['set-floating --centered --width 550px --height 100%', 'move --workspace Loadout', 'focus --workspace Loadout']
-    match:
-      - window_process: { regex: '(?i)^loadout$' }
-        window_title: { equals: 'Loadout' }
 
   # One workspace per app, normal windows only: Firefox-family dialogs are MozillaDialogClass, Explorer's file
   # windows are CabinetWClass, Steam's main window is titled just "Steam" (friends and chat float).
