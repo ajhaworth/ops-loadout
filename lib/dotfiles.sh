@@ -259,7 +259,8 @@ setup_tea_auth() {
         return 0
     fi
 
-    if tea login add --name "$TEA_LOGIN_NAME" --url "$TEA_LOGIN_URL" --token "$token"; then
+    # Via the environment, not --token: argv is readable by anyone through ps.
+    if GITEA_SERVER_TOKEN="$token" tea login add --name "$TEA_LOGIN_NAME" --url "$TEA_LOGIN_URL"; then
         log_success "Gitea CLI logged in as '$TEA_LOGIN_NAME'"
     else
         log_warn "tea login failed. Retry with: $hint"
