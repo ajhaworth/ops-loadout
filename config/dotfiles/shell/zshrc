@@ -94,6 +94,24 @@ bindkey '^[[B' history-search-forward
 # Terminal colors and aliases
 [[ -f ~/.config/shell/colors.zsh ]] && source ~/.config/shell/colors.zsh
 
+# dev [project ...]: cd into a ~/Developer repo and launch Claude Code there (fzf picker if no args).
+# Extra projects are attached with --add-dir for cross-repo work. Names match a repo's folder name.
+dev() {
+  local root=~/Developer p
+  local -a all=($root/*/.git(N:h) $root/*/*/.git(N:h)) dirs hit
+  all=(${all#$root/})
+  if (( ! $# )); then
+    p=$(print -l $all | fzf --prompt='claude> ') || return
+    set -- $p
+  fi
+  for p; do
+    hit=(${(M)all:#(*/|)$p})
+    (( $#hit == 1 )) || { print -u2 "dev: no unique repo '$p' (${hit:-none})"; return 1 }
+    dirs+=($root/$hit)
+  done
+  cd $dirs[1] && claude ${dirs[2,-1]:+--add-dir} $dirs[2,-1]
+}
+
 # ============================================================================
 # Terminal title (for tmux pane_title)
 # ============================================================================
