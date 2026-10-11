@@ -2,7 +2,7 @@
 //! the full window, and the quick panel anchored to the tray icon.
 
 use crate::settings::{find_repo_on_disk, Store};
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
 /// Serves `<repo>/app/ui/*` straight off disk so a `git pull` (or an edit)
@@ -16,16 +16,9 @@ pub(crate) fn serve_ui(
     let path = if path.is_empty() { "index.html" } else { path };
     let app = ctx.app_handle();
 
-    // `dcc/...` serves `<repo>/config/dcc/...` - the DCC helper pages (the
-    // Blender keymap viewer) live with their configs, not in the Loadout UI.
-    // No embedded copy of those, so a missing repo just 404s below.
-    let rel = match path.strip_prefix("dcc/") {
-        Some(rest) => Path::new("config/dcc").join(rest),
-        None => Path::new("app/ui").join(path),
-    };
-    let from_disk = find_repo_on_disk(app)
-        .map(|r| r.join(rel))
-        .filter(|p| p.is_file() && !path.contains(".."))
+    let from_disk = ui_rel_path(path)
+        .and_then(|rel| find_repo_on_disk(app).map(|r| r.join(rel)))
+        .filter(|p| p.is_file())
         .and_then(|p| std::fs::read(p).ok());
     let (bytes, mime) = match from_disk {
         Some(bytes) => {
@@ -54,6 +47,23 @@ pub(crate) fn serve_ui(
         .header("Content-Security-Policy", csp)
         .body(bytes)
         .unwrap()
+}
+
+/// The repo-relative file a `loadout://` path names, or `None` when it would
+/// leave the repo. `dcc/...` serves `<repo>/config/dcc/...` - the DCC helper
+/// pages (the Blender keymap viewer) live with their configs, not in the
+/// Loadout UI; no embedded copy of those, so a missing repo just 404s.
+/// Only plain components pass: `..` climbs out, and an absolute remainder
+/// (`dcc//etc/passwd`) makes `Path::join` drop the prefix entirely.
+fn ui_rel_path(path: &str) -> Option<PathBuf> {
+    let (base, rest) = match path.strip_prefix("dcc/") {
+        Some(rest) => ("config/dcc", rest),
+        None => ("app/ui", path),
+    };
+    let rest = Path::new(rest);
+    rest.components()
+        .all(|c| matches!(c, Component::Normal(_)))
+        .then(|| Path::new(base).join(rest))
 }
 
 /// Bring the full Loadout window up, dismissing the quick panel.
@@ -178,4 +188,25 @@ pub(crate) async fn hide_quick(handle: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub(crate) fn quit(handle: AppHandle) {
     handle.exit(0);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ui_rel_path;
+    use std::path::PathBuf;
+
+    #[test]
+    fn ui_paths_stay_inside_the_repo() {
+        let ok = |p: &str| ui_rel_path(p).map(|r| r.to_string_lossy().replace('\\', "/"));
+        assert_eq!(ok("index.html").as_deref(), Some("app/ui/index.html"));
+        assert_eq!(ok("lib/main.js").as_deref(), Some("app/ui/lib/main.js"));
+        assert_eq!(ok("dcc/blender/keymap.html").as_deref(), Some("config/dcc/blender/keymap.html"));
+        let mut escapes = vec!["../x", "dcc/../../x", "dcc//etc/passwd", "a/./../b"];
+        if cfg!(windows) {
+            escapes.push("dcc/C:/Windows/win.ini");
+        }
+        for escape in escapes {
+            assert_eq!(ui_rel_path(escape), None::<PathBuf>, "{escape}");
+        }
+    }
 }
