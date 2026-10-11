@@ -110,32 +110,7 @@ async fn run(app: &AppHandle) {
         ) {
             return say(app, &format!("Update failed: {e}"));
         }
-        // Copy beside the old bundle first, then swap, so a failed copy never
-        // leaves the app deleted.
-        let staged = bundle.with_extension("app.new");
-        let old = bundle.with_extension("app.old");
-        let replaced = mounted_app(&mnt)
-            .and_then(|src| {
-                sh(
-                    "rm",
-                    &["-rf", &staged.to_string_lossy(), &old.to_string_lossy()],
-                )
-                .map(|_| src)
-            })
-            .and_then(|src| {
-                sh(
-                    "ditto",
-                    &[&src.to_string_lossy(), &staged.to_string_lossy()],
-                )
-            })
-            .and_then(|_| sh("mv", &[&bundle.to_string_lossy(), &old.to_string_lossy()]))
-        .and_then(|_| {
-            sh(
-                "mv",
-                &[&staged.to_string_lossy(), &bundle.to_string_lossy()],
-            )
-        })
-        .and_then(|_| sh("rm", &["-rf", &old.to_string_lossy()]));
+        let replaced = mounted_app(&mnt).and_then(|src| swap_bundle(&src, &bundle, sh));
         let _ = sh("hdiutil", &["detach", &mnt.to_string_lossy()]);
         if let Err(e) = replaced {
             return say(app, &format!("Update failed: {e}"));
@@ -162,6 +137,36 @@ async fn run(app: &AppHandle) {
         app,
         "Self-update is only implemented for macOS and Windows.",
     );
+}
+
+/// Replaces `bundle` with a copy of `src`. Copies beside the old bundle
+/// first, then swaps, so a failed copy never leaves the app deleted. `sh` is
+/// a parameter so tests can fail one step.
+#[cfg(target_os = "macos")]
+fn swap_bundle(
+    src: &Path,
+    bundle: &Path,
+    sh: impl Fn(&str, &[&str]) -> Result<String, String>,
+) -> Result<(), String> {
+    let staged = bundle.with_extension("app.new");
+    let old = bundle.with_extension("app.old");
+    let (src, bundle, staged, old) = (
+        src.to_string_lossy(),
+        bundle.to_string_lossy(),
+        staged.to_string_lossy(),
+        old.to_string_lossy(),
+    );
+    sh("rm", &["-rf", &staged, &old])?;
+    sh("ditto", &[&src, &staged])?;
+    sh("mv", &[&bundle, &old])?;
+    if let Err(e) = sh("mv", &[&staged, &bundle]) {
+        // Put the old app back rather than leave none at all.
+        let _ = sh("mv", &[&old, &bundle]);
+        return Err(e);
+    }
+    // The new app is in place; a leftover .app.old goes on the next update.
+    let _ = sh("rm", &["-rf", &old]);
+    Ok(())
 }
 
 /// The one `.app` inside a mounted disk image. Its name follows the product
@@ -214,7 +219,33 @@ fn log(app: &AppHandle, line: &str) {
 
 #[cfg(all(test, target_os = "macos"))]
 mod tests {
-    use super::mounted_app;
+    use super::{mounted_app, sh, swap_bundle};
+    use std::cell::Cell;
+
+    /// Whichever step fails, an app is left at the bundle path: the old one
+    /// when the update reports failure, the new one when it reports success.
+    #[test]
+    fn a_failed_swap_never_leaves_the_app_missing() {
+        let root = std::env::temp_dir().join(format!("loadout-swap-{}", std::process::id()));
+        let (src, bundle) = (root.join("dmg/Loadout.app"), root.join("Applications/Loadout.app"));
+        let version = |p: &std::path::Path| std::fs::read_to_string(p.join("v")).ok();
+        for fail_at in 0..6 {
+            let _ = std::fs::remove_dir_all(&root);
+            for (dir, v) in [(&src, "new"), (&bundle, "old")] {
+                std::fs::create_dir_all(dir).unwrap();
+                std::fs::write(dir.join("v"), v).unwrap();
+            }
+            let step = Cell::new(0);
+            let result = swap_bundle(&src, &bundle, |program, args| {
+                step.set(step.get() + 1);
+                if step.get() == fail_at { Err(format!("injected {program}")) } else { sh(program, args) }
+            });
+            let want = if result.is_ok() { "new" } else { "old" };
+            assert_eq!(version(&bundle).as_deref(), Some(want), "failing step {fail_at}: {result:?}");
+            assert!(!bundle.with_extension("app.new").exists() || result.is_err(), "step {fail_at}: staged copy left");
+        }
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 
     #[test]
     fn takes_the_apps_own_name_not_the_running_bundles() {
