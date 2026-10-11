@@ -56,8 +56,15 @@ do_install() {
 
     echo "==> Installing into $APP and $CLI"
     osascript -e 'quit app "AeroSpace"' 2>/dev/null || true
+    # Copy beside the old app first, so a failed copy leaves it in place.
+    rm -rf "$APP.new"
+    ditto "$dir/AeroSpace.app" "$APP.new" || {
+        rm -rf "$APP.new"
+        echo "Copying AeroSpace.app failed; the installed app is unchanged." >&2
+        return 1
+    }
     rm -rf "$APP"
-    ditto "$dir/AeroSpace.app" "$APP"
+    mv "$APP.new" "$APP"
     mkdir -p "$(dirname "$CLI")"
     install -m 0755 "$dir/bin/aerospace" "$CLI"
     # Stage Manager and macOS's edge-drag tiling move windows too, and fight AeroSpace; AeroSpace parks other

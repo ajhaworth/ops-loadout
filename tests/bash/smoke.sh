@@ -180,6 +180,43 @@ test_houdini_apply_config() {
     assert_contains "$RUN_OUTPUT" "sudo chown"
 }
 
+# dmg_app_main (fork, ghostty, swish, vorssaint, comfyui) replacing an app:
+# a copy that fails partway must leave the installed app where it was.
+test_dmg_app_failed_copy_keeps_app() {
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    trap 'rm -rf "$tmpdir"' RETURN
+    mkdir -p "$tmpdir/bin" "$tmpdir/Applications/Fake.app" "$tmpdir/mnt/Fake.app"
+    printf 'old\n' > "$tmpdir/Applications/Fake.app/v"
+    printf 'new\n' > "$tmpdir/mnt/Fake.app/v"
+    # Copies part of the bundle, then fails, like a full disk.
+    printf '#!/bin/sh\nmkdir -p "$2" && exit 1\n' > "$tmpdir/bin/ditto"
+    chmod +x "$tmpdir/bin/ditto"
+
+    local install='
+        set -euo pipefail
+        source "$LIB"
+        NAME=Fake APP="$T/Applications/Fake.app"
+        resolve_latest() { URL=x VERSION=9.9; }
+        dl() { :; }
+        dmg_attach() { echo "$T/mnt"; }
+        dmg_detach() { :; }
+        dmg_app_main install'
+    local run=(env T="$tmpdir" LIB="$REPO_ROOT/platforms/macos/installers/_lib.sh")
+
+    if run_capture "${run[@]}" PATH="$tmpdir/bin:$PATH" bash -c "$install"; then
+        fail "dmg_app_main should fail when the copy fails"
+    fi
+    [[ "$(cat "$tmpdir/Applications/Fake.app/v" 2>/dev/null)" == old ]] \
+        || fail "dmg_app_main deleted the installed app when the copy failed: $RUN_OUTPUT"
+    [[ ! -e "$tmpdir/Applications/Fake.app.new" ]] || fail "dmg_app_main left a partial Fake.app.new"
+
+    rm "$tmpdir/bin/ditto"
+    run_capture "${run[@]}" bash -c "$install" || fail "dmg_app_main install failed: $RUN_OUTPUT"
+    [[ "$(cat "$tmpdir/Applications/Fake.app/v")" == new ]] || fail "dmg_app_main did not install the new app"
+    [[ ! -e "$tmpdir/Applications/Fake.app.new" ]] || fail "dmg_app_main left Fake.app.new after installing"
+}
+
 test_mismatched_profile_rejected() {
     local current_os mismatched_profile output
     current_os="$(uname -s)"
@@ -645,6 +682,7 @@ test_unsupported_linux_rejected
 test_macos_installer_scripts
 test_houdini_multi_version_status
 test_houdini_apply_config
+test_dmg_app_failed_copy_keeps_app
 test_tasks_status_json
 test_cleanup_houdini_builds
 test_json_str_escaping

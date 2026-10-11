@@ -109,8 +109,15 @@ dmg_app_main() {
 
         echo "==> Installing into $APP"
         [[ "${QUIT_FIRST:-0}" == "1" ]] && pkill -x "$NAME" || true
+        # Copy beside the old app first, so a failed copy leaves it in place.
+        rm -rf "$APP.new"
+        ditto "$MOUNT/$NAME.app" "$APP.new" || {
+            rm -rf "$APP.new"
+            echo "Copying $NAME.app failed; the installed app is unchanged." >&2
+            return 1
+        }
         rm -rf "$APP"
-        ditto "$MOUNT/$NAME.app" "$APP"
+        mv "$APP.new" "$APP"
 
         echo "$NAME $VERSION installed."
     }
