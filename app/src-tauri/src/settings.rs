@@ -319,6 +319,32 @@ pub(crate) async fn get_settings(
     }))
 }
 
+/// `config/sidefx.local`'s contents for (client id, secret, license, license
+/// server, version), or `None` when all are empty and the file should go.
+fn sidefx_local_body(values: [&str; 5]) -> Result<Option<String>, String> {
+    let [id, secret, license, server, version] = values;
+    if !matches!(license, "" | "apprentice" | "indie" | "server" | "server-core") {
+        return Err("invalid Houdini license".into());
+    }
+    // The file is sourced by bash. Single quotes expand nothing, so only the
+    // quote itself and a newline could break out of a value.
+    if values.iter().any(|v| v.contains('\'') || v.contains('\n')) {
+        return Err("settings cannot contain a single quote or a newline".into());
+    }
+    if values.iter().all(|v| v.is_empty()) {
+        return Ok(None);
+    }
+    Ok(Some(format!(
+        "# SideFX web API credentials and Houdini options for \
+         platforms/macos/installers/houdini.sh (gitignored)\n\
+         SIDEFX_CLIENT_ID='{id}'\n\
+         SIDEFX_CLIENT_SECRET='{secret}'\n\
+         HOUDINI_LICENSE='{license}'\n\
+         HOUDINI_LICENSE_SERVER='{server}'\n\
+         HOUDINI_VERSION='{version}'\n"
+    )))
+}
+
 #[tauri::command]
 pub(crate) async fn set_settings(
     handle: AppHandle,
@@ -335,37 +361,19 @@ pub(crate) async fn set_settings(
     write_config(&handle, &config);
 
     let path = settings_file(&handle, &store)?;
-    let id = sidefx_client_id.trim();
-    let secret = sidefx_client_secret.trim();
-    let license = houdini_license.trim();
-    let server = houdini_license_server.trim();
-    let version = houdini_version.trim();
-    if !matches!(license, "" | "apprentice" | "indie" | "server" | "server-core") {
-        return Err("invalid Houdini license".into());
-    }
-    // The file is sourced by bash. Single quotes expand nothing, so only the
-    // quote itself and a newline could break out of a value.
-    let values = [id, secret, license, server, version];
-    if values.iter().any(|v| v.contains('\'') || v.contains('\n')) {
-        return Err("settings cannot contain a single quote or a newline".into());
-    }
-
-    if values.iter().all(|v| v.is_empty()) {
+    let values = [
+        sidefx_client_id.trim(),
+        sidefx_client_secret.trim(),
+        houdini_license.trim(),
+        houdini_license_server.trim(),
+        houdini_version.trim(),
+    ];
+    let Some(body) = sidefx_local_body(values)? else {
         return match std::fs::remove_file(&path) {
             Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
             _ => Ok(()),
         };
-    }
-
-    let body = format!(
-        "# SideFX web API credentials and Houdini options for \
-         platforms/macos/installers/houdini.sh (gitignored)\n\
-         SIDEFX_CLIENT_ID='{id}'\n\
-         SIDEFX_CLIENT_SECRET='{secret}'\n\
-         HOUDINI_LICENSE='{license}'\n\
-         HOUDINI_LICENSE_SERVER='{server}'\n\
-         HOUDINI_VERSION='{version}'\n"
-    );
+    };
     // Created 0600, never briefly world-readable; an existing file keeps its
     // own mode, so narrow that one too.
     #[cfg(unix)]
@@ -393,6 +401,37 @@ pub(crate) async fn set_settings(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn sidefx_local_rejects_breakouts_and_round_trips_through_bash() {
+        use super::sidefx_local_body;
+        let base = ["id", "s3cr$t \"x\" \\ `y`", "server", "lic.local", "21.0"];
+        assert_eq!(sidefx_local_body([""; 5]), Ok(None), "all empty deletes the file");
+        for (i, bad) in [(1, "a'b"), (3, "a\nb"), (2, "pro")] {
+            let mut v = base;
+            v[i] = bad;
+            assert!(sidefx_local_body(v).is_err(), "{bad:?} accepted");
+        }
+
+        let body = sidefx_local_body(base).unwrap().unwrap();
+        let keys = ["SIDEFX_CLIENT_ID", "SIDEFX_CLIENT_SECRET", "HOUDINI_LICENSE", "HOUDINI_LICENSE_SERVER", "HOUDINI_VERSION"];
+        let want: Vec<(String, String)> = keys.iter().zip(base).map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        assert_eq!(super::parse_env_file(&body), want, "Settings reads back what it wrote");
+
+        // houdini.sh `source`s the file: every value must come through literally.
+        #[cfg(unix)]
+        {
+            let dir = std::env::temp_dir().join(format!("loadout-sidefx-{}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            let file = dir.join("sidefx.local");
+            std::fs::write(&file, &body).unwrap();
+            let script = format!("source \"$1\"; printf '%s\\0' {}", keys.map(|k| format!("\"${k}\"")).join(" "));
+            let out = std::process::Command::new("bash").args(["-c", &script, "_"]).arg(&file).output().unwrap();
+            std::fs::remove_dir_all(&dir).unwrap();
+            let got: Vec<String> = String::from_utf8(out.stdout).unwrap().split_terminator('\0').map(str::to_string).collect();
+            assert_eq!(got, base.map(str::to_string));
+        }
+    }
+
     #[test]
     fn env_file_drops_trailing_comments() {
         let vars = super::parse_env_file(
