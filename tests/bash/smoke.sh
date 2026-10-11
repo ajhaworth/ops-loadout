@@ -227,7 +227,8 @@ test_symlink_safety() {
         TMPDIR_FOR_TEST="$tmpdir" REPO_ROOT="$REPO_ROOT" bash <<'EOF'
 set -euo pipefail
 
-tmpdir="$TMPDIR_FOR_TEST"
+# pwd -P: macOS mktemp sits under /var, a symlink normalize_path resolves.
+tmpdir="$(cd "$TMPDIR_FOR_TEST" && pwd -P)"
 test_repo_root="$tmpdir/repo"
 home_dir="$tmpdir/home"
 
@@ -268,10 +269,22 @@ create_symlink "$managed_source" "$dest_managed"
 ln -s "$tmpdir/foreign" "$dest_foreign"
 create_symlink "$managed_source" "$dest_foreign"
 
-[[ "$(resolve_symlink_target "$dest_managed")" == "$managed_source" ]]
-[[ "$(resolve_symlink_target "$dest_foreign")" == "$managed_source" ]]
-[[ ! -e "$BACKUP_DIR/.managed" ]]
-[[ -L "$BACKUP_DIR/.foreign" ]]
+[[ "$(resolve_symlink_target "$dest_managed")" == "$managed_source" ]] || exit 1
+[[ "$(resolve_symlink_target "$dest_foreign")" == "$managed_source" ]] || exit 1
+[[ ! -e "$BACKUP_DIR/.managed" ]] || exit 1
+[[ -L "$BACKUP_DIR/.foreign" ]] || exit 1
+
+# A real file or directory of the user is moved aside intact, never deleted.
+printf 'mine\n' > "$HOME/.realfile"
+mkdir -p "$HOME/.realdir" && printf 'inner\n' > "$HOME/.realdir/inner"
+DRY_RUN="true" create_symlink "$managed_source" "$HOME/.realfile" >/dev/null
+[[ ! -L "$HOME/.realfile" && "$(cat "$HOME/.realfile")" == mine ]] || exit 1
+create_symlink "$managed_source" "$HOME/.realfile" >/dev/null
+create_symlink "$managed_source" "$HOME/.realdir" >/dev/null
+[[ "$(resolve_symlink_target "$HOME/.realfile")" == "$managed_source" ]] || exit 1
+[[ "$(resolve_symlink_target "$HOME/.realdir")" == "$managed_source" ]] || exit 1
+[[ "$(cat "$BACKUP_DIR/.realfile")" == mine ]] || exit 1
+[[ "$(cat "$BACKUP_DIR/.realdir/inner")" == inner ]] || exit 1
 
 echo "symlink-tests-ok"
 EOF
