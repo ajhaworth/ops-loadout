@@ -118,6 +118,68 @@ test_houdini_multi_version_status() {
     assert_contains "$RUN_OUTPUT" "Houdini20.5.370/Houdini Core"
 }
 
+# `config` writes the user's own houdini.pref and packages/ for every X.Y.
+# uv, claude and curl are shimmed in the fake HOME's ~/.local/bin (houdini.sh
+# puts it first on PATH), so nothing touches the network or the real uv tools.
+test_houdini_apply_config() {
+    local houdini="$REPO_ROOT/platforms/macos/installers/houdini.sh"
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    trap 'chmod -R u+w "$tmpdir"; rm -rf "$tmpdir"' RETURN
+
+    local houdini_dir="$tmpdir/Houdini" home_dir="$tmpdir/home" creds="$tmpdir/sidefx.local"
+    mkdir -p "$houdini_dir/Houdini20.5.370/Houdini Apprentice 20.5.370.app" \
+             "$houdini_dir/Houdini21.0.440/Houdini Apprentice 21.0.440.app" \
+             "$houdini_dir/Houdini21.0.512/Houdini Apprentice 21.0.512.app"
+    : > "$creds"
+
+    local bin="$home_dir/.local/bin" tools="$tmpdir/uv-tools"
+    mkdir -p "$bin" "$tools/fxhoudinimcp/lib/python3.12/site-packages/fxhoudinimcp/houdini"
+    printf '#!/bin/sh\n[ "$1 $2" = "tool dir" ] && echo "%s"\nexit 0\n' "$tools" > "$bin/uv"
+    printf '#!/bin/sh\nexit 0\n' > "$bin/claude"
+    printf '#!/bin/sh\nexit 1\n' > "$bin/curl"
+    chmod +x "$bin/uv" "$bin/claude" "$bin/curl"
+
+    local prefs="$home_dir/Library/Preferences/houdini"
+    mkdir -p "$prefs/21.0"
+    printf 'other.setting := 1;\ngeneral.desk.val := "Other";\n' > "$prefs/21.0/houdini.pref"
+
+    local run=(env HOME="$home_dir" HOUDINI_DIR="$houdini_dir" SIDEFX_CREDENTIALS="$creds" "$houdini")
+    run_capture "${run[@]}" config || fail "houdini.sh config failed: $RUN_OUTPUT"
+
+    local xy
+    for xy in 20.5 21.0; do
+        [[ "$(cat "$prefs/$xy/packages/loadout.json")" == "{\"path\": \"$REPO_ROOT/config/dcc/houdini\"}" ]] \
+            || fail "houdini.sh config did not write loadout.json for $xy"
+        [[ -f "$prefs/$xy/packages/fxhoudinimcp.json" ]] || fail "houdini.sh config did not write fxhoudinimcp.json for $xy"
+        [[ "$(grep -c '^general\.desk\.val' "$prefs/$xy/houdini.pref")" == 1 ]] \
+            && grep -qxF 'general.desk.val := "ALX";' "$prefs/$xy/houdini.pref" \
+            || fail "houdini.sh config should leave exactly one ALX desk line for $xy"
+    done
+    grep -qxF 'other.setting := 1;' "$prefs/21.0/houdini.pref" \
+        || fail "houdini.sh config dropped an unrelated houdini.pref line"
+    [[ "$(grep -c 'Set general.desk.val' <<<"$RUN_OUTPUT")" == 2 ]] \
+        || fail "houdini.sh config should write each X.Y once, not once per build"
+
+    # Labs failed (curl is down), so check still reads as drifted until it exists.
+    run_capture "${run[@]}" status
+    assert_contains "$RUN_OUTPUT" "outdated"
+    mkdir -p "$prefs/21.0/packages/SideFXLabs21.0"
+    : > "$prefs/21.0/packages/SideFXLabs21.0.json"
+    run_capture "${run[@]}" status
+    [[ "$RUN_OUTPUT" != *outdated* ]] || fail "houdini.sh status should be current after config + Labs"
+    printf '{"path": "/elsewhere"}\n' > "$prefs/21.0/packages/loadout.json"
+    run_capture "${run[@]}" status
+    assert_contains "$RUN_OUTPUT" "outdated"
+
+    # The .pkg leaves an X.Y's prefs root-owned; config must say so and fail.
+    chmod a-w "$prefs/20.5"
+    if run_capture "${run[@]}" config; then
+        fail "houdini.sh config should fail on an unwritable prefs dir"
+    fi
+    assert_contains "$RUN_OUTPUT" "sudo chown"
+}
+
 test_mismatched_profile_rejected() {
     local current_os mismatched_profile output
     current_os="$(uname -s)"
@@ -569,6 +631,7 @@ test_linux_package_failures_continue
 test_unsupported_linux_rejected
 test_macos_installer_scripts
 test_houdini_multi_version_status
+test_houdini_apply_config
 test_tasks_status_json
 test_cleanup_houdini_builds
 test_json_str_escaping
