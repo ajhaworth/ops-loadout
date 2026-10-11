@@ -2,5 +2,3 @@
 
 google-chrome       # Primary browser
 zen                 # Privacy-focused browser
-helium-browser
-orion

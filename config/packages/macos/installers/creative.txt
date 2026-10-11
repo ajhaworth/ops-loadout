@@ -1,4 +1,0 @@
-# creative.txt - Apps with no Homebrew cask, installed by platforms/macos/installers/<token>.sh
-# token | display-name | homepage
-
-compositor | Compositor  | https://github.com/robbietilton/Compositor

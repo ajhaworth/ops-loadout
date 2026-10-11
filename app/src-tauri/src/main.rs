@@ -889,11 +889,11 @@ mod smoke {
             ("brew".to_string(), args.iter().map(|s| s.to_string()).collect::<Vec<_>>())
         };
 
-        let cask = app_of("cask", "gimp");
-        assert_eq!(argv("install", &cask), brew(&["install", "--cask", "gimp"]));
-        assert_eq!(argv("uninstall", &cask), brew(&["uninstall", "--cask", "gimp"]));
-        assert_eq!(argv("update", &cask), brew(&["upgrade", "--cask", "gimp"]));
-        assert_eq!(argv("reinstall", &cask), brew(&["reinstall", "--cask", "gimp"]));
+        let cask = app_of("cask", "keka");
+        assert_eq!(argv("install", &cask), brew(&["install", "--cask", "keka"]));
+        assert_eq!(argv("uninstall", &cask), brew(&["uninstall", "--cask", "keka"]));
+        assert_eq!(argv("update", &cask), brew(&["upgrade", "--cask", "keka"]));
+        assert_eq!(argv("reinstall", &cask), brew(&["reinstall", "--cask", "keka"]));
 
         let formula = app_of("formula", "ripgrep");
         assert_eq!(argv("uninstall", &formula), brew(&["uninstall", "ripgrep"]));
@@ -948,17 +948,24 @@ mod smoke {
     fn uninstall_argv_runs() {
         let here = std::path::Path::new(".");
         // Whichever cask this machine does not have - hardcoding one breaks
-        // the day it is installed, or moved out of the cask lists.
+        // the day it is installed, or moved out of the cask lists. When every
+        // listed cask is installed, borrow a real cask that is in no list.
         let out = std::process::Command::new("brew")
             .args(["list", "--cask", "-1"])
             .output()
             .unwrap();
         let installed = String::from_utf8_lossy(&out.stdout).to_string();
+        let missing = |t: &str| !installed.lines().any(|l| l == t);
         let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let app = crate::catalog::scan(&repo)
-            .into_iter()
-            .find(|a| a.kind == "cask" && !installed.lines().any(|l| l == a.token))
-            .expect("every cask in the lists is installed");
+        let casks: Vec<_> =
+            crate::catalog::scan(&repo).into_iter().filter(|a| a.kind == "cask").collect();
+        let app = casks.iter().find(|a| missing(&a.token)).cloned().unwrap_or_else(|| {
+            let token = ["gimp", "vlc", "cryptomator"]
+                .into_iter()
+                .find(|t| missing(t))
+                .expect("every candidate cask is installed");
+            crate::catalog::App { token: token.into(), ..casks[0].clone() }
+        });
         println!("uninstalling {}", app.token);
 
         let cmd = crate::platform::job_command("uninstall", &app, here, here).unwrap();

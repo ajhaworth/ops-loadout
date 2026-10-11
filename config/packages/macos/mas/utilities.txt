@@ -4,5 +4,3 @@
 937984704|Amphetamine
 1451685025|WireGuard
 1663047912|Screens 5
-6445964986|Speech to Text
-6760346035|RadianceKit

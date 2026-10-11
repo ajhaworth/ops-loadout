@@ -53,7 +53,7 @@ dmg_detach() {
 }
 
 # Shared body for the "copy $NAME.app out of a dmg into /Applications"
-# installers (fork, ghostty, compositor, swish, vorssaint).
+# installers (fork, ghostty, swish, vorssaint).
 #
 # The caller sets, before calling this:
 #   NAME         - display name, and the app/dmg name inside the download

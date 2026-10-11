@@ -2,6 +2,3 @@
 
 spotify             # Music streaming
 iina                # Video player
-vlc                 # Universal media player
-losslesscut         # Video trimmer
-simple-comic        # Comic/manga viewer

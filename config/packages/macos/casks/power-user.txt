@@ -1,6 +1,5 @@
 # power-user.txt - Power user apps (personal profile only)
 
 raycast             # Spotlight replacement
-istat-menus         # System monitor
 swish               # Trackpad window/app gestures
 hiddenbar           # Menu bar icon hider (Bartender alternative)
