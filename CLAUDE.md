@@ -385,8 +385,10 @@ replace it rather than `rm -rf`-ing someone else's app.
   like a full-screen Space: Blender, Houdini, Godot and Unreal (main window only,
   by title ` - Blender <digit>` / ` - Houdini <edition> <digit>` / `Godot Engine` /
   ` - Unreal Editor`; the Houdini and Unreal patterns are unverified), Ghostty, Zen, Mail, Messages, Calendar, Agenda, Digest (Pulse
-  tiles beside it there), ChatGPT, Claude, Slack, Safari, Obsidian, Spotify, Fork, Finder, Simulator and
-  Loadout. Everything else floats. Opening or clicking an app switches to its
+  tiles beside it there), ChatGPT, Claude, Slack, Safari, Obsidian, Spotify, Fork, Simulator and
+  Loadout. Everything else floats, Finder included (AeroSpace sees each native tab as a window, so tiled tabs
+  leave holes). Each per-app move uses `--focus-follows-window`: without it a new window lands on a hidden
+  workspace while its app is frontmost, and clicking an already-frontmost app in the Dock does nothing. Opening or clicking an app switches to its
   workspace because AeroSpace follows macOS focus, so rules need no
   `--focus-follows-window`. A matched app's normal windows tile, so a second one
   (compose window) splits that workspace; its dialogs, panels and
@@ -405,7 +407,8 @@ replace it rather than `rm -rf`-ing someone else's app.
   where they are. AeroSpace parks other workspaces' windows in a screen corner, so
   Mission Control groups windows by app (`expose-group-apps`, set by `dock.sh` and,
   for profiles without defaults, `installers/aerospace.sh`), which also turn off
-  Stage Manager and macOS's edge-drag tiling (both fight AeroSpace) and turn on
+  Stage Manager, macOS's edge-drag tiling (both fight AeroSpace) and separate Spaces per display (AeroSpace's
+  docs tie it to focus bugs; takes a logout) and turn on
   Ctrl-Cmd-drag from anywhere in a window. A Ghostty window tiles on workspace "Ghostty" unless it opens
   while workspace "Blender" is focused - that is the Claude window, keyed on
   `%{workspace}` because Ghostty sets its title only after AeroSpace detects it.

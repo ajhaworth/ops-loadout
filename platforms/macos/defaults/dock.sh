@@ -24,4 +24,7 @@ apply_dock() {
     defaults_set NSGlobalDomain NSWindowShouldDragOnGesture bool true "Ctrl-Cmd-drag moves windows from anywhere"
     # AeroSpace parks other workspaces' windows in a screen corner; grouped by app, Mission Control stays readable.
     defaults_set com.apple.dock expose-group-apps bool true "Group windows by app in Mission Control"
+    # AeroSpace's docs: focus goes to the wrong window, or snaps back, while displays have separate Spaces, even with one
+    # display. Applies after logout.
+    defaults_set com.apple.spaces spans-displays bool true "Displays share one Space (AeroSpace focus bugs)"
 }

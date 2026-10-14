@@ -1,7 +1,8 @@
 # AeroSpace gives each everyday app its own workspace, where its windows tile to fill the screen like a macOS full-screen
 # Space: Blender (plus the Claude Code Ghostty its Loadout tab opens, see
 # config/dcc/blender/portable/scripts/startup/dcc_claude.py), Houdini, Godot, Unreal, Ghostty, Zen, Mail, Messages, Calendar, Agenda,
-# Digest and Pulse (sharing one, side by side), ChatGPT, Claude, Slack, Safari, Obsidian, Spotify, Fork, Finder, Simulator and Loadout. Opening or clicking an app switches to its workspace. Every other window floats.
+# Digest and Pulse (sharing one, side by side), ChatGPT, Claude, Slack, Safari, Obsidian, Spotify, Fork, Simulator and Loadout. Opening or clicking an app switches to its workspace. Every other window
+# floats, Finder's included: AeroSpace sees each native tab as a window, so tiled Finder tabs leave holes in the layout.
 # Key bindings sit behind Caps Lock (remapped to F18 by capslock-f18.plist): AeroSpace's sample Option chords would
 # take keys Blender's keymap uses.
 config-version = 2
@@ -80,28 +81,28 @@ run = 'layout tiling'
 # as it does for the workspaces below.
 [[on-window-detected]]
 if = 'test %{app-bundle-id} = com.mitchellh.ghostty'
-run = ['layout tiling', 'move-node-to-workspace Ghostty']
+run = ['layout tiling', 'move-node-to-workspace --focus-follows-window Ghostty']
 
 # Houdini's main window only, as with Blender ("<file>.hip - Houdini <edition> <version>", where Apprentice's edition is
 # two words: "Houdini Apprentice Non-Commercial 22.0.429"); floating panes stay floating.
 [[on-window-detected]]
 if.app-name-regex-substring = '^Houdini'
 if.window-title-regex-substring = ' - Houdini [^0-9]+\d'
-run = ['layout tiling', 'move-node-to-workspace Houdini']
+run = ['layout tiling', 'move-node-to-workspace --focus-follows-window Houdini']
 
 # Godot's editor ("<project> - Godot Engine") and Project Manager ("Godot Engine - Project Manager"); dialogs and the
 # running game ("<project> (DEBUG)") are separate windows with other titles, so they float.
 [[on-window-detected]]
 if.app-id = 'org.godotengine.godot'
 if.window-title-regex-substring = 'Godot Engine'
-run = ['layout tiling', 'move-node-to-workspace Godot']
+run = ['layout tiling', 'move-node-to-workspace --focus-follows-window Godot']
 
 # Unreal Editor's main window ("<project> - Unreal Editor"); the splash screen and tool windows float.
 # ponytail: bundle id and title pattern unverified (no Unreal on the Mac this was written on); check on first launch.
 [[on-window-detected]]
 if.app-id = 'com.epicgames.UnrealEditor'
 if.window-title-regex-substring = ' - Unreal Editor'
-run = ['layout tiling', 'move-node-to-workspace Unreal']
+run = ['layout tiling', 'move-node-to-workspace --focus-follows-window Unreal']
 
 # Loadout's main window ("Loadout"), not its tray popup ("Loadout Tray"). Its max width would leave it tiled against the
 # left edge, so it floats, centered at full height by center.js. Focus follows so the workspace is showing when
@@ -111,15 +112,18 @@ if = 'test %{app-bundle-id} = dev.alx.loadout && test %{window-title} = Loadout'
 run = ['layout floating', 'move-node-to-workspace --focus-follows-window Loadout',
        'exec-and-forget osascript -l JavaScript ~/.config/aerospace/center.js dev.alx.loadout Loadout']
 
-# One workspace per app. Its normal windows tile there, so a second one (a compose window) splits it; dialogs, panels
+# One workspace per app. --focus-follows-window shows that workspace: without it the window lands on a hidden workspace
+# while macOS still has its app frontmost, and clicking an already-frontmost app in the Dock does nothing, so the app
+# could not be reached until another one was clicked first.
+# Its normal windows tile there, so a second one (a compose window) splits it; dialogs, panels
 # and picture-in-picture float on it by AeroSpace's own heuristic, which a 'layout tiling' here would override.
 [[on-window-detected]]
 if.app-id = 'app.zen-browser.zen'
-run = 'move-node-to-workspace Zen'
+run = 'move-node-to-workspace --focus-follows-window Zen'
 
 [[on-window-detected]]
 if.app-id = 'com.apple.mail'
-run = 'move-node-to-workspace Mail'
+run = 'move-node-to-workspace --focus-follows-window Mail'
 
 # Messages reads best narrow, so it floats at 760 px, centered the same way as Loadout.
 [[on-window-detected]]
@@ -136,52 +140,48 @@ run = ['layout floating', 'move-node-to-workspace --focus-follows-window Simulat
 
 [[on-window-detected]]
 if.app-id = 'com.apple.iCal'
-run = 'move-node-to-workspace Calendar'
+run = 'move-node-to-workspace --focus-follows-window Calendar'
 
 # Digest and Pulse share workspace "Digest", tiled side by side. Digest's max width (760 px) may leave a gap in its tile.
 [[on-window-detected]]
 if.app-id = 'dev.alx.Digest'
-run = 'move-node-to-workspace Digest'
+run = 'move-node-to-workspace --focus-follows-window Digest'
 
 [[on-window-detected]]
 if.app-id = 'dev.alx.Agenda'
-run = 'move-node-to-workspace Agenda'
+run = 'move-node-to-workspace --focus-follows-window Agenda'
 
 [[on-window-detected]]
 if.app-id = 'com.openai.codex'
-run = 'move-node-to-workspace ChatGPT'
+run = 'move-node-to-workspace --focus-follows-window ChatGPT'
 
 [[on-window-detected]]
 if.app-id = 'com.anthropic.claudefordesktop'
-run = 'move-node-to-workspace Claude'
+run = 'move-node-to-workspace --focus-follows-window Claude'
 
 [[on-window-detected]]
 if.app-id = 'com.tinyspeck.slackmacgap'
-run = 'move-node-to-workspace Slack'
+run = 'move-node-to-workspace --focus-follows-window Slack'
 
 [[on-window-detected]]
 if.app-id = 'com.apple.Safari'
-run = 'move-node-to-workspace Safari'
+run = 'move-node-to-workspace --focus-follows-window Safari'
 
 [[on-window-detected]]
 if.app-id = 'md.obsidian'
-run = 'move-node-to-workspace Obsidian'
+run = 'move-node-to-workspace --focus-follows-window Obsidian'
 
 [[on-window-detected]]
 if.app-id = 'dev.alx.Pulse'
-run = 'move-node-to-workspace Digest'
+run = 'move-node-to-workspace --focus-follows-window Digest'
 
 [[on-window-detected]]
 if.app-id = 'com.spotify.client'
-run = 'move-node-to-workspace Spotify'
+run = 'move-node-to-workspace --focus-follows-window Spotify'
 
 [[on-window-detected]]
 if.app-id = 'com.DanPristupov.Fork'
-run = 'move-node-to-workspace Fork'
-
-[[on-window-detected]]
-if.app-id = 'com.apple.finder'
-run = 'move-node-to-workspace Finder'
+run = 'move-node-to-workspace --focus-follows-window Fork'
 
 [[on-window-detected]]
 if = 'true'

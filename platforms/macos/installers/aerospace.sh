@@ -69,14 +69,15 @@ do_install() {
     install -m 0755 "$dir/bin/aerospace" "$CLI"
     # Stage Manager and macOS's edge-drag tiling move windows too, and fight AeroSpace; AeroSpace parks other
     # workspaces' windows in a screen corner, which scatters Mission Control unless it groups by app; Ctrl-Cmd-drag
-    # moves a window from anywhere in it. dock.sh sets all of these as well, but profiles without system defaults
-    # (workstation) only get them here.
+    # moves a window from anywhere in it; separate Spaces per display confuse AeroSpace's focus tracking. dock.sh sets
+    # all of these as well, but profiles without system defaults (workstation) only get them here.
     defaults write com.apple.WindowManager GloballyEnabled -bool false
     defaults write com.apple.WindowManager EnableTilingByEdgeDrag -bool false
     defaults write com.apple.WindowManager EnableTopTilingByEdgeDrag -bool false
     defaults write com.apple.WindowManager EnableTilingOptionAccelerator -bool false
     defaults write NSGlobalDomain NSWindowShouldDragOnGesture -bool true
     defaults write com.apple.dock expose-group-apps -bool true
+    defaults write com.apple.spaces spans-displays -bool true
     killall Dock 2>/dev/null || true
     open -a "$APP"
 
