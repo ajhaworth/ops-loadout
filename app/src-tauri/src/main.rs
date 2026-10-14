@@ -75,8 +75,9 @@ fn set_dock_badge(handle: &AppHandle, apps: &[App]) {
         let _ = window.set_badge_count((n > 0).then_some(n));
     }
 
+    // Empty, not None: tray-icon's macOS set_title(None) leaves the old title up.
     if let Some(tray) = handle.tray_by_id("tray") {
-        let _ = tray.set_title((n > 0).then(|| n.to_string()));
+        let _ = tray.set_title(Some(if n > 0 { n.to_string() } else { String::new() }));
     }
 }
 
