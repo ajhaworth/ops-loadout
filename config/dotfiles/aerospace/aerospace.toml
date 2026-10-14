@@ -1,7 +1,7 @@
 # AeroSpace gives each everyday app its own workspace, where its windows tile to fill the screen like a macOS full-screen
 # Space: Blender (plus the Claude Code Ghostty its Loadout tab opens, see
 # config/dcc/blender/portable/scripts/startup/dcc_claude.py), Houdini, Godot, Unreal, Ghostty, Zen, Mail, Messages, Calendar, Agenda,
-# Digest and Pulse (sharing one, side by side), ChatGPT, Claude, Slack, Safari, Obsidian, Spotify, Fork, Simulator and Loadout. Opening or clicking an app switches to its workspace. Every other window
+# Digest, Pulse, ChatGPT, Claude, Slack, Safari, Obsidian, Spotify, Fork, Simulator and Loadout. Opening or clicking an app switches to its workspace. Every other window
 # floats, Finder's included: AeroSpace sees each native tab as a window, so tiled Finder tabs leave holes in the layout.
 # Key bindings sit behind Caps Lock (remapped to F18 by capslock-f18.plist): AeroSpace's sample Option chords would
 # take keys Blender's keymap uses.
@@ -142,7 +142,6 @@ run = ['layout floating', 'move-node-to-workspace --focus-follows-window Simulat
 if.app-id = 'com.apple.iCal'
 run = 'move-node-to-workspace --focus-follows-window Calendar'
 
-# Digest and Pulse share workspace "Digest", tiled side by side. Digest's max width (760 px) may leave a gap in its tile.
 [[on-window-detected]]
 if.app-id = 'dev.alx.Digest'
 run = 'move-node-to-workspace --focus-follows-window Digest'
@@ -173,7 +172,7 @@ run = 'move-node-to-workspace --focus-follows-window Obsidian'
 
 [[on-window-detected]]
 if.app-id = 'dev.alx.Pulse'
-run = 'move-node-to-workspace --focus-follows-window Digest'
+run = 'move-node-to-workspace --focus-follows-window Pulse'
 
 [[on-window-detected]]
 if.app-id = 'com.spotify.client'

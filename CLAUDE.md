@@ -384,8 +384,8 @@ replace it rather than `rm -rf`-ing someone else's app.
   AeroSpace workspace, named after it, where its windows tile to fill the screen
   like a full-screen Space: Blender, Houdini, Godot and Unreal (main window only,
   by title ` - Blender <digit>` / ` - Houdini <edition> <digit>` / `Godot Engine` /
-  ` - Unreal Editor`; the Houdini and Unreal patterns are unverified), Ghostty, Zen, Mail, Messages, Calendar, Agenda, Digest (Pulse
-  tiles beside it there), ChatGPT, Claude, Slack, Safari, Obsidian, Spotify, Fork, Simulator and
+  ` - Unreal Editor`; the Houdini and Unreal patterns are unverified), Ghostty, Zen, Mail, Messages, Calendar, Agenda, Digest, Pulse,
+  ChatGPT, Claude, Slack, Safari, Obsidian, Spotify, Fork, Simulator and
   Loadout. Everything else floats, Finder included (AeroSpace sees each native tab as a window, so tiled tabs
   leave holes). Each per-app move uses `--focus-follows-window`: without it a new window lands on a hidden
   workspace while its app is frontmost, and clicking an already-frontmost app in the Dock does nothing. Opening or clicking an app switches to its
