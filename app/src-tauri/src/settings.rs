@@ -176,54 +176,103 @@ fn seed_dir(source: &Path, target: &Path, version: &str) -> std::io::Result<()> 
     if std::fs::read_to_string(&stamp).is_ok_and(|s| s.trim() == version) {
         return Ok(());
     }
-    prune(&source.join("config/packages"), &target.join("config/packages"), Some("txt"))?;
+    let shipped = Shipped::read(source);
+    prune(&shipped, target, "config/packages", Some("txt"))?;
     for code in ["lib", "platforms"] {
-        prune(&source.join(code), &target.join(code), None)?;
+        prune(&shipped, target, code, None)?;
     }
-    copy_over(source, target)?;
+    copy_over(&shipped, target, "")?;
     std::fs::write(stamp, version)
 }
 
-/// Deletes files under `target` that `source` no longer has, limited to files
-/// with extension `ext` when one is given. Only for trees the bundle owns
-/// outright, since anything else there is lost:
+/// What a bundle ships: the `.bundle-files` list `bundle-repo.js` writes, one
+/// repo-relative path per line, or - for a bundle older than that list -
+/// whatever is under its directory. The list is what counts on Windows: the
+/// NSIS installer updates in place and never deletes a file a newer version
+/// dropped, so the resource dir keeps old scripts, and a listing of it would
+/// keep copying them back into the seeded repo.
+struct Shipped {
+    source: PathBuf,
+    list: Option<std::collections::HashSet<String>>,
+}
+
+impl Shipped {
+    fn read(source: &Path) -> Self {
+        let list = std::fs::read_to_string(source.join(".bundle-files")).ok().map(|text| {
+            text.lines().map(str::trim).filter(|l| !l.is_empty()).map(str::to_string).collect()
+        });
+        Shipped { source: source.to_path_buf(), list }
+    }
+
+    fn has(&self, rel: &str) -> bool {
+        match &self.list {
+            Some(list) => list.contains(rel),
+            None => self.source.join(rel).exists(),
+        }
+    }
+
+    fn has_dir(&self, rel: &str) -> bool {
+        match &self.list {
+            Some(list) => {
+                let prefix = format!("{rel}/");
+                list.iter().any(|f| f.starts_with(&prefix))
+            }
+            None => self.source.join(rel).is_dir(),
+        }
+    }
+}
+
+/// Deletes files under `target/rel` that the bundle no longer ships, limited
+/// to files with extension `ext` when one is given. Only for trees the bundle
+/// owns outright, since anything else there is lost:
 /// - package lists (`.txt` in `config/packages`): after a rename the old file
 ///   would list its apps a second time.
 /// - `lib/` and `platforms/`: code only, nothing writes runtime state there.
 ///   Scripts are discovered by directory listing, so a removed defaults
 ///   module kept running from the seeded copy - as a permanently failed row.
 ///
-/// Nothing else is ever deleted. A `source` that is missing altogether is left
+/// Nothing else is ever deleted. A tree the bundle doesn't ship at all is left
 /// alone rather than read as "everything went".
-fn prune(source: &Path, target: &Path, ext: Option<&str>) -> std::io::Result<()> {
-    if !source.is_dir() {
+fn prune(shipped: &Shipped, target: &Path, rel: &str, ext: Option<&str>) -> std::io::Result<()> {
+    if !shipped.has_dir(rel) {
         return Ok(());
     }
-    let Ok(entries) = std::fs::read_dir(target) else { return Ok(()) };
+    let Ok(entries) = std::fs::read_dir(target.join(rel)) else { return Ok(()) };
     for entry in entries {
         let entry = entry?;
-        let from = source.join(entry.file_name());
+        let child = format!("{rel}/{}", entry.file_name().to_string_lossy());
         if entry.file_type()?.is_dir() {
-            if from.is_dir() {
-                prune(&from, &entry.path(), ext)?;
+            if shipped.has_dir(&child) {
+                prune(shipped, target, &child, ext)?;
             } else if ext.is_none() {
                 std::fs::remove_dir_all(entry.path())?;
             }
-        } else if ext.map_or(true, |e| entry.path().extension().is_some_and(|x| x == e)) && !from.exists() {
+        } else if ext.map_or(true, |e| entry.path().extension().is_some_and(|x| x == e)) && !shipped.has(&child) {
             std::fs::remove_file(entry.path())?;
         }
     }
     Ok(())
 }
 
-fn copy_over(source: &Path, target: &Path) -> std::io::Result<()> {
-    std::fs::create_dir_all(target)?;
-    for entry in std::fs::read_dir(source)? {
+/// Copies the bundle at `shipped.source/rel` over `target/rel`, skipping what
+/// it no longer ships (leftovers of an in-place install). Its own top-level
+/// dotfiles (`.bundle-revision`, `.bundle-files`) always go.
+fn copy_over(shipped: &Shipped, target: &Path, rel: &str) -> std::io::Result<()> {
+    let to_dir = target.join(rel);
+    std::fs::create_dir_all(&to_dir)?;
+    for entry in std::fs::read_dir(shipped.source.join(rel))? {
         let entry = entry?;
-        let to = target.join(entry.file_name());
+        let name = entry.file_name().to_string_lossy().to_string();
+        let child = if rel.is_empty() { name.clone() } else { format!("{rel}/{name}") };
+        let to = to_dir.join(&name);
         if entry.file_type()?.is_dir() {
-            copy_over(&entry.path(), &to)?;
+            if shipped.has_dir(&child) {
+                copy_over(shipped, target, &child)?;
+            }
         } else {
+            if !(rel.is_empty() && name.starts_with('.')) && !shipped.has(&child) {
+                continue;
+            }
             // Blender saves personal preferences and startup scenes here. Seed
             // defaults on first install, but preserve them across app updates.
             if to.exists() && to.extension().is_some_and(|e| e == "blend") {
@@ -493,6 +542,30 @@ mod tests {
         assert!(target.join(kept).exists());
         assert!(target.join("config/sidefx.local").exists(), "runtime config survives");
         assert!(target.join("config/packages/windows/winget/notes.md").exists(), "non-list file survives");
+        std::fs::remove_dir_all(tmp).unwrap();
+    }
+
+    /// Windows' NSIS installer updates in place, so a dropped script is still
+    /// in the resource dir; the bundle's file list is what decides.
+    #[test]
+    fn reseed_follows_the_bundle_file_list_over_installer_leftovers() {
+        let tmp = std::env::temp_dir().join(format!("ops-seed-list-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let (source, target) = (tmp.join("bundled"), tmp.join("repo"));
+        let stale = "platforms/windows/defaults/comfyui.ps1";
+        let kept = "platforms/windows/defaults/explorer.ps1";
+        write(&source.join(stale), "old module");
+        write(&source.join(kept), "module");
+        write(&source.join("lib/windows/common.psm1"), "lib");
+        write(&target.join(stale), "old module");
+
+        write(&source.join(".bundle-files"), &format!("{kept}\nlib/windows/common.psm1\n"));
+        seed_dir(&source, &target, "0.2.0").unwrap();
+
+        assert!(!target.join(stale).exists(), "a leftover the list drops is pruned");
+        assert!(target.join(kept).exists());
+        assert!(target.join("lib/windows/common.psm1").exists());
+        assert!(target.join(".bundle-files").exists(), "the bundle's own dotfiles are copied");
         std::fs::remove_dir_all(tmp).unwrap();
     }
 

@@ -29,18 +29,24 @@ try {
   const tracked = spawnSync("git", ["-C", root, "ls-tree", "-r", "--name-only", "-z", "HEAD", "config", "lib", "platforms"], { encoding: "utf8" });
   if (tracked.error || tracked.status !== 0) throw tracked.error || new Error("git ls-tree failed");
   const hash = crypto.createHash("sha256");
+  const shipped = [];
   for (const name of tracked.stdout.split("\0").filter(Boolean).sort()) {
     const source = path.join(root, name);
     const target = path.join(dest, name);
     fs.rmSync(target, { force: true });
     if (!fs.existsSync(source)) continue;
     fs.cpSync(source, target, { verbatimSymlinks: true });
+    shipped.push(name);
     const stat = fs.lstatSync(target);
     hash.update(name).update("\0").update(String(stat.mode)).update("\0");
     hash.update(stat.isSymbolicLink() ? fs.readlinkSync(target) : fs.readFileSync(target));
   }
   // Same-version rebuilds must refresh the writable runtime scripts too.
   fs.writeFileSync(path.join(dest, ".bundle-revision"), hash.digest("hex"));
+  // The exact file list, because the resource dir can't be trusted to hold
+  // only these: Windows' NSIS installer updates in place and never deletes a
+  // file a newer version dropped. seed_dir (settings.rs) reads it.
+  fs.writeFileSync(path.join(dest, ".bundle-files"), shipped.join("\n") + "\n");
 } finally {
   fs.rmSync(tarball, { force: true });
 }

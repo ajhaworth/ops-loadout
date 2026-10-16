@@ -597,7 +597,11 @@ Blender `.blend` preferences/startup files and overwriting other tracked files b
 `config/packages/**/*.txt` (a renamed list would otherwise list its apps twice)
 and any file under `lib/` and `platforms/` (scripts are discovered by listing
 their directory, so a removed defaults module kept running from the seeded copy
-as a permanently failed row) - see `prune` - so local state survives an update. The seed runs before the
+as a permanently failed row) - see `prune` - so local state survives an update.
+"Ships" means listed in `bundled/.bundle-files`, which `bundle-repo.js` writes,
+not "present in the resource dir": the Windows NSIS installer updates in place
+and never deletes a file a newer version dropped, so the resource dir keeps
+old scripts forever (`Shipped`). The seed runs before the
 candidate list is walked, since a saved path pointing at the seeded copy matches
 earlier. A real checkout still wins, so development is unaffected -
 `OPS_LOADOUT_DIR=bundled` forces the seeded copy instead, unsaved, for testing a
