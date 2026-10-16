@@ -825,6 +825,20 @@ copy of that loop. `-Narrate` prints the per-module header inline as the loop
 goes - the CLI passes it, Loadout does not. It has to be inline: narrating
 from a second loop afterwards puts every header below the output it belongs to.
 
+`security.ps1` (`DEFAULTS_SECURITY`) is the hardening module: Remote
+Assistance off, a 15-minute idle lock, `RestrictAnonymous`, PowerShell
+script-block logging, and pinned values for LSA-PPL/WDigest/LLMNR, plus
+tracked steps for Defender (ASR rules in Block mode, network protection, cloud
+block level High), firewall drop logging, and scoping the Apollo/Vibepollo
+installer's inbound rules (which it creates as Any address, Any profile) to
+`LocalSubnet`/`Private`. The ASR list leaves out the PSExec/WMI and
+"prevalence/age" rules, which fire on build tools and fresh installers.
+`SECURITY_DISABLE_SPOOLER` (default false) adds a Print Spooler row. BitLocker
+and Secure Boot are only warned about, never tracked: they need a recovery-key
+decision and a firmware change, and a row whose apply does nothing would lie.
+Controlled Folder Access is deliberately absent (it breaks DCCs and games), as
+is anything ops-server's Ansible owns (its firewall rules and accounts).
+
 Filenames map to profile variables like package lists: `taskbar.ps1` →
 `DEFAULTS_TASKBAR`. `power.ps1` and the HKLM half of `privacy.ps1` need
 Administrator and skip cleanly without it.
