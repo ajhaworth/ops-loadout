@@ -1017,15 +1017,17 @@ listen("apps-changed", () => load("list_apps"));
 addEventListener("click", hideMenu);
 addEventListener("keydown", (e) => e.key === "Escape" && hideMenu());
 // Menu shortcuts don't reach the menu out of this borderless window, so the
-// page handles them. Close becomes hide in the backend.
+// page handles them. Close becomes hide in the backend. Cmd on macOS, Ctrl on
+// Windows, where the OS keeps the Windows key for itself.
 addEventListener("keydown", (e) => {
-  if (e.metaKey && e.key === "w") {
+  const mod = IS_WINDOWS ? e.ctrlKey : e.metaKey;
+  if (mod && e.key === "w") {
     e.preventDefault();
     window.__TAURI__.window.getCurrentWindow().close();
-  } else if (e.metaKey && e.key === "," && !settingsEl.open) {
+  } else if (mod && e.key === "," && !settingsEl.open) {
     e.preventDefault();
     document.getElementById("settings").click();
-  } else if (e.metaKey && e.key === "q") {
+  } else if (mod && e.key === "q") {
     e.preventDefault();
     invoke("quit");
   }

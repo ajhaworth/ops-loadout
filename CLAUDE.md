@@ -555,7 +555,8 @@ points straight at `../ui`) over a Rust backend in `app/src-tauri/src/`:
   `cfg(target_os)`; Linux is a stub that errors. macOS talks to `brew`/`mas`/
   the installer scripts directly. Windows shells *everything* to
   `app/src-tauri/bridge.ps1` (verbs: `status|install|uninstall|update|configure|
-  icon|launch|open|tasks-status|tasks-apply`), which is bundled as a Tauri
+  icon|launch|open|tasks-status|tasks-apply`, plus `reinstall`; `status` takes an
+  optional catalog id to answer for one app), which is bundled as a Tauri
   resource so the built app can find it. Package/task logic lives in
   `lib/windows/*.psm1`, not in the bridge or in Rust — add features there.
 - `settings.rs` — `config.json`, repo discovery (`find_repo`), bundled-repo
@@ -589,9 +590,11 @@ scripts write back into the repo (`config/sidefx.local`, Blender's portable
 prefs) and editing the .app would break its ad-hoc seal. `.bundled-version`
 holds the app version and content revision: a mismatch re-copies, preserving existing
 Blender `.blend` preferences/startup files and overwriting other tracked files but
-**never deleting** - except `config/packages/**/*.txt` the new bundle no longer
-ships (`prune_lists`; a renamed list would otherwise list its apps twice) - so
-local state survives an update. The seed runs before the
+**never deleting** - except what the bundle owns outright and no longer ships:
+`config/packages/**/*.txt` (a renamed list would otherwise list its apps twice)
+and any file under `lib/` and `platforms/` (scripts are discovered by listing
+their directory, so a removed defaults module kept running from the seeded copy
+as a permanently failed row) - see `prune` - so local state survives an update. The seed runs before the
 candidate list is walked, since a saved path pointing at the seeded copy matches
 earlier. A real checkout still wins, so development is unaffected -
 `OPS_LOADOUT_DIR=bundled` forces the seeded copy instead, unsaved, for testing a
@@ -788,6 +791,9 @@ Loadout's Setup tab uses to target one setting.
 A `-DryRun` write that would change something lands in `Pending` rather than
 `Skipped`, so Loadout's tasks-status (see "Setup Tasks (Loadout)") can
 tell "already correct" from "would change this" without a second checker.
+Unelevated, a dry-run write under `HKLM:` or a `Policies` branch lands in
+`NeedsAdmin` instead (`Test-RegistryWriteNeedsAdmin`), since that is what the
+apply would hit.
 
 Not every setting is a registry write. `Invoke-TrackedStep -Id -Label -Check
 -Apply [-RequiresAdmin]` is the Windows counterpart of macOS `defaults_hook`:
@@ -1030,6 +1036,10 @@ Add to the appropriate category file in `config/packages/<platform>/`. The filen
 
 - `$ErrorActionPreference = "Stop"` with try-catch around risky operations
 - Library modules in `lib/windows/` (`.psm1` files) with explicit `Export-ModuleMember`
+- A native command inside a function that returns `$true`/`$false` pipes to
+  `Write-NativeOutput` (`& tool 2>&1 | Write-NativeOutput`). Left uncaptured its
+  output joins the return value, and `-not @('text', $false)` is `$false` - the
+  job then reports success when it failed
 - Logging functions mirror bash: `Write-Step`, `Write-SubStep`, `Write-Success`, `Write-Warn`, `Write-Err`
 - `-DryRun` switch parameter threaded through function calls (not a global variable)
 - Profile parsed into hashtable by `Read-Profile`, checked with `Test-ProfileFlag`

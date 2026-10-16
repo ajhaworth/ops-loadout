@@ -35,7 +35,7 @@ pub use macos::{brew_env, hydrate, job_command, launch, launch_targets, channels
 #[cfg(target_os = "windows")]
 mod windows;
 #[cfg(target_os = "windows")]
-pub use windows::{hydrate, job_command, launch, launch_targets, channels, open_url, refresh_icon, reveal, task_command};
+pub use windows::{hydrate, job_command, launch, launch_targets, channels, open_url, refresh_icon, refresh_path, reveal, task_command};
 
 // Linux is not a target of Loadout (no apt support in the plan), but the
 // crate should still build there.

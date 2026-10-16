@@ -3,14 +3,29 @@
 //! exe (Windows) - see CLAUDE.md "Loadout".
 use crate::emit_line;
 #[cfg(target_os = "macos")]
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
+#[cfg(target_os = "windows")]
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 
-/// Set across the relaunch so the new process brings the window back up.
-pub const REOPEN: &str = "LOADOUT_REOPEN_AFTER_UPDATE";
+/// Left in the app data dir across the relaunch so the new process brings the
+/// window back up. A file, not an environment variable: the NSIS installer's
+/// `/R` starts the new app through Explorer, which inherits nothing from us.
+pub fn reopen_marker(app: &AppHandle) -> Option<PathBuf> {
+    app.path().app_data_dir().ok().map(|dir| dir.join("reopen-after-update"))
+}
+
+fn mark_reopen(app: &AppHandle) {
+    if let Some(marker) = reopen_marker(app) {
+        if let Some(dir) = marker.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(marker, "");
+    }
+}
 
 const REPO: &str = "https://github.com/ajhaworth/ops-loadout";
 
@@ -116,7 +131,7 @@ async fn run(app: &AppHandle) {
             return say(app, &format!("Update failed: {e}"));
         }
         log(app, "Update installed, relaunching");
-        std::env::set_var(REOPEN, "1");
+        mark_reopen(app);
         // restart() never returns; the new binary comes up in its place.
         app.restart();
     }
@@ -124,11 +139,15 @@ async fn run(app: &AppHandle) {
     #[cfg(target_os = "windows")]
     {
         // ponytail: /P /R unverified on a real Windows box until the first release ships an exe.
-        // The installer and the app it relaunches inherit this environment.
-        std::env::set_var(REOPEN, "1");
+        mark_reopen(app);
         match Command::new(&file).args(["/P", "/R"]).spawn() {
             Ok(_) => app.exit(0),
-            Err(e) => say(app, &format!("Update failed: {e}")),
+            Err(e) => {
+                if let Some(marker) = reopen_marker(app) {
+                    let _ = std::fs::remove_file(marker);
+                }
+                say(app, &format!("Update failed: {e}"))
+            }
         }
     }
 
@@ -188,8 +207,10 @@ fn mounted_app(mnt: &Path) -> Result<PathBuf, String> {
 }
 
 /// Runs a command to completion, stdout on success, stderr in the error.
+/// `platform::command`, so curl opens no console window on Windows (one that
+/// would sit there for the whole download, and kill it if closed).
 fn sh(program: &str, args: &[&str]) -> Result<String, String> {
-    let out = Command::new(program)
+    let out = crate::platform::command(program)
         .args(args)
         .output()
         .map_err(|e| format!("{program}: {e}"))?;

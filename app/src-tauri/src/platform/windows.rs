@@ -7,9 +7,18 @@ use base64::Engine;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 
+/// pwsh when it is on PATH, else Windows PowerShell. Probing means starting a
+/// pwsh, so a hit is remembered; a miss is not, so a pwsh installed from the
+/// Prerequisites row is picked up without a restart.
 fn shell() -> &'static str {
+    static PWSH: AtomicBool = AtomicBool::new(false);
+    if PWSH.load(Ordering::Relaxed) {
+        return "pwsh";
+    }
     if command("pwsh").arg("-Version").output().is_ok() {
+        PWSH.store(true, Ordering::Relaxed);
         "pwsh"
     } else {
         "powershell.exe"
@@ -29,6 +38,12 @@ fn base_args(resources: &Path) -> Vec<String> {
     vec![
         "-NoProfile".into(),
         "-NonInteractive".into(),
+        // Windows PowerShell's default policy on client Windows is Restricted,
+        // and RemoteSigned refuses a checkout carrying Mark of the Web; either
+        // would fail every call. -File only, so the repo's scripts it imports
+        // run under the same process policy.
+        "-ExecutionPolicy".into(),
+        "Bypass".into(),
         "-File".into(),
         bridge(resources).to_string_lossy().to_string(),
     ]
@@ -38,6 +53,13 @@ fn icon(exe: &str, id: &str, cache_dir: &Path, repo: &Path, resources: &Path) ->
     // Its own dir so the 32px icons cached before 256px extraction go unused.
     let dir = cache_dir.join("icons-256");
     let png = dir.join(cache_name(id));
+    // `<id>.failed` holds a target whose extraction failed, so a
+    // scan does not spend a pwsh start on it again. Keyed by target: a new
+    // exe path (an update moved it) gets a fresh try.
+    let failed = dir.join(format!("{}.failed", cache_name(id)));
+    if std::fs::read_to_string(&failed).is_ok_and(|t| t == exe) {
+        return None;
+    }
 
     if !png.is_file() {
         std::fs::create_dir_all(&dir).ok()?;
@@ -54,6 +76,7 @@ fn icon(exe: &str, id: &str, cache_dir: &Path, repo: &Path, resources: &Path) ->
             .ok()
             .is_some_and(|o| o.status.success());
         if !ok {
+            let _ = std::fs::write(&failed, exe);
             return None;
         }
     }
@@ -66,15 +89,36 @@ fn icon(exe: &str, id: &str, cache_dir: &Path, repo: &Path, resources: &Path) ->
 }
 
 pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, resources: &Path) {
+    hydrate_only(apps, None, cache_dir, repo, resources);
+}
+
+/// `only` limits the bridge's status to one catalog id, which skips `winget
+/// list` and the GitHub API for every other app.
+fn hydrate_only(apps: &mut [App], only: Option<&str>, cache_dir: &Path, repo: &Path, resources: &Path) {
     let mut args = base_args(resources);
     args.push("status".into());
     args.push(repo.to_string_lossy().to_string());
+    args.extend(only.map(str::to_string));
 
     let out = match command(shell()).args(&args).output() {
         Ok(o) if o.status.success() => o.stdout,
-        _ => return,
+        Ok(o) => {
+            eprintln!("bridge status failed: {}", String::from_utf8_lossy(&o.stderr).trim());
+            return;
+        }
+        Err(e) => {
+            eprintln!("bridge status: {e}");
+            return;
+        }
     };
-    let rows: Vec<Value> = serde_json::from_slice(&out).unwrap_or_default();
+    let rows: Vec<Value> = match serde_json::from_slice(&out) {
+        Ok(rows) => rows,
+        Err(e) => {
+            let text: String = String::from_utf8_lossy(&out).chars().take(300).collect();
+            eprintln!("bridge status is not JSON ({e}): {text}");
+            return;
+        }
+    };
 
     for app in apps.iter_mut() {
         let Some(row) = rows
@@ -104,7 +148,7 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, resources: &Path
 
 pub fn refresh_icon(app: &mut App, cache_dir: &Path, repo: &Path, resources: &Path) {
     let mut one = [app.clone()];
-    hydrate(&mut one, cache_dir, repo, resources);
+    hydrate_only(&mut one, Some(app.id.as_str()), cache_dir, repo, resources);
     *app = one.into_iter().next().unwrap();
 }
 
@@ -135,13 +179,10 @@ pub fn channels(_app: &App, _repo: &Path, _resources: &Path) -> Vec<String> {
 }
 
 pub fn job_command(action: &str, app: &App, repo: &Path, resources: &Path) -> Result<Cmd, String> {
-    // The repo's own upgrade path is a -Force reinstall (winget: upgrade), so
-    // both map to it.
+    // The bridge maps reinstall per kind: installer scripts take it as is,
+    // winget runs install --force, a GitHub release reinstalls with -Force.
     let verb = match action {
-        "install" => "install",
-        "uninstall" => "uninstall",
-        "update" | "reinstall" => "update",
-        "configure" => "configure",
+        "install" | "uninstall" | "update" | "reinstall" | "configure" => action,
         other => return Err(format!("unknown action {other}")),
     };
     bridge_job(verb, app, repo, resources)
@@ -170,6 +211,30 @@ pub fn open_url(url: &str, resources: &Path) -> Result<(), String> {
         .success()
         .then_some(())
         .ok_or_else(|| format!("could not open {url}"))
+}
+
+/// Reloads PATH from the registry into this process, so a tool installed
+/// since Loadout started (git or pwsh from the Prerequisites rows) is found
+/// by what Loadout runs itself - `git pull`, the pwsh probe - without a
+/// restart. The bridge does the same for its own children.
+pub fn refresh_path() {
+    let script = "[Environment]::GetEnvironmentVariable('Path','Machine') + ';' + \
+                  [Environment]::GetEnvironmentVariable('Path','User')";
+    let Ok(out) = command(shell()).args(["-NoProfile", "-NonInteractive", "-Command", script]).output() else {
+        return;
+    };
+    let fresh = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if !out.status.success() || fresh.is_empty() {
+        return;
+    }
+    let current = std::env::var("PATH").unwrap_or_default();
+    let mut seen = std::collections::HashSet::new();
+    let merged: Vec<&str> = fresh
+        .split(';')
+        .chain(current.split(';'))
+        .filter(|p| !p.is_empty() && seen.insert(p.to_ascii_lowercase()))
+        .collect();
+    std::env::set_var("PATH", merged.join(";"));
 }
 
 /// `bridge.ps1 tasks-status <repo> <section> [profile]` /

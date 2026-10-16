@@ -163,7 +163,8 @@ fn seed_bundled_repo(app: &AppHandle) -> Option<PathBuf> {
 
 /// Copy `source` over `target` unless `target/.bundled-version` already reads
 /// the version and bundle revision. Refresh scripts without deleting runtime
-/// files or overwriting saved Blender preferences and startup scenes.
+/// files or overwriting saved Blender preferences and startup scenes; only
+/// what the bundle owns outright is pruned (see `prune`).
 fn seed_dir(source: &Path, target: &Path, version: &str) -> std::io::Result<()> {
     let revision = std::fs::read_to_string(source.join(".bundle-revision")).unwrap_or_default();
     let version = if revision.trim().is_empty() {
@@ -175,22 +176,40 @@ fn seed_dir(source: &Path, target: &Path, version: &str) -> std::io::Result<()> 
     if std::fs::read_to_string(&stamp).is_ok_and(|s| s.trim() == version) {
         return Ok(());
     }
-    prune_lists(&source.join("config/packages"), &target.join("config/packages"))?;
+    prune(&source.join("config/packages"), &target.join("config/packages"), Some("txt"))?;
+    for code in ["lib", "platforms"] {
+        prune(&source.join(code), &target.join(code), None)?;
+    }
     copy_over(source, target)?;
     std::fs::write(stamp, version)
 }
 
-/// Package lists are the one part of the copy the bundle owns outright, so a
-/// list the new bundle no longer ships goes: after a rename the old file would
-/// otherwise list its apps a second time. Nothing else is ever deleted.
-fn prune_lists(source: &Path, target: &Path) -> std::io::Result<()> {
+/// Deletes files under `target` that `source` no longer has, limited to files
+/// with extension `ext` when one is given. Only for trees the bundle owns
+/// outright, since anything else there is lost:
+/// - package lists (`.txt` in `config/packages`): after a rename the old file
+///   would list its apps a second time.
+/// - `lib/` and `platforms/`: code only, nothing writes runtime state there.
+///   Scripts are discovered by directory listing, so a removed defaults
+///   module kept running from the seeded copy - as a permanently failed row.
+///
+/// Nothing else is ever deleted. A `source` that is missing altogether is left
+/// alone rather than read as "everything went".
+fn prune(source: &Path, target: &Path, ext: Option<&str>) -> std::io::Result<()> {
+    if !source.is_dir() {
+        return Ok(());
+    }
     let Ok(entries) = std::fs::read_dir(target) else { return Ok(()) };
     for entry in entries {
         let entry = entry?;
         let from = source.join(entry.file_name());
         if entry.file_type()?.is_dir() {
-            prune_lists(&from, &entry.path())?;
-        } else if entry.path().extension().is_some_and(|e| e == "txt") && !from.exists() {
+            if from.is_dir() {
+                prune(&from, &entry.path(), ext)?;
+            } else if ext.is_none() {
+                std::fs::remove_dir_all(entry.path())?;
+            }
+        } else if ext.map_or(true, |e| entry.path().extension().is_some_and(|x| x == e)) && !from.exists() {
             std::fs::remove_file(entry.path())?;
         }
     }
@@ -446,6 +465,36 @@ mod tests {
     }
 
     use super::seed_dir;
+
+    #[test]
+    fn reseed_prunes_removed_scripts_and_lists_but_keeps_runtime_files() {
+        let tmp = std::env::temp_dir().join(format!("ops-seed-prune-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let (source, target) = (tmp.join("bundled"), tmp.join("repo"));
+        let gone = "platforms/windows/defaults/comfyui.ps1";
+        let kept = "platforms/windows/defaults/explorer.ps1";
+        write(&source.join(gone), "old module");
+        write(&source.join(kept), "module");
+        write(&source.join("lib/windows/old/helper.psm1"), "old");
+        write(&source.join("config/packages/windows/winget/old.txt"), "A.B");
+        seed_dir(&source, &target, "0.1.0").unwrap();
+        write(&target.join("config/sidefx.local"), "secret");
+        write(&target.join("config/packages/windows/winget/notes.md"), "mine");
+
+        std::fs::remove_file(source.join(gone)).unwrap();
+        std::fs::remove_dir_all(source.join("lib/windows/old")).unwrap();
+        std::fs::remove_file(source.join("config/packages/windows/winget/old.txt")).unwrap();
+        write(&source.join("lib/windows/common.psm1"), "new");
+        seed_dir(&source, &target, "0.2.0").unwrap();
+
+        assert!(!target.join(gone).exists(), "removed defaults module is pruned");
+        assert!(!target.join("lib/windows/old").exists(), "removed lib dir is pruned");
+        assert!(!target.join("config/packages/windows/winget/old.txt").exists(), "removed list is pruned");
+        assert!(target.join(kept).exists());
+        assert!(target.join("config/sidefx.local").exists(), "runtime config survives");
+        assert!(target.join("config/packages/windows/winget/notes.md").exists(), "non-list file survives");
+        std::fs::remove_dir_all(tmp).unwrap();
+    }
 
     fn write(path: &std::path::Path, body: &str) {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();

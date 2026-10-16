@@ -420,6 +420,10 @@ async fn run_task(handle: AppHandle, store: State<'_, Store>, id: String, sectio
 
     std::thread::spawn(move || {
         let ok = run_streaming(&handle, &id, "apply", cmd);
+        #[cfg(target_os = "windows")]
+        if ok && section == "prereq" {
+            platform::refresh_path();
+        }
         let _ = handle.emit(
             "install-done",
             serde_json::json!({ "id": id, "ok": ok, "action": "apply" }),
@@ -437,10 +441,13 @@ async fn pull_repo(handle: AppHandle, store: State<'_, Store>) -> Result<(), Str
     if !repo.join(".git").exists() {
         return Err(format!("{} is not a git checkout", repo.display()));
     }
+    // git runs without a terminal, so a credential prompt would wait forever
+    // on nothing; fail instead and say why. (Not GIT_SSH_COMMAND for ssh's
+    // BatchMode: it would override a configured core.sshCommand.)
     let cmd = platform::Cmd {
         program: "git".into(),
         args: vec!["-C".into(), repo.to_string_lossy().into(), "pull".into(), "--ff-only".into()],
-        env: vec![],
+        env: vec![("GIT_TERMINAL_PROMPT".into(), "0".into())],
     };
 
     std::thread::spawn(move || {
@@ -586,8 +593,15 @@ fn run_streaming(handle: &AppHandle, id: &str, action: &str, cmd: platform::Cmd)
         let id = id.to_string();
         let action = action.to_string();
         pumps.push(std::thread::spawn(move || {
-            for line in BufReader::new(pipe).lines().map_while(Result::ok) {
-                emit_line(&handle, &id, &action, &line);
+            // Bytes, not `lines()`: that errors on the first invalid UTF-8
+            // line (a tool writing its console codepage), which used to end the
+            // pump and leave the rest of the job's output unread.
+            let mut reader = BufReader::new(pipe);
+            let mut buf = Vec::new();
+            while reader.read_until(b'\n', &mut buf).is_ok_and(|n| n > 0) {
+                let line = String::from_utf8_lossy(&buf);
+                emit_line(&handle, &id, &action, line.trim_end_matches(&['\r', '\n'][..]));
+                buf.clear();
             }
         }));
     }
@@ -703,8 +717,8 @@ fn main() {
                 })
                 .build(app)?;
 
-            if std::env::var_os(update::REOPEN).is_some() {
-                std::env::remove_var(update::REOPEN);
+            if let Some(marker) = update::reopen_marker(app.handle()).filter(|m| m.exists()) {
+                let _ = std::fs::remove_file(marker);
                 show_main(app.handle());
             }
 
