@@ -381,9 +381,11 @@ Assert-Equal 'update_check_interval = 0' $sunLines[1] "replaced line keeps its p
 # ---------------------------------------------------------------------------
 Write-Section "ComfyUI model config"
 
-Assert-True ($windowsProfile.ContainsKey('COMFYUI_MODEL_PATH')) "COMFYUI_MODEL_PATH is set in windows.conf"
+# Declared even while empty (model library managed by hand), so the switch
+# stays visible in the profile.
+Assert-True ($windowsProfile.ContainsKey('COMFYUI_MODEL_PATH')) "COMFYUI_MODEL_PATH is declared in windows.conf"
 
-$modelPath = $windowsProfile['COMFYUI_MODEL_PATH']
+$modelPath = 'D:\models'
 
 # A share already using ComfyUI's own names needs no renaming
 $native = @(Resolve-ComfyModelFolders -FolderNames @('checkpoints', 'loras', 'vae'))

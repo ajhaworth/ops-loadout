@@ -173,7 +173,10 @@ by `COMFYUI_LISTEN` and `COMFYUI_PORT`:
   `installations.json`, merging rather than replacing (`Merge-ComfyLaunchArgs`
   keeps `--enable-manager` and is idempotent across re-runs)
 - opens inbound TCP on that port, scoped to `LocalSubnet` on `Private`
-  networks. Needs Administrator and skips cleanly without it.
+  networks. Needs Administrator and warns without it. An enabled inbound
+  Allow rule that already covers the port (`Get-ComfyPortAllowRule`; this
+  machine has one named `ComfyUI`, made outside this repo) counts as open and
+  is left alone.
 
 The port is pinned rather than left to Desktop's automatic selection, because a
 firewall rule and a bookmark on another machine both need it to stay put.
@@ -897,11 +900,11 @@ Desktop keeps its local folder for downloads, this adds the library on top.
 - omits `is_default`, leaving Desktop's own folder as the download target
 - preserves any pre-existing file once as `.orig` before first overwrite
 
-`COMFYUI_MODEL_PATH` is `D:\diffusion`, which uses ComfyUI's own folder names, so
-the mapping is 1:1 and the generated yaml is plain identity entries. It was
-a NAS share until loading models over SMB proved too slow; that
-copy is kept as a manual archive and the "unreachable" branch above no longer
-fires in practice.
+`COMFYUI_MODEL_PATH` is empty in `windows.conf`: the user sets up the model
+library by hand in ComfyUI, so this step skips and an existing
+`extra_model_paths.yaml` is left as it is. It was `D:\diffusion` (ComfyUI's own
+folder names, a 1:1 mapping), and a NAS share before that, until loading
+models over SMB proved too slow.
 
 The alias candidates in `Get-ComfyModelFolderMap` (`Stable-diffusion` →
 `checkpoints`, `Lora` → `loras`, `ESRGAN` → `upscale_models`) are **kept

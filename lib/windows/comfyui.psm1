@@ -852,6 +852,25 @@ function Set-ComfyManagerNetworkMode {
     }
 }
 
+# An enabled inbound Allow rule, other than ours, whose TCP local ports include
+# $Port; $null when there is none. Port filters come from one -All query:
+# asking rule by rule costs ~60 ms each.
+function Get-ComfyPortAllowRule {
+    param([Parameter(Mandatory)][string]$Port)
+
+    $ruleIds = @{}
+    foreach ($filter in @(Get-NetFirewallPortFilter -All -ErrorAction SilentlyContinue)) {
+        if ("$($filter.Protocol)" -eq 'TCP' -and @($filter.LocalPort) -contains $Port) {
+            $ruleIds[$filter.InstanceID] = $true
+        }
+    }
+    if ($ruleIds.Count -eq 0) { return $null }
+
+    return @(Get-NetFirewallRule -Direction Inbound -Action Allow -Enabled True -ErrorAction SilentlyContinue |
+        Where-Object { $ruleIds.ContainsKey($_.Name) -and $_.DisplayName -ne $script:ComfyFirewallRule }) |
+        Select-Object -First 1
+}
+
 function Set-ComfyFirewallRule {
     param(
         [Parameter(Mandatory)]
@@ -914,13 +933,22 @@ function Set-ComfyFirewallRule {
         return
     }
 
+    # A rule made elsewhere (by hand, or ops-server's Ansible) may already open
+    # the port. It is not ours to change, and adding a second one on top would
+    # only take a UAC prompt for nothing.
+    $other = Get-ComfyPortAllowRule -Port $Port
+    if ($other) {
+        Write-Skip "TCP $Port is already open by the firewall rule '$($other.DisplayName)'"
+        return
+    }
+
     if ($DryRun) {
         Write-DryRun "Would allow inbound TCP $Port from the local subnet (private networks)"
         return
     }
 
     if (-not (Test-Administrator)) {
-        Write-Skip "Opening TCP $Port needs Administrator"
+        Write-Warn "Opening TCP $Port needs Administrator - run Loadout elevated once, or add the rule by hand"
         return
     }
 
