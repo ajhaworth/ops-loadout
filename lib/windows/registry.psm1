@@ -33,6 +33,20 @@ function Reset-RegistryResults {
     $script:Results = New-RegistryResultsBag
 }
 
+# Whether writing under $Path would be refused without an elevated token: all
+# of HKLM, and the Policies branches even under HKCU. Dry-run uses it so status
+# reports needs_admin up front, the same thing the apply would hit, instead of
+# a "pending" row whose apply then fails.
+$script:IsElevated = $null
+
+function Test-RegistryWriteNeedsAdmin {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if ($null -eq $script:IsElevated) { $script:IsElevated = [bool](Test-Administrator) }
+    if ($script:IsElevated) { return $false }
+    return ($Path -like 'HKLM:*' -or $Path -match '\\Policies(\\|$)')
+}
+
 function Get-RegistryResults {
     return $script:Results
 }
@@ -151,6 +165,12 @@ function Set-RegistryValue {
             return $true
         }
 
+        if ($DryRun -and (Test-RegistryWriteNeedsAdmin -Path $Path)) {
+            Write-Skip "$display needs Administrator"
+            $script:Results.NeedsAdmin += @{ Id = $id; Label = $display; Detail = 'needs Administrator' }
+            return $true
+        }
+
         if ($DryRun) {
             Write-DryRun "Would set $display ($Path\$Name = $Value)"
             $detail = "would set to $Value"
@@ -204,6 +224,12 @@ function Remove-RegistryKey {
     if (-not (Test-Path -LiteralPath $Path)) {
         Write-Skip "$display not present"
         $script:Results.Skipped += @{ Id = $id; Label = $display; Detail = 'not present' }
+        return $true
+    }
+
+    if ($DryRun -and (Test-RegistryWriteNeedsAdmin -Path $Path)) {
+        Write-Skip "Removing $display needs Administrator"
+        $script:Results.NeedsAdmin += @{ Id = $id; Label = $display; Detail = 'needs Administrator' }
         return $true
     }
 

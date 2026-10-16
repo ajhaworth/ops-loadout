@@ -4,10 +4,11 @@
 # Comfy.ComfyUI-Desktop winget entry.
 #
 # Invoked as:
-#   pwsh -NoProfile -NonInteractive -File bridge.ps1 status  <repo>
+#   pwsh -NoProfile -NonInteractive -File bridge.ps1 status  <repo> [id]
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 install <repo> <kind> <spec>
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 uninstall <repo> <kind> <spec>
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 update <repo> <kind> <spec>
+#   pwsh -NoProfile -NonInteractive -File bridge.ps1 reinstall <repo> <kind> <spec>
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 configure <repo> <kind> <spec>
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 open    <url>
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 icon    <exe> <outpng> [repo]
@@ -22,7 +23,7 @@
 
 param(
     [Parameter(Mandatory, Position = 0)]
-    [ValidateSet('status', 'install', 'uninstall', 'update', 'configure', 'icon', 'launch', 'open', 'tasks-status', 'tasks-apply')]
+    [ValidateSet('status', 'install', 'uninstall', 'update', 'reinstall', 'configure', 'icon', 'launch', 'open', 'tasks-status', 'tasks-apply')]
     [string]$Verb,
 
     [Parameter(Position = 1, ValueFromRemainingArguments)]
@@ -30,6 +31,25 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Loadout reads every byte of this process's output as UTF-8. The hidden
+# console it runs on otherwise uses the OEM codepage, which turns a path under
+# a non-ASCII user name into invalid UTF-8: the status JSON fails to parse
+# and a job's log stops at that line.
+$utf8 = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = $utf8
+$OutputEncoding = $utf8
+
+# Loadout keeps the PATH it started with, so a tool installed since (git and
+# pwsh from the Prerequisites rows, uv, claude) would read as missing until it
+# restarts. Rebuild it from the registry, keeping anything process-only.
+$freshPath = @(
+    [Environment]::GetEnvironmentVariable('Path', 'Machine'),
+    [Environment]::GetEnvironmentVariable('Path', 'User'),
+    $env:Path
+) -join ';'
+$env:Path = (@([Environment]::ExpandEnvironmentVariables($freshPath) -split ';' |
+    Where-Object { $_ } | Select-Object -Unique) -join ';')
 
 function Import-OpsModules {
     param([string]$RepoRoot)
@@ -189,7 +209,10 @@ function Get-DotfilesStatusRowsForBridge {
         }
 
         $detail = $row.Detail
-        if (-not $detail) { $detail = 'not linked' }
+        if (-not $detail) {
+            $detail = 'not linked'
+            if ($state -eq 'applied') { $detail = 'linked' }
+        }
 
         $rows += New-TaskRow -Id "dotfiles:$($entry.Dest)" -Section 'dotfiles' -Group 'Dotfiles' `
             -Name (Split-Path -Leaf $row.Destination) -State $state -Detail $detail
@@ -341,6 +364,16 @@ function Invoke-DefaultsApply {
         Write-Host "$module needs Administrator - restart Loadout elevated"
         exit 1
     }
+    # A filtered run that matched nothing wrote nothing - a stale id, or a
+    # setting the profile now gates off - so it is not a success either.
+    if ($target -and $target -ne 'module') {
+        $results = Get-RegistryResults
+        $hit = @($results.Changed + $results.Skipped | Where-Object { $_.Id -eq $target })
+        if ($hit.Count -eq 0) {
+            Write-Host "No setting $target in $module (removed, or disabled by the profile)"
+            exit 1
+        }
+    }
 
     Write-Host "Applied $Id"
 }
@@ -464,6 +497,92 @@ function Get-SpecsIn {
     return $specs
 }
 
+# One row per catalog app: { id, installed, outdated, exe }. -Only (a catalog
+# id such as winget:Valve.Steam) limits it to that app, which skips the slow
+# parts - winget list, GitHub's API - for every other kind.
+function Get-AppStatusRows {
+    param([string]$RepoRoot, [string]$Only = '')
+
+    $kindOf = ''
+    if ($Only) { $kindOf = ($Only -split ':', 2)[0] }
+    $want = { param($id) (-not $Only) -or $id -eq $Only }
+    $result = @()
+
+    # Installer scripts answer status like the macOS ones: the launch
+    # target on the first line, `outdated` on a second, exit 1 when absent.
+    if (-not $kindOf -or $kindOf -eq 'installer') {
+        foreach ($spec in Get-SpecsIn (Join-Path $RepoRoot 'config\packages\windows\installers')) {
+            $token = Get-SpecRepo $spec
+            if (-not (& $want "installer:$token")) { continue }
+            # One broken script must not take every other tile down with it:
+            # a throw here would end the verb with no JSON at all.
+            $out = @()
+            $code = 1
+            try {
+                $out = @(& (Get-InstallerScript -RepoRoot $RepoRoot -Token $token) status 2>$null)
+                $code = $LASTEXITCODE
+            } catch {
+                [Console]::Error.WriteLine("installer:$token status failed: $_")
+            }
+            $installed = ($code -eq 0 -and $out.Count -gt 0)
+            $result += [pscustomobject]@{
+                id        = "installer:$token"
+                installed = $installed
+                outdated  = ($installed -and $out -contains 'outdated')
+                exe       = $(if ($installed) { [string]$out[0] } else { '' })
+            }
+        }
+    }
+
+    if (-not $kindOf -or $kindOf -eq 'winget') {
+        $parsed = @(foreach ($spec in Get-SpecsIn (Join-Path $RepoRoot 'config\packages\windows\winget')) {
+            try { ConvertFrom-WingetPackageSpec -Spec $spec } catch { }
+        })
+        $parsed = @($parsed | Where-Object { & $want "winget:$($_.Id)" })
+        if ($parsed.Count -gt 0) {
+            $state = Get-WingetState -Ids @($parsed | ForEach-Object { $_.Id })
+            foreach ($p in $parsed) {
+                $installed = $state.ContainsKey($p.Id)
+                $exe = ''
+                $outdated = $false
+                if ($installed) {
+                    $exe = Get-ShortcutTarget -Name $p.Name
+                    $outdated = $state[$p.Id]
+                }
+                $result += [pscustomobject]@{
+                    id        = "winget:$($p.Id)"
+                    installed = $installed
+                    outdated  = $outdated
+                    exe       = $exe
+                }
+            }
+        }
+    }
+
+    if (-not $kindOf -or $kindOf -eq 'github') {
+        foreach ($spec in Get-SpecsIn (Join-Path $RepoRoot 'config\packages\windows\github')) {
+            if (-not (& $want "github:$(Get-SpecRepo $spec)")) { continue }
+            $parsed = $null
+            try { $parsed = ConvertFrom-GitHubPackageSpec -Spec $spec } catch { continue }
+            $existing = Get-InstalledProgram -NamePattern $parsed.DisplayName
+            $exe = ''
+            $outdated = $false
+            if ($null -ne $existing) {
+                $exe = Get-ProgramExe -DisplayName $existing.Name
+                $outdated = Test-GitHubOutdated -Spec $parsed -InstalledVersion $existing.Version
+            }
+            $result += [pscustomobject]@{
+                id        = "github:$(Get-SpecRepo $spec)"
+                installed = ($null -ne $existing)
+                outdated  = $outdated
+                exe       = $exe
+            }
+        }
+    }
+
+    return $result
+}
+
 switch ($Verb) {
     'tasks-status' {
         $repoRoot = $Args2[0]
@@ -506,71 +625,18 @@ switch ($Verb) {
     'status' {
         $repoRoot = $Args2[0]
         Import-OpsModules -RepoRoot $repoRoot
-        $result = @()
-
-        # Installer scripts answer status like the macOS ones: the launch
-        # target on the first line, `outdated` on a second, exit 1 when absent.
-        foreach ($spec in Get-SpecsIn (Join-Path $repoRoot 'config\packages\windows\installers')) {
-            $token = Get-SpecRepo $spec
-            $out = @(& (Get-InstallerScript -RepoRoot $repoRoot -Token $token) status 2>$null)
-            $installed = ($LASTEXITCODE -eq 0 -and $out.Count -gt 0)
-            $result += [pscustomobject]@{
-                id        = "installer:$token"
-                installed = $installed
-                outdated  = ($installed -and $out -contains 'outdated')
-                exe       = $(if ($installed) { [string]$out[0] } else { '' })
-            }
-        }
-
-        $wingetSpecs = @(Get-SpecsIn (Join-Path $repoRoot 'config\packages\windows\winget'))
-        if ($wingetSpecs.Count -gt 0) {
-            $parsed = @(foreach ($spec in $wingetSpecs) {
-                try { ConvertFrom-WingetPackageSpec -Spec $spec } catch { }
-            })
-            $state = Get-WingetState -Ids @($parsed | ForEach-Object { $_.Id })
-            foreach ($p in $parsed) {
-                $installed = $state.ContainsKey($p.Id)
-                $exe = ''
-                $outdated = $false
-                if ($installed) {
-                    $exe = Get-ShortcutTarget -Name $p.Name
-                    $outdated = $state[$p.Id]
-                }
-                $result += [pscustomobject]@{
-                    id        = "winget:$($p.Id)"
-                    installed = $installed
-                    outdated  = $outdated
-                    exe       = $exe
-                }
-            }
-        }
-
-        foreach ($spec in Get-SpecsIn (Join-Path $repoRoot 'config\packages\windows\github')) {
-            $parsed = $null
-            try { $parsed = ConvertFrom-GitHubPackageSpec -Spec $spec } catch { continue }
-            $existing = Get-InstalledProgram -NamePattern $parsed.DisplayName
-            $exe = ''
-            $outdated = $false
-            if ($null -ne $existing) {
-                $exe = Get-ProgramExe -DisplayName $existing.Name
-                $outdated = Test-GitHubOutdated -Spec $parsed -InstalledVersion $existing.Version
-            }
-            $result += [pscustomobject]@{
-                id        = "github:$(Get-SpecRepo $spec)"
-                installed = ($null -ne $existing)
-                outdated  = $outdated
-                exe       = $exe
-            }
-        }
-
+        # Every helper logs through Write-Host (stream 6); nothing on stdout but
+        # the one JSON array, or Loadout reads every tile as not installed.
+        $rows = & { Get-AppStatusRows -RepoRoot $repoRoot -Only $Args2[1] } 6>$null
         # @() keeps a single entry from serialising as a bare object
-        ConvertTo-Json -InputObject @($result) -Depth 4 -Compress
+        ConvertTo-Json -InputObject @($rows) -Depth 4 -Compress
     }
 
-    { $_ -in 'install', 'update' } {
+    { $_ -in 'install', 'update', 'reinstall' } {
         # -Force is the repo's upgrade path: it reinstalls a GitHub release at
-        # the latest tag and fast-forwards node checkouts. winget upgrades.
-        $force = ($Verb -eq 'update')
+        # the latest tag and fast-forwards node checkouts. winget upgrades, and
+        # reinstalls with install --force; installer scripts get their own verb.
+        $force = ($Verb -ne 'install')
         $repoRoot = $Args2[0]
         $kind = $Args2[1]
         $spec = $Args2[2]
@@ -582,11 +648,15 @@ switch ($Verb) {
         }
         if ($kind -eq 'winget') {
             $wingetVerb = 'install'
-            if ($force) { $wingetVerb = 'upgrade' }
-            Invoke-WingetPackage -Verb $wingetVerb -Spec $spec | Out-Null
+            if ($Verb -eq 'update') { $wingetVerb = 'upgrade' }
+            $null = Invoke-WingetPackage -Verb $wingetVerb -Spec $spec -Force:($Verb -eq 'reinstall')
         } else {
-            Install-GitHubRelease -PackageSpec $spec -Force:$force | Out-Null
+            $null = Install-GitHubRelease -PackageSpec $spec -Force:$force
         }
+        # Config for an app that did not install would fail for that reason
+        # alone, or configure the old version as if it were the new one.
+        if ((Get-FailureCount) -gt 0) { exit 1 }
+
         # Profile-gated parts (ComfyUI's node lists) read the profile Loadout passes.
         $config = Get-BridgeProfileConfig -ProfileName $env:LOADOUT_PROFILE
         Invoke-AppConfig -Spec $spec -RepoRoot $repoRoot -ProfileConfig $config -Force:$force

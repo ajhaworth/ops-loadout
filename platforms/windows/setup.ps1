@@ -248,6 +248,13 @@ function Invoke-FullSetup {
     Write-Host ""
 }
 
+# debloat and launcher have no listing; quietly ignoring `ls` would run a real
+# removal pass or a build in its place.
+if ($SubCommand -eq 'ls' -and $Command -in @('debloat', 'launcher', '')) {
+    Write-Err "'ls' works with packages, dotfiles and defaults only"
+    exit 1
+}
+
 # Main dispatch
 switch ($Command) {
     'packages' {

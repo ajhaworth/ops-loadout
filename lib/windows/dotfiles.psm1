@@ -259,20 +259,24 @@ function Backup-ExistingPath {
 
     if ($DryRun) {
         Write-DryRun "Would back up: $TargetPath -> $backupPath"
-        return
+        return $true
     }
 
     try {
+        # Stop: module code runs under the global Continue preference, so
+        # without it a failed move would never reach the catch - and the
+        # caller would go on to replace a file it never backed up.
         if (-not (Test-Path -LiteralPath $backupDir)) {
-            New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+            New-Item -ItemType Directory -Path $backupDir -Force -ErrorAction Stop | Out-Null
         }
 
         Write-Status "Backing up: $name -> $backupPath"
-        Move-Item -LiteralPath $TargetPath -Destination $backupPath -Force
+        Move-Item -LiteralPath $TargetPath -Destination $backupPath -Force -ErrorAction Stop
+        return $true
     } catch {
         Write-Err "Failed to back up ${name}: $_"
         $script:Results.Failed += $name
-        return
+        return $false
     }
 }
 
@@ -348,7 +352,8 @@ function New-Symlink {
 
     # Existing real file (not a symlink) - back it up before replacing
     if ((Test-Path -LiteralPath $destFull) -and -not (Test-Symlink -Path $destFull)) {
-        Backup-ExistingPath -TargetPath $destFull -DryRun:$DryRun
+        # Never replace what could not be backed up.
+        if (-not (Backup-ExistingPath -TargetPath $destFull -DryRun:$DryRun)) { return $false }
     }
 
     # Create parent directory if needed

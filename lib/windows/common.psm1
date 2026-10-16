@@ -78,6 +78,28 @@ function Write-SubStep {
     Write-Host $Message
 }
 
+# Relay a native command's output to the host, one line per line, so it
+# reaches the console or Loadout's log without becoming part of the calling
+# function's return value. Left uncaptured, a native call inside a function
+# that returns $true/$false makes the result an array, and `-not @('...', $false)`
+# is $false - a failed job then reports success. Drops blank lines and
+# winget's spinner/progress-bar redraws.
+#   & winget @args 2>&1 | Write-NativeOutput
+function Write-NativeOutput {
+    param([Parameter(ValueFromPipeline)]$InputObject)
+    process {
+        foreach ($line in ("$InputObject" -split "`r")) {
+            $line = $line.TrimEnd()
+            if (-not $line.Trim()) { continue }
+            if ($line -match '^\s*[-\\|/]\s*$') { continue }
+            # Progress-bar blocks; escaped so 5.1 reading this file as ANSI
+            # still sees them.
+            if ($line -match '[\u2588\u2592]') { continue }
+            Write-Host $line
+        }
+    }
+}
+
 function Write-Banner {
     Write-Host ""
     Write-Host "   ============================================" -ForegroundColor Magenta
@@ -137,12 +159,12 @@ function Read-ConfFile {
         if ($line -and -not $line.StartsWith('#')) {
             # Remove trailing comments (anything after # not in quotes)
             $line = $line -replace '\s+#.*$', ''
-            if ($line -match '^([A-Z_]+)="([^"]*)"') {
+            if ($line -match '^([A-Z0-9_]+)="([^"]*)"') {
                 $config[$matches[1]] = $matches[2]
-            } elseif ($line -match "^([A-Z_]+)='([^']*)'") {
+            } elseif ($line -match "^([A-Z0-9_]+)='([^']*)'") {
                 # Loadout's Settings writes sidefx.local single-quoted
                 $config[$matches[1]] = $matches[2]
-            } elseif ($line -match '^([A-Z_]+)=([^\s]*)') {
+            } elseif ($line -match '^([A-Z0-9_]+)=([^\s]*)') {
                 $config[$matches[1]] = $matches[2]
             }
         }
@@ -155,15 +177,17 @@ function Read-ConfFile {
 # Unset flags default to enabled, matching lib/symlink.sh and homebrew.sh.
 function Test-ProfileFlag {
     param(
+        # Not $Profile: that shadows the $PROFILE automatic variable.
         [Parameter(Mandatory)]
-        [hashtable]$Profile,
+        [Alias('Profile')]
+        [hashtable]$ProfileConfig,
         [Parameter(Mandatory)]
         [string]$Flag
     )
 
     $value = 'true'
-    if ($Profile.ContainsKey($Flag)) {
-        $value = $Profile[$Flag]
+    if ($ProfileConfig.ContainsKey($Flag)) {
+        $value = $ProfileConfig[$Flag]
     }
     return $value -eq 'true'
 }
@@ -171,15 +195,16 @@ function Test-ProfileFlag {
 function Assert-ProfileOS {
     param(
         [Parameter(Mandatory)]
-        [hashtable]$Profile,
+        [Alias('Profile')]
+        [hashtable]$ProfileConfig,
         [Parameter(Mandatory)]
         [string]$ExpectedOS,
         [string]$ProfileName = ''
     )
 
     $profileOS = ''
-    if ($Profile.ContainsKey('PROFILE_OS')) {
-        $profileOS = $Profile['PROFILE_OS']
+    if ($ProfileConfig.ContainsKey('PROFILE_OS')) {
+        $profileOS = $ProfileConfig['PROFILE_OS']
     }
 
     if ($profileOS -and $profileOS -ne $ExpectedOS) {
@@ -270,6 +295,7 @@ Export-ModuleMember -Function @(
     'Write-DryRun',
     'Write-Step',
     'Write-SubStep',
+    'Write-NativeOutput',
     'Write-Banner',
     'Get-RepoRoot',
     'Test-IsWindowsPlatform',

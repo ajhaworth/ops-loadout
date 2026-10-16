@@ -83,6 +83,12 @@ function Install-NvidiaApp {
     $code = Invoke-NvidiaInstaller -Url $latest.Url -Arguments @('-s')
     $after = Get-NvidiaAppInstalled
     if (-not $after) { Write-Err "The installer exited $code without installing the NVIDIA app"; return $false }
+    # An update the installer refused (or a declined UAC prompt) still leaves
+    # the old version installed, so presence alone proves nothing.
+    if ([version]$after.Version -lt [version]$latest.Version -or ($Action -eq 'reinstall' -and $code -ne 0)) {
+        Write-Err "The installer exited $code; NVIDIA app $($after.Version) is still installed, not $($latest.Version)"
+        return $false
+    }
     Write-Success "NVIDIA app $($after.Version) installed"
     return $true
 }

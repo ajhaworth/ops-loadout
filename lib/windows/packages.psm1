@@ -110,7 +110,9 @@ function ConvertTo-VersionParts {
     if (-not $Version) { return $null }
 
     $trimmed = $Version.Trim() -replace '^[vV]', ''
-    if ($trimmed -notmatch '^(\d+(?:\.\d+)*)(?:[-+](.+))?$') { return $null }
+    # +build metadata never affects precedence (semver 10), so it is dropped.
+    $trimmed = $trimmed -replace '\+.*$', ''
+    if ($trimmed -notmatch '^(\d+(?:\.\d+)*)(?:-(.+))?$') { return $null }
 
     $numbers = @()
     foreach ($piece in ($matches[1] -split '\.')) {
@@ -170,9 +172,31 @@ function Compare-VersionString {
     if (-not $leftParts.PreRelease) { return 1 }
     if (-not $rightParts.PreRelease) { return -1 }
 
-    $ordering = [string]::Compare($leftParts.PreRelease, $rightParts.PreRelease, [System.StringComparison]::OrdinalIgnoreCase)
-    if ($ordering -gt 0) { return 1 }
-    if ($ordering -lt 0) { return -1 }
+    # Semver 11.4: dot-separated identifiers, numeric ones compared as
+    # numbers (beta.10 > beta.9) and below alphanumeric ones; a shorter list
+    # ranks below a longer one it prefixes.
+    $leftIds = @($leftParts.PreRelease -split '\.')
+    $rightIds = @($rightParts.PreRelease -split '\.')
+    $shared = [Math]::Min($leftIds.Count, $rightIds.Count)
+    for ($i = 0; $i -lt $shared; $i++) {
+        $l = $leftIds[$i]
+        $r = $rightIds[$i]
+        $lNum = $l -match '^\d+$'
+        $rNum = $r -match '^\d+$'
+        if ($lNum -and $rNum) {
+            $ordering = [decimal]$l - [decimal]$r
+        } elseif ($lNum) {
+            $ordering = -1
+        } elseif ($rNum) {
+            $ordering = 1
+        } else {
+            $ordering = [string]::Compare($l, $r, [System.StringComparison]::OrdinalIgnoreCase)
+        }
+        if ($ordering -gt 0) { return 1 }
+        if ($ordering -lt 0) { return -1 }
+    }
+    if ($leftIds.Count -gt $rightIds.Count) { return 1 }
+    if ($leftIds.Count -lt $rightIds.Count) { return -1 }
     return 0
 }
 
@@ -751,12 +775,16 @@ function Invoke-WingetPackage {
         [string]$Verb,
         [Parameter(Mandatory)]
         [string]$Spec,
-        [switch]$DryRun
+        [switch]$DryRun,
+        # install only: reinstall even when winget sees it installed (Loadout's
+        # Reinstall), where a plain install is a no-op.
+        [switch]$Force
     )
 
     $parsed = ConvertFrom-WingetPackageSpec -Spec $Spec
     $wingetArgs = @($Verb, '--id', $parsed.Id, '--exact', '--silent',
         '--accept-source-agreements', '--disable-interactivity')
+    if ($Force -and $Verb -eq 'install') { $wingetArgs += '--force' }
     # Uninstall matches what is installed, wherever it came from.
     if ($Verb -ne 'uninstall') { $wingetArgs += @('--source', 'winget', '--accept-package-agreements') }
     if ($Verb -ne 'uninstall' -and $parsed.Custom) { $wingetArgs += @('--custom', $parsed.Custom) }
@@ -772,7 +800,10 @@ function Invoke-WingetPackage {
     }
 
     Write-Host "Running: winget $($wingetArgs -join ' ')"
-    & winget @wingetArgs
+    # To the host, not the pipeline: see Write-NativeOutput. Continue so
+    # winget's stderr through 2>&1 cannot trip a caller's Stop preference.
+    $ErrorActionPreference = 'Continue'
+    & winget @wingetArgs 2>&1 | Write-NativeOutput
     $code = $LASTEXITCODE
 
     if ($code -eq 0) {

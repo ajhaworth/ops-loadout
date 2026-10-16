@@ -182,8 +182,9 @@ function Remove-ProvisionedApp {
 # ponytail: pending/failed counts here are best-effort - Set-Service and
 # Remove-AppxProvisionedPackage need Administrator but this does not
 # specifically detect an access-denied failure the way registry.psm1 does, so
-# NeedsAdmin always reports $false for these three groups. Upgrade path: teach
-# them Test-AccessDeniedError if the Setup tab needs to be precise here.
+# NeedsAdmin always reports $false for bloat. Xbox and Wake-on-LAN instead
+# report NeedsAdmin when anything is pending unelevated, and count what is
+# still pending after an apply as failed.
 
 function Invoke-DebloatBloatGroup {
     param([switch]$DryRun)
@@ -275,9 +276,7 @@ function Disable-XboxServices {
     }
 }
 
-function Invoke-DebloatXboxGroup {
-    param([switch]$DryRun)
-
+function Get-XboxPendingCount {
     $pending = 0
     foreach ($svc in $XboxServiceNames) {
         $service = Get-Service -Name $svc -ErrorAction SilentlyContinue
@@ -285,10 +284,20 @@ function Invoke-DebloatXboxGroup {
     }
     $task = Get-ScheduledTask -TaskPath '\Microsoft\XblGameSave\' -TaskName 'XblGameSaveTask' -ErrorAction SilentlyContinue
     if ($task -and $task.State -ne 'Disabled') { $pending++ }
+    return $pending
+}
 
+# Services and scheduled tasks need Administrator. Disable-XboxServices only
+# warns on a failure, so whatever is still pending afterwards is what failed.
+function Invoke-DebloatXboxGroup {
+    param([switch]$DryRun)
+
+    $pending = Get-XboxPendingCount
     Disable-XboxServices -DryRun:$DryRun
+    $failed = 0
+    if (-not $DryRun) { $failed = Get-XboxPendingCount }
 
-    return @{ Pending = $pending; NeedsAdmin = $false; Failed = 0 }
+    return @{ Pending = $pending; NeedsAdmin = ($pending -gt 0 -and -not (Test-Administrator)); Failed = $failed }
 }
 
 function Disable-GameDvr {
@@ -428,9 +437,7 @@ function Set-WakeOnLan {
     }
 }
 
-function Invoke-DebloatWolGroup {
-    param([switch]$DryRun)
-
+function Get-WolPendingCount {
     $pending = 0
     $adapter = Get-WakeOnLanAdapter
     if ($adapter) {
@@ -439,10 +446,20 @@ function Invoke-DebloatWolGroup {
             if ($prop -and $prop.DisplayValue -ne $setting.Desired) { $pending++ }
         }
     }
+    return $pending
+}
 
+# NIC properties need Administrator. Set-WakeOnLan only warns on a failure, so
+# whatever is still pending afterwards is what failed.
+function Invoke-DebloatWolGroup {
+    param([switch]$DryRun)
+
+    $pending = Get-WolPendingCount
     Set-WakeOnLan -DryRun:$DryRun
+    $failed = 0
+    if (-not $DryRun) { $failed = Get-WolPendingCount }
 
-    return @{ Pending = $pending; NeedsAdmin = $false; Failed = 0 }
+    return @{ Pending = $pending; NeedsAdmin = ($pending -gt 0 -and -not (Test-Administrator)); Failed = $failed }
 }
 
 # id -> @{ Label (Setup-tab row text); Fn (Invoke-Debloat*Group function name) }.

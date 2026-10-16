@@ -1,7 +1,7 @@
 # privacy.ps1 - Advertising, telemetry and activity history
 #
-# The HKLM settings require Administrator. Without it they are reported as
-# failures and the rest still applies.
+# The HKLM settings require Administrator. Without it they report
+# needs_admin (registry.psm1) and the rest still applies.
 
 function Apply-Privacy {
     param(
@@ -18,11 +18,6 @@ function Apply-Privacy {
     )
 
     Set-RegistryValueSet -Settings $userSettings -DryRun:$DryRun
-
-    if (-not (Test-Administrator)) {
-        Write-Skip "Telemetry and activity history need Administrator"
-        return
-    }
 
     $dataCollection = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection"
     $system         = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"

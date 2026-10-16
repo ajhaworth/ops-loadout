@@ -192,13 +192,28 @@ foreach ($key in $windowsProfile.Keys) {
 # --- Read-ConfFile: sidefx.local is written single-quoted by Loadout ---------
 
 $conf = Join-Path ([IO.Path]::GetTempPath()) "ops-conf-$PID.local"
-Set-Content -LiteralPath $conf -Value @("A='one two'", 'B="three"', "C=''", 'D=four')
+Set-Content -LiteralPath $conf -Value @("A='one two'", 'B="three"', "C=''", 'D=four', 'INSTALLERS_3D="false"')
 $parsedConf = Read-ConfFile -Path $conf
 Remove-Item -LiteralPath $conf
 Assert-Equal 'one two' $parsedConf['A'] "Read-ConfFile single-quoted"
 Assert-Equal 'three' $parsedConf['B'] "Read-ConfFile double-quoted"
 Assert-Equal '' $parsedConf['C'] "Read-ConfFile empty single-quoted"
 Assert-Equal 'four' $parsedConf['D'] "Read-ConfFile bare"
+Assert-Equal 'false' $parsedConf['INSTALLERS_3D'] "Read-ConfFile reads keys with digits (INSTALLERS_3D)"
+Assert-True ($windowsProfile.ContainsKey('INSTALLERS_3D')) "windows.conf's INSTALLERS_3D is parsed"
+
+# --- Write-NativeOutput: native output goes to the host, never into a
+# function's return value, where `-not @('text', $false)` reads as success.
+
+function Test-NativeLeak {
+    & (Get-Process -Id $PID).Path -NoProfile -NonInteractive -Command "'native line'" 2>&1 | Write-NativeOutput
+    return $false
+}
+$leakResult = & { Test-NativeLeak } 6>$null
+Assert-True (-not $leakResult) "a function's `$false survives native output piped to Write-NativeOutput"
+$relayed = @('-', '\', '  |  ', '', "   $([char]0x2588)$([char]0x2592)  1 MB", "first`rsecond", 'kept') |
+    Write-NativeOutput 6>&1 | ForEach-Object { "$_" }
+Assert-Equal 'first|second|kept' ($relayed -join '|') "Write-NativeOutput drops spinner/progress lines and splits on CR"
 
 # --- winget specs ------------------------------------------------------------
 
@@ -282,6 +297,10 @@ Assert-True ($null -eq (Compare-VersionString -Left '1.18.4' -Right 'unknown')) 
 Assert-Equal 0 (Compare-VersionString -Left '1.18.4' -Right '1.18.4-beta.3' -IgnorePreRelease) "IgnorePreRelease treats a matching core as equal"
 Assert-Equal 1 (Compare-VersionString -Left '1.18.5' -Right '1.18.4-beta.3' -IgnorePreRelease) "IgnorePreRelease still sees a newer core"
 Assert-Equal 1 (Compare-VersionString -Left '1.18.4' -Right '1.18.4-beta.3') "without the switch the suffix wins (the loop this guards)"
+Assert-Equal 1 (Compare-VersionString -Left '1.18.3-beta.10' -Right '1.18.3-beta.9') "numeric prerelease parts compare as numbers"
+Assert-Equal 1 (Compare-VersionString -Left '1.0.0-rc.1' -Right '1.0.0-rc') "a longer prerelease outranks its prefix"
+Assert-Equal 1 (Compare-VersionString -Left '1.0.0-beta' -Right '1.0.0-2') "alphanumeric prerelease parts outrank numeric ones"
+Assert-Equal 0 (Compare-VersionString -Left '1.0.0' -Right '1.0.0+build5') "build metadata is ignored"
 
 # ---------------------------------------------------------------------------
 Write-Section "Dotfiles manifest"
@@ -507,6 +526,19 @@ if ($onWindows) {
     Set-RegistryValue -Path $probePath -Name 'ProbeValue' -Value 1 -Type DWord -Label 'smoke test probe' -DryRun | Out-Null
     $pendingResults = Get-RegistryResults
     Assert-Equal 1 $pendingResults.Pending.Count "Set-RegistryValue -DryRun on an absent value records into Pending"
+
+    # Status must show what the apply will hit: an HKLM or Policies write
+    # unelevated is needs_admin up front, not a pending row that then fails.
+    foreach ($adminPath in 'HKLM:\SOFTWARE\ops-loadout-smoketest', 'HKCU:\SOFTWARE\Policies\ops-loadout-smoketest') {
+        Reset-RegistryResults
+        Set-RegistryValue -Path $adminPath -Name 'ProbeValue' -Value 1 -Type DWord -Label 'smoke test probe' -DryRun | Out-Null
+        $adminResults = Get-RegistryResults
+        if (Test-Administrator) {
+            Assert-Equal 1 $adminResults.Pending.Count "elevated -DryRun on $adminPath is Pending"
+        } else {
+            Assert-Equal 1 $adminResults.NeedsAdmin.Count "unelevated -DryRun on $adminPath is NeedsAdmin"
+        }
+    }
 } else {
     Write-Skipped "Pending-bucket check requires Windows (registry provider)"
 }
@@ -606,6 +638,7 @@ if ($null -ne $verbParam) {
 Assert-True ($verbValidateSet -contains 'tasks-status') "bridge.ps1 Verb ValidateSet includes tasks-status"
 Assert-True ($verbValidateSet -contains 'tasks-apply') "bridge.ps1 Verb ValidateSet includes tasks-apply"
 Assert-True ($verbValidateSet -contains 'configure') "bridge.ps1 Verb ValidateSet includes configure"
+Assert-True ($verbValidateSet -contains 'reinstall') "bridge.ps1 Verb ValidateSet includes reinstall"
 
 # --- Get-DotfilesStatus on synthetic entries - runs everywhere, no real
 # dotfiles or $HOME involved.
@@ -643,6 +676,14 @@ if ($onWindows) {
         }
         Assert-True $allRowsComplete "every tasks-status defaults row has id/section/group/name/state/detail"
     }
+
+    # status <repo> <id> answers for that one app only - what Loadout's
+    # refresh after a job uses, so it skips winget list and GitHub's API.
+    $oneOutput = & pwsh -NoProfile -NonInteractive -File $bridgeScript status $repoRoot 'installer:nvidia-app' 2>$null
+    $oneRows = $null
+    try { $oneRows = @($oneOutput | ConvertFrom-Json) } catch { $oneRows = $null }
+    Assert-True ($null -ne $oneRows -and $oneRows.Count -eq 1 -and $oneRows[0].id -eq 'installer:nvidia-app') `
+        "status <repo> <id> returns that one row"
 } else {
     Write-Skipped "tasks-status defaults requires Windows"
 }

@@ -263,10 +263,19 @@ function Install-Blender {
     # Before the extensions, so they land in the repo's portable\extensions\.
     $link = Join-Path $dir 'portable'
     Remove-Junction -Path $link
-    if (Test-Path -LiteralPath $link) {
-        Rename-Item -LiteralPath $link -NewName "portable.bak-$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+    try {
+        if (Test-Path -LiteralPath $link) {
+            # Beside the install, not in it: the next update moves the whole
+            # install dir aside and deletes it.
+            $backup = Join-Path (Split-Path $dir -Parent) "Blender-portable.bak-$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+            Move-Item -LiteralPath $link -Destination $backup -ErrorAction Stop
+            Write-Warn "Moved an existing portable folder to $backup"
+        }
+        New-Item -ItemType Junction -Path $link -Target $portable -ErrorAction Stop | Out-Null
+    } catch {
+        Write-Err "Could not link $link to the repo: $_"
+        return $false
     }
-    New-Item -ItemType Junction -Path $link -Target $portable | Out-Null
 
     return (Invoke-BlenderSetup -Exe (Join-Path $dir 'blender.exe') -RepoRoot $RepoRoot -Version $current)
 }
@@ -319,8 +328,19 @@ function Install-BlenderBuild {
 function Uninstall-Blender {
     $dir = Get-BlenderDir
     if (-not (Test-Path -LiteralPath $dir)) { Write-Host 'Blender is not installed'; return $true }
+    if (Get-Process -Name 'blender', 'blender-launcher' -ErrorAction SilentlyContinue) {
+        Write-Err 'Blender is running; close it and try again'
+        return $false
+    }
     Remove-Junction -Path (Join-Path $dir 'portable')
-    Remove-Item -LiteralPath $dir -Recurse -Force
+    try {
+        # Stop: module code runs under the global Continue preference, where a
+        # locked file would only print an error and still report "Removed".
+        Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction Stop
+    } catch {
+        Write-Err "Could not remove ${dir}: $_"
+        return $false
+    }
     Write-Host "Removed $dir"
     return $true
 }
@@ -365,8 +385,10 @@ function Invoke-BlenderSetup {
         Write-SubStep 'Registering Blender MCP with Claude Code'
         $ErrorActionPreference = 'Continue'
         & $claude.Source mcp remove -s user blender *> $null
+        # To the host: left in the pipeline it would become part of this
+        # function's return value (see Write-NativeOutput).
         & $claude.Source mcp add -s user blender -- $uvx.Source --refresh-package blender-mcp `
-            --from 'git+https://projects.blender.org/lab/blender_mcp.git#subdirectory=mcp' blender-mcp
+            --from 'git+https://projects.blender.org/lab/blender_mcp.git#subdirectory=mcp' blender-mcp 2>&1 | Write-NativeOutput
         if ($LASTEXITCODE -ne 0) {
             Write-Err 'Blender MCP registration failed'
             $failures++

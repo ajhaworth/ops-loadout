@@ -121,7 +121,9 @@ function Install-HoudiniMcp {
     $python = Join-Path (& $uv.Source tool dir | Select-Object -First 1) 'fxhoudinimcp\Scripts\python.exe'
     Write-Step 'Registering Houdini MCP with Claude Code'
     & $claude.Source mcp remove -s user houdini *> $null
-    & $claude.Source mcp add -s user houdini -- $python -m fxhoudinimcp
+    # To the host: left in the pipeline it would become part of the caller's
+    # return value (see Write-NativeOutput).
+    & $claude.Source mcp add -s user houdini -- $python -m fxhoudinimcp 2>&1 | Write-NativeOutput
     if ($LASTEXITCODE -ne 0) { Write-Warn 'Houdini MCP registration failed' }
 }
 
@@ -256,7 +258,9 @@ function Set-HoudiniLicense {
     }
     $hserver = Join-Path $build.FullName 'bin\hserver.exe'
     if (-not (Test-Path -LiteralPath $hserver)) { Write-Warn 'hserver.exe not found; skipping license step'; return $true }
-    & $hserver -S $Settings['HOUDINI_LICENSE_SERVER']
+    $ErrorActionPreference = 'Continue'
+    & $hserver -S $Settings['HOUDINI_LICENSE_SERVER'] 2>&1 | Write-NativeOutput
+    if ($LASTEXITCODE -ne 0) { Write-Err "hserver -S exited $LASTEXITCODE"; return $false }
     Write-Host "License: server -> $($Settings['HOUDINI_LICENSE_SERVER'])"
     return $true
 }
@@ -384,14 +388,6 @@ function Uninstall-Houdini {
     if (-not $build) { Write-Host 'Houdini is not installed.'; return $true }
     $xy = Get-BuildXY $build
 
-    if (@(Get-HoudiniBuilds | Where-Object { (Get-BuildXY $_) -eq $xy -and $_.FullName -ne $build.FullName }).Count -eq 0) {
-        $pkgdir = Join-Path (Get-HoudiniPrefDir $xy) 'packages'
-        foreach ($item in 'loadout.json', 'fxhoudinimcp.json', "SideFXLabs$xy.json", "SideFXLabs$xy") {
-            $path = Join-Path $pkgdir $item
-            if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force; Write-Host "Removed $path" }
-        }
-    }
-
     $uninstaller = @(Get-ChildItem -LiteralPath $build.FullName -Filter 'Uninstall*.exe' -ErrorAction SilentlyContinue)[0]
     if (-not $uninstaller) { Write-Err "No uninstaller found in $($build.FullName)"; return $false }
     Write-Step "Removing Houdini $(Get-BuildVersion $build) (accept the Windows administrator prompt)"
@@ -400,6 +396,26 @@ function Uninstall-Houdini {
     } catch {
         Write-Err "The uninstaller did not start: $_"
         return $false
+    }
+
+    # Judged by the build's bin\ going away, as install is by it appearing. An
+    # NSIS uninstaller can hand off to a copy of itself and return early, so
+    # give it a while.
+    $bin = Join-Path $build.FullName 'bin'
+    for ($i = 0; $i -lt 120 -and (Test-Path -LiteralPath $bin); $i++) { Start-Sleep -Seconds 1 }
+    if (Test-Path -LiteralPath $bin) {
+        Write-Err "Houdini is still installed in $($build.FullName); its config was left in place"
+        return $false
+    }
+
+    # Config only once the build is really gone, so a failed uninstall leaves
+    # a working Houdini.
+    if (@(Get-HoudiniBuilds | Where-Object { (Get-BuildXY $_) -eq $xy }).Count -eq 0) {
+        $pkgdir = Join-Path (Get-HoudiniPrefDir $xy) 'packages'
+        foreach ($item in 'loadout.json', 'fxhoudinimcp.json', "SideFXLabs$xy.json", "SideFXLabs$xy") {
+            $path = Join-Path $pkgdir $item
+            if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force; Write-Host "Removed $path" }
+        }
     }
     Write-Host "Removed $($build.FullName)"
     return $true

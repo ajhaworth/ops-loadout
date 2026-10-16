@@ -290,6 +290,11 @@ function Install-ComfyNode {
         }
 
         if (-not (Install-ComfyNodeRequirements -Label $label -NodeDir $target -BaseDir $BaseDir)) {
+            # A fresh clone left behind would read as "already installed" on
+            # every later run, so its requirements would never be retried.
+            if (-not $exists) {
+                Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction SilentlyContinue
+            }
             (Get-Results).Failed += $label
             return $false
         }
@@ -691,7 +696,9 @@ function Set-ComfyLaunchArgs {
 
     try {
         $raw = Get-Content -LiteralPath $manifest -Raw
-        $entries = @($raw | ConvertFrom-Json)
+        # Re-enumerated: Windows PowerShell's ConvertFrom-Json emits a JSON
+        # array as one object, which @() alone would wrap as a single entry.
+        $entries = @(($raw | ConvertFrom-Json) | ForEach-Object { $_ })
     } catch {
         Write-Warn "Could not read installations.json: $_"
         return
@@ -760,8 +767,12 @@ function Set-ComfyLaunchArgs {
 
         # Depth has to clear the nested torch-stack objects or they serialise as
         # type names instead of data, which would corrupt the file.
-        $json = $entries | ConvertTo-Json -Depth 32
-        Set-Content -LiteralPath $manifest -Value $json -Encoding UTF8
+        # -InputObject @(): piped, a single install would serialise as a bare
+        # object, and Desktop expects an array.
+        $json = ConvertTo-Json -InputObject @($entries) -Depth 32
+        # No BOM: Windows PowerShell's -Encoding UTF8 writes one, and Desktop's
+        # JSON.parse rejects it.
+        [IO.File]::WriteAllText($manifest, $json, (New-Object System.Text.UTF8Encoding $false))
         Write-Status "Restart Comfy Desktop for the new launch arguments"
     } catch {
         Write-Warn "Failed to write installations.json: $_"

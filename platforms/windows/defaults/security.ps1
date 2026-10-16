@@ -49,19 +49,27 @@ function Get-SecurityAsrRulesToBlock {
 # adds them for Any address on Any profile, which exposes the streaming host
 # and its web UI on every network. Matched by display name or by a program
 # under the Apollo install directory, since the installer uses both shapes.
+#
+# The program filters come from one -All query keyed by rule: asking per rule
+# costs ~60 ms each, which over a few hundred inbound rules made this module
+# alone take ~15 s of every Updates-tab load.
 function Get-SecurityApolloRules {
     $apolloDir = Join-Path $env:ProgramFiles 'Apollo'
+    $apolloRuleIds = @{}
+    foreach ($filter in @(Get-NetFirewallApplicationFilter -All -ErrorAction SilentlyContinue)) {
+        $program = $filter.Program
+        if (-not $program -or $program -eq 'Any') { continue }
+        $program = [Environment]::ExpandEnvironmentVariables($program)
+        if ($program.StartsWith($apolloDir + '\', [StringComparison]::OrdinalIgnoreCase)) {
+            $apolloRuleIds[$filter.InstanceID] = $true
+        }
+    }
+
     $rules = @()
     foreach ($rule in @(Get-NetFirewallRule -Direction Inbound -Action Allow -Enabled True -ErrorAction SilentlyContinue)) {
-        $match = $rule.DisplayName -match '^(Apollo|Vibepollo)( |$)'
-        if (-not $match) {
-            $program = ($rule | Get-NetFirewallApplicationFilter).Program
-            if ($program -and $program -ne 'Any') {
-                $program = [Environment]::ExpandEnvironmentVariables($program)
-                $match = $program.StartsWith($apolloDir + '\', [StringComparison]::OrdinalIgnoreCase)
-            }
+        if ($rule.DisplayName -match '^(Apollo|Vibepollo)( |$)' -or $apolloRuleIds.ContainsKey($rule.Name)) {
+            $rules += $rule
         }
-        if ($match) { $rules += $rule }
     }
     return $rules
 }
@@ -76,7 +84,11 @@ function Test-SecurityApolloRulesScoped {
     return $true
 }
 
+# Only on a real, elevated, whole-module run: unelevated both checks throw
+# (Get-BitLockerVolume only after ~5 s), and status and single-row applies
+# discard or don't need the warnings.
 function Write-SecurityAdvisories {
+    if (-not (Test-Administrator)) { return }
     try {
         if (-not (Confirm-SecureBootUEFI -ErrorAction Stop)) {
             Write-Warn "Secure Boot is off - enable it in the firmware setup (manual)"
@@ -166,5 +178,5 @@ function Apply-Security {
             } | Out-Null
     }
 
-    Write-SecurityAdvisories
+    if (-not $DryRun -and -not (Get-RegistryOnlyId)) { Write-SecurityAdvisories }
 }
