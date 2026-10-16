@@ -564,6 +564,24 @@ Reset-RegistryResults
 $powerSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "platforms\windows\defaults\power.ps1")
 Assert-True ($powerSource -match 'Invoke-TrackedStep') "power.ps1 routes its powercfg settings through Invoke-TrackedStep"
 
+# security.ps1: every ASR id is a well-formed, unique GUID, and a dry run
+# (which reads Defender/firewall state) records no failures.
+. (Join-Path $repoRoot "platforms\windows\defaults\security.ps1")
+$asrIds = @($script:SecurityAsrRules.Keys)
+$asrWellFormed = @($asrIds | Where-Object { $_ -match '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' }).Count -eq $asrIds.Count
+Assert-True ($asrIds.Count -gt 0 -and $asrWellFormed) "security.ps1 ASR rule ids are lowercase GUIDs"
+Assert-Equal $asrIds.Count @($asrIds | Select-Object -Unique).Count "security.ps1 ASR rule ids are unique"
+
+if ($onWindows) {
+    Reset-RegistryResults
+    Apply-Security -ProfileConfig @{} -DryRun 6>$null | Out-Null
+    $securityResults = Get-RegistryResults
+    Assert-Equal 0 @($securityResults.Failed).Count "Apply-Security -DryRun records no failures"
+    Reset-RegistryResults
+} else {
+    Write-Skipped "Apply-Security dry run requires Windows"
+}
+
 # ---------------------------------------------------------------------------
 Write-Section "Setup tasks bridge"
 
