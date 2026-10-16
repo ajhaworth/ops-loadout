@@ -650,7 +650,14 @@ fn main() {
         std::env::set_var("PATH", format!("/opt/homebrew/bin:/usr/local/bin:{path}"));
     }
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // Windows happily starts a second copy (autostart at login, then the Start
+    // Menu), with its own tray icon, scans and jobs. Registered first, as the
+    // plugin requires, it hands such a launch to the running copy, which
+    // shows its window. macOS LaunchServices already keeps one instance.
+    #[cfg(target_os = "windows")]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)));
+    builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
