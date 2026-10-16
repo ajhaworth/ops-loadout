@@ -34,7 +34,7 @@ fn base_args(resources: &Path) -> Vec<String> {
     ]
 }
 
-fn icon(exe: &str, id: &str, cache_dir: &Path, resources: &Path) -> Option<String> {
+fn icon(exe: &str, id: &str, cache_dir: &Path, repo: &Path, resources: &Path) -> Option<String> {
     // Its own dir so the 32px icons cached before 256px extraction go unused.
     let dir = cache_dir.join("icons-256");
     let png = dir.join(cache_name(id));
@@ -45,6 +45,9 @@ fn icon(exe: &str, id: &str, cache_dir: &Path, resources: &Path) -> Option<Strin
         args.push("icon".into());
         args.push(exe.to_string());
         args.push(png.to_string_lossy().to_string());
+        // A packaged app's target is an AppsFolder path; the bridge reads its
+        // manifest through the repo's packages.psm1 to find an exe to extract.
+        args.push(repo.to_string_lossy().to_string());
         let ok = command(shell())
             .args(&args)
             .output()
@@ -94,7 +97,7 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, resources: &Path
         if app.installed && !exe.is_empty() {
             app.launchable = true;
             app.target = Some(exe.to_string());
-            app.icon = icon(exe, &app.id, cache_dir, resources);
+            app.icon = icon(exe, &app.id, cache_dir, repo, resources);
         }
     }
 }

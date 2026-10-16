@@ -670,6 +670,50 @@ function Get-ShortcutTarget {
     $series = @($script:Shortcuts.Keys | Where-Object { $_ -match "^$([regex]::Escape($Name)) (\d+(\.\d+)*)$" } |
         Sort-Object { [version]($_ -replace '^.* ', '' -replace '^(\d+)$', '$1.0') } -Descending)
     if ($series.Count -gt 0) { return $script:Shortcuts[$series[0]] }
+    # A qualifier in parentheses ("PowerToys (Preview)").
+    $qualified = @($script:Shortcuts.Keys | Where-Object { $_ -match "^$([regex]::Escape($Name)) \(.+\)$" } | Sort-Object)
+    if ($qualified.Count -gt 0) { return $script:Shortcuts[$qualified[0]] }
+    # Packaged (MSIX) apps have no .lnk, only a Start Menu entry keyed by AUMID
+    # ("Claude_pzs8sxrjxfjjc!Claude"); explorer launches them through AppsFolder.
+    return (Get-PackagedAppTarget -Name $Name)
+}
+
+$script:StartApps = $null
+
+function Get-PackagedAppTarget {
+    param([Parameter(Mandatory)][string]$Name)
+
+    if ($null -eq $script:StartApps) {
+        $script:StartApps = @()
+        if ((Test-IsWindowsPlatform) -and (Get-Command Get-StartApps -ErrorAction SilentlyContinue)) {
+            $script:StartApps = @(Get-StartApps -ErrorAction SilentlyContinue | Where-Object { $_.AppID -match '^[^\\!]+_[a-z0-9]+![^\\]+$' })
+        }
+    }
+
+    $app = $script:StartApps | Where-Object { $_.Name -eq $Name } | Select-Object -First 1
+    if ($app) { return "shell:AppsFolder\$($app.AppID)" }
+    return ''
+}
+
+# shell:AppsFolder\<family>!<app id> -> the exe its manifest declares, for the
+# icon: an AppsFolder path has none of its own to extract.
+function Get-PackagedAppExe {
+    param([Parameter(Mandatory)][string]$Target)
+
+    if ($Target -notmatch '^shell:AppsFolder\\(?<family>[^!]+)!(?<app>.+)$') { return '' }
+    $family = $Matches.family
+    $appId = $Matches.app
+    $pkg = Get-AppxPackage -Name ($family -replace '_[^_]+$', '') -ErrorAction SilentlyContinue |
+        Where-Object { $_.PackageFamilyName -eq $family } | Select-Object -First 1
+    if (-not $pkg -or -not $pkg.InstallLocation) { return '' }
+
+    try {
+        [xml]$manifest = Get-Content -LiteralPath (Join-Path $pkg.InstallLocation 'AppxManifest.xml') -Raw
+    } catch { return '' }
+    $entry = @($manifest.Package.Applications.Application) | Where-Object { $_.Id -eq $appId } | Select-Object -First 1
+    if (-not $entry -or -not $entry.Executable) { return '' }
+    $exe = Join-Path $pkg.InstallLocation $entry.Executable
+    if (Test-Path -LiteralPath $exe) { return $exe }
     return ''
 }
 
@@ -823,6 +867,7 @@ Export-ModuleMember -Function @(
     'ConvertFrom-WingetPackageSpec',
     'Get-WingetState',
     'Get-ShortcutTarget',
+    'Get-PackagedAppExe',
     'Invoke-WingetPackage',
     'Invoke-AppConfig',
     'Reset-Results',

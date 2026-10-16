@@ -10,7 +10,7 @@
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 update <repo> <kind> <spec>
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 configure <repo> <kind> <spec>
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 open    <url>
-#   pwsh -NoProfile -NonInteractive -File bridge.ps1 icon    <exe> <outpng>
+#   pwsh -NoProfile -NonInteractive -File bridge.ps1 icon    <exe> <outpng> [repo]
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 launch  <exe>
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 tasks-status <repo> <section> [profile]
 #   pwsh -NoProfile -NonInteractive -File bridge.ps1 tasks-apply  <repo> <section> <id> [profile]
@@ -654,6 +654,11 @@ switch ($Verb) {
             Write-Host 'Missing exe path'
             exit 1
         }
+        if ($Args2[0] -match '^shell:AppsFolder\\[^\\]+$') {
+            # A packaged app (Get-ShortcutTarget): explorer resolves the AUMID.
+            Start-Process -FilePath 'explorer.exe' -ArgumentList "`"$($Args2[0])`""
+            exit 0
+        }
         # -FilePath with a literal path: nothing here is re-parsed as script,
         # so spaces and metacharacters in the path are inert.
         Start-Process -FilePath $Args2[0]
@@ -672,14 +677,22 @@ switch ($Verb) {
     'icon' {
         try {
             Add-Type -AssemblyName System.Drawing
+            $exe = $Args2[0]
+            if ($exe -like 'shell:AppsFolder\*') {
+                if (-not $Args2[2]) { exit 1 }
+                Import-Module (Join-Path $Args2[2] 'lib\windows\common.psm1') -Force
+                Import-Module (Join-Path $Args2[2] 'lib\windows\packages.psm1') -Force
+                $exe = Get-PackagedAppExe -Target $exe
+                if (-not $exe) { exit 1 }
+            }
             # ExtractAssociatedIcon only ever returns 32px, which blurs on a
             # tile. ExtractIcon(path, index, size) is .NET 8+, so pwsh only;
             # Windows PowerShell keeps the 32px fallback.
             $icon = $null
             if ([System.Drawing.Icon].GetMethod('ExtractIcon', [type[]]@([string], [int], [int]))) {
-                $icon = [System.Drawing.Icon]::ExtractIcon($Args2[0], 0, 256)
+                $icon = [System.Drawing.Icon]::ExtractIcon($exe, 0, 256)
             }
-            if ($null -eq $icon) { $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($Args2[0]) }
+            if ($null -eq $icon) { $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exe) }
             if ($null -eq $icon) { exit 1 }
             $icon.ToBitmap().Save($Args2[1], [System.Drawing.Imaging.ImageFormat]::Png)
         } catch {
