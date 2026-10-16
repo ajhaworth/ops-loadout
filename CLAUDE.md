@@ -391,7 +391,7 @@ replace it rather than `rm -rf`-ing someone else's app.
   ChatGPT, Claude, Slack, Safari, Obsidian, Spotify, Fork, Simulator and
   Loadout. Everything else floats, Finder included (AeroSpace sees each native tab as a window, so tiled tabs
   leave holes). Each per-app move uses `--focus-follows-window`: without it a new window lands on a hidden
-  workspace while its app is frontmost, and clicking an already-frontmost app in the Dock does nothing. Opening or clicking an app switches to its
+  workspace while its app is frontmost, and clicking an already-frontmost app in the Dock does nothing. Closing a window does the mirror image: AeroSpace returns to that window's (now empty) workspace while macOS makes another app frontmost, so `on-focus-changed` moves focus off an empty workspace to the frontmost app's window (`lsappinfo front`). Opening or clicking an app switches to its
   workspace because AeroSpace follows macOS focus, so rules need no
   `--focus-follows-window`. A matched app's normal windows tile, so a second one
   (compose window) splits that workspace; its dialogs, panels and

@@ -22,7 +22,15 @@ exec-on-workspace-change = ['/bin/bash', '-c', '''
 
 # A mode has no on-screen indicator, so leaving one open would keep eating its keys in apps; any focus change (a
 # click, Cmd-Tab, a workspace switch) drops back to main.
-on-focus-changed = 'mode main'
+# Closing a window sends AeroSpace back to that window's workspace, which with one app per workspace is now empty, while
+# macOS has already made another app frontmost. That app's window stays parked on its hidden workspace, and clicking it
+# in the Dock changes nothing macOS reports, so it could not be reached until another app was clicked first. So focus
+# landing on an empty workspace follows macOS's frontmost app instead; an app left with no windows keeps the empty one.
+on-focus-changed = ['mode main', '''exec-and-forget PATH="$HOME/.local/bin:/opt/homebrew/bin:$PATH";
+    [ "$(aerospace list-windows --workspace focused --count)" = 0 ] || exit 0
+    bid=$(lsappinfo info -only bundleID "$(lsappinfo front)" | sed -n 's/.*bundleID="\(.*\)"/\1/p')
+    id=$(aerospace list-windows --monitor all --app-bundle-id "$bid" --format %{window-id} | head -1)
+    [ -n "$id" ] && aerospace focus --window-id "$id"''']
 
 # Caps Lock (F18) enters mode "window". Enter, F and R run once and drop back to main; arrows and -/= move on to mode
 # "repeat", where only they stay bound (so F and Enter reach the app again) for repeated presses, until Caps Lock or
