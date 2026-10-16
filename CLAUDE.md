@@ -902,9 +902,8 @@ Desktop keeps its local folder for downloads, this adds the library on top.
 
 `COMFYUI_MODEL_PATH` is empty in `windows.conf`: the user sets up the model
 library by hand in ComfyUI, so this step skips and an existing
-`extra_model_paths.yaml` is left as it is. It was `D:\diffusion` (ComfyUI's own
-folder names, a 1:1 mapping), and a NAS share before that, until loading
-models over SMB proved too slow.
+`extra_model_paths.yaml` is left as it is. Don't point it at a path again
+without being asked.
 
 The alias candidates in `Get-ComfyModelFolderMap` (`Stable-diffusion` →
 `checkpoints`, `Lora` → `loras`, `ESRGAN` → `upscale_models`) are **kept
