@@ -5,3 +5,8 @@ Perforce.P4V | P4V
 wez.wezterm | WezTerm
 # Portable zip: winget adds a `godot` alias but no Start Menu shortcut.
 GodotEngine.GodotEngine | Godot
+# CLI dependencies of the ~/.claude config repo (ajhaworth/claude): its hooks and status
+# line run under Git Bash and call python and jq. No Start Menu shortcuts.
+Git.Git | Git
+Python.Python.3.13 | Python 3.13
+jqlang.jq | jq
