@@ -390,10 +390,13 @@ replace it rather than `rm -rf`-ing someone else's app.
   ` - Unreal Editor`; the Houdini and Unreal patterns are unverified), Ghostty, Zen, Mail, Messages, Calendar, Agenda, Digest, Pulse,
   ChatGPT, Claude, Slack, Safari, Obsidian, Spotify, Fork, Simulator and
   Loadout. Everything else floats, Finder included (AeroSpace sees each native tab as a window, so tiled tabs
-  leave holes). Each per-app move uses `--focus-follows-window`: without it a new window lands on a hidden
-  workspace while its app is frontmost, and clicking an already-frontmost app in the Dock does nothing. Closing a window does the mirror image: AeroSpace returns to that window's (now empty) workspace while macOS makes another app frontmost, so `on-focus-changed` moves focus off an empty workspace to the frontmost app's window (`lsappinfo front`). Opening or clicking an app switches to its
-  workspace because AeroSpace follows macOS focus, so rules need no
-  `--focus-follows-window`. A matched app's normal windows tile, so a second one
+  leave holes). Each per-app move then runs `follow.sh` (-> `~/.config/aerospace/`), which focuses the new
+  window only once its app is frontmost (polling ~1 s for a launching app). Not following leaves a new window on a
+  hidden workspace while its app is frontmost, and clicking an already-frontmost app in the Dock does nothing; but
+  a plain `--focus-follows-window` also followed windows opened in the background (`open -g`, Xcode test hosts
+  sharing Agenda/Digest/Pulse's bundle ids), showing their workspace while macOS kept the current app frontmost -
+  that app then stayed hidden and clicking it did nothing until another app was clicked first. Closing a window does the mirror image: AeroSpace returns to that window's (now empty) workspace while macOS makes another app frontmost, so `on-focus-changed` moves focus off an empty workspace to the frontmost app's window (`lsappinfo front`). Opening or clicking an app switches to its
+  workspace because AeroSpace follows macOS focus. A matched app's normal windows tile, so a second one
   (compose window) splits that workspace; its dialogs, panels and
   picture-in-picture float there by AeroSpace's own heuristic, which is why the
   plain per-app rules carry no `layout tiling` (it would override that). 8 px gaps all round, like
@@ -404,8 +407,8 @@ replace it rather than `rm -rf`-ing someone else's app.
   `center.js` (-> `~/.config/aerospace/`, run by `exec-and-forget`) centers it
   at full height; Messages gets the same, narrowed to 760 px by `center.js`'s
   width argument, and the iOS Simulator likewise (its width follows the device's aspect ratio). `exec-on-workspace-change` re-runs `center.js` whenever one of
-  those workspaces is shown, so a window dragged aside snaps back. Their rules use `--focus-follows-window`: moving a window on a
-  hidden workspace does not stick, AeroSpace restores its old spot when the
+  those workspaces is shown, so a window dragged aside snaps back; that is also what centers a new one, once `follow.sh` shows its
+  workspace - moving a window on a hidden workspace does not stick, AeroSpace restores its old spot when the
   workspace shows. Rules fire only for new windows; `reload-config` leaves open ones
   where they are. AeroSpace parks other workspaces' windows in a screen corner, so
   Mission Control groups windows by app (`expose-group-apps`, set by `dock.sh` and,
