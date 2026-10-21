@@ -65,7 +65,7 @@ function Apply-Power {
 
     # /change takes minutes, /query reports seconds.
     $timeouts = @(
-        @{ Key = 'standby-timeout-ac';   SubGroup = 'SUB_SLEEP'; Setting = 'STANDBYIDLE';   Minutes = 0;  Label = 'Never sleep on AC power' }
+        @{ Key = 'standby-timeout-ac';   SubGroup = 'SUB_SLEEP'; Setting = 'STANDBYIDLE';   Minutes = 60; Label = 'Sleep after 1 hour on AC power' }
         @{ Key = 'hibernate-timeout-ac'; SubGroup = 'SUB_SLEEP'; Setting = 'HIBERNATEIDLE'; Minutes = 0;  Label = 'Never hibernate on AC power' }
         @{ Key = 'monitor-timeout-ac';   SubGroup = 'SUB_VIDEO'; Setting = 'VIDEOIDLE';     Minutes = 20; Label = 'Turn off display after 20 minutes on AC power' }
         @{ Key = 'disk-timeout-ac';      SubGroup = 'SUB_DISK';  Setting = 'DISKIDLE';      Minutes = 0;  Label = 'Never spin down disks on AC power' }
