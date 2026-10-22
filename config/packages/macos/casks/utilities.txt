@@ -1,7 +1,6 @@
 # utilities.txt - System utilities
 
 keka                # Archive utility
-pearcleaner         # App uninstaller
 balenaetcher        # USB/SD image writer
 fuse-t              # FUSE without kernel extension
 fuse-t-sshfs        # SSHFS via fuse-t
