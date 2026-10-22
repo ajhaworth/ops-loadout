@@ -23,7 +23,7 @@ apply_vorssaint() {
         "finderRename|Finder rename with F2" "pastePlain|Paste as plain text" "urlCleaner|Clean URLs" \
         "diskImageInstaller|Disk image installer" "portManager|Port manager" "screenshot|Screenshot" \
         "screenRecorder|Screen recording" "screenOCR|Copy text from screen" "colorPicker|Color picker" \
-        "cleaningMode|Cleaning mode" "quitWindowProtection|Quit protection" \
+        "cleaningMode|Cleaning mode" \
         "extraBrightness|Extra brightness control" "bluetoothSleep|Bluetooth off during sleep" \
         "appUpdates|App updates" "homebrew|Homebrew manager"; do
         defaults_set $d "featureAvailable.${entry%%|*}" bool true "Install ${entry#*|}"
@@ -36,7 +36,7 @@ apply_vorssaint() {
     defaults_set $d pastePlainEnabled bool true "Paste as plain text on"
     defaults_set $d screenOCRShortcutEnabled bool true "Copy text from screen on Ctrl-Option-Cmd-T"
     defaults_set $d colorPickerShortcutEnabled bool true "Color picker on Ctrl-Option-Cmd-C"
-    defaults_set $d quitProtectionQuitEnabled bool true "Hold Cmd-Q to quit (guards Blender and Houdini)"
+    defaults_set $d featureAvailable.quitWindowProtection bool false "No quit protection (Cmd-Q quits at once)"
     defaults_set $d bluetoothSleepEnabled bool true "Bluetooth off during sleep, back on wake"
 
     # Caps Lock is AeroSpace's leader key.
