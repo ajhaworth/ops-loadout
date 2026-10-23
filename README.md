@@ -5,8 +5,6 @@ repo. Loadout tracks what is installed, installs it, and applies the app and
 system configuration that goes with it - on macOS, Linux and Windows, for work
 and personal machines. Profiles decide which parts apply where.
 
-For Claude Code, Codex, tmux, and agentic coding configuration, see [ops-agents](../ops-agents).
-
 ## Quick Start
 
 The primary way to use this repo is the Loadout GUI. One command builds
@@ -48,7 +46,8 @@ GitHub release for the newer build, and on your go-ahead downloads, installs
 and relaunches the app in place.
 
 The app is not notarized by Apple, so macOS reports a downloaded copy as
-"damaged and can't be opened". Drag it to Applications, then run this once:
+"damaged and can't be opened". Drag it to Applications, then either allow it
+under System Settings > Privacy & Security > Open Anyway, or run this once:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Loadout.app"
@@ -58,11 +57,13 @@ Updates installed from the tray menu's **Check for Updates** don't need it
 again; only a fresh download does.
 
 Once installed, use the app instead of the CLI:
-- **Apps tab** — browse and install/update packages (Homebrew, GitHub
-  releases, ComfyUI nodes, etc.), mirroring `formulae`/`casks`/`packages`.
-- **Setup tab** (in progress) — drives the non-package stages: prerequisites,
-  dotfiles, system defaults, and (Windows) debloat, backed by the same status/
-  apply scripts the CLI uses.
+- **Apps tab** — browse, launch and install/update packages (Homebrew, Mac App
+  Store, installer scripts, winget, GitHub releases), mirroring
+  `formulae`/`casks`/`mas`/`packages`.
+- **Updates tab** — outdated packages, then the non-package stages:
+  prerequisites, dotfiles, CLI logins (`gh`, `tea`), system defaults, (Windows)
+  debloat and (macOS) cleanup, backed by the same status/apply scripts the CLI
+  uses.
 
 The CLI documented below remains available and is what the app and this guide
 both build on.
@@ -75,7 +76,7 @@ both build on.
 - **Dry-run mode**: Preview changes before applying
 - **Dotfiles management**: Symlinked configs with backup support
 - **Status checking**: List commands show what's installed vs missing
-- **Strict profile validation**: Profiles now fail fast when used on the wrong OS
+- **Strict profile validation**: Profiles fail fast when used on the wrong OS
 
 ## Supported Platforms
 
@@ -95,7 +96,7 @@ Full installation for personal macOS devices including all package categories, M
 
 ### Workstation (`--profile workstation`)
 
-Work Mac, driven from Loadout: Blender, Houdini, Fork, Ghostty, AeroSpace and Swish (installer scripts) plus the core and shell CLI formulae, no casks, no MAS apps, no system preferences. Terminal dotfiles (zsh, bash, starship, Ghostty) and the AeroSpace config apply, with the existing zshrc backed up and `~/.zshrc.local` for work-only lines; gitconfig is left alone.
+Work Mac, driven from Loadout: Blender, Houdini, ComfyUI Desktop, Fork, Ghostty, AeroSpace, Swish and Vorssaint (installer scripts) plus the core and shell CLI formulae, no casks, no MAS apps, no system preferences. Terminal dotfiles (zsh, bash, starship, Ghostty) and the AeroSpace config apply, with the existing zshrc backed up and `~/.zshrc.local` for work-only lines; gitconfig is left alone.
 
 ### Linux (`--profile linux`)
 
@@ -103,9 +104,10 @@ Full dev station setup for Debian/Ubuntu Linux including core tools, shell enhan
 
 ### Windows (`--profile windows`)
 
-Gaming workstation setup for Windows: dotfiles, winget apps, GitHub-release
-apps, ComfyUI custom nodes, and system preferences, with optional bloatware
-removal.
+Gaming workstation setup for Windows: winget apps, GitHub-release apps,
+installer scripts (Blender, Houdini, NVIDIA app), ComfyUI custom nodes,
+dotfiles (git, WezTerm, GlazeWM) and system preferences, with optional
+bloatware removal.
 
 ## Usage
 
@@ -143,7 +145,7 @@ removal.
 .\setup.ps1 -DryRun            # Preview changes
 .\setup.ps1 dotfiles           # Dotfiles only
 .\setup.ps1 dotfiles ls        # Check symlink status
-.\setup.ps1 packages           # GitHub releases + ComfyUI custom nodes
+.\setup.ps1 packages           # winget, GitHub releases + ComfyUI custom nodes
 .\setup.ps1 packages ls        # Show package status
 .\setup.ps1 defaults           # System preferences
 .\setup.ps1 defaults ls        # Show preference categories
@@ -156,7 +158,7 @@ removal.
 
 **macOS/Linux:**
 ```
---profile <name>    Use specified profile (personal, work, linux, windows)
+--profile <name>    Use specified profile (personal, workstation, linux)
 --dry-run           Show what would be done without making changes
 --force             Skip confirmation prompts
 --help              Show help message
@@ -233,6 +235,10 @@ Packages are defined in text files under `config/packages/`:
   Install state is read from Add/Remove Programs, and an app already present is
   upgraded when the latest release is newer (semver-aware, so `1.18.4` beats
   `1.18.3-beta.7`). `-Force` reinstalls regardless.
+- `installers/*.txt` - Apps installed by a script of their own,
+  `token | display-name | homepage`, the same shape as on macOS. Each token is
+  `platforms/windows/installers/<token>.ps1`. Blender, Houdini and the NVIDIA
+  app live here.
 - `comfynodes/*.txt` - ComfyUI custom nodes, `owner/repo | directory-name` (the
   directory defaults to the repo name). Cloned into every local ComfyUI
   backend's `custom_nodes/`, with `requirements.txt` installed into that
@@ -267,49 +273,59 @@ Machine-specific settings go in `.local` files (not tracked by git):
 ops-loadout/
 ├── setup.sh                    # Entry point (macOS/Linux)
 ├── setup.ps1                   # Entry point (Windows)
+├── app/                        # Loadout (Tauri desktop app)
 ├── lib/                        # Shared libraries
 │   ├── common.sh               # Colors, logging
 │   ├── detect.sh               # OS detection
 │   ├── prompt.sh               # User interaction
 │   ├── symlink.sh              # Symlink utilities
+│   ├── dotfiles.sh             # Dotfiles install, gh/tea logins
 │   ├── packages.sh             # Package parsing
+│   ├── tasks.sh                # Status/apply verbs behind the Updates tab
 │   └── windows/                # PowerShell modules
 │       ├── common.psm1         # Logging, profile parsing
 │       ├── dotfiles.psm1       # Symlink management
-│       ├── packages.psm1       # GitHub-release/ComfyUI-node helpers
-│       └── registry.psm1       # Idempotent registry writes
+│       ├── packages.psm1       # winget/GitHub-release/ComfyUI-node helpers
+│       ├── registry.psm1       # Idempotent registry writes
+│       └── ...                 # Per-app modules (Blender, Houdini, ComfyUI, ...)
 ├── config/
 │   ├── profiles/               # Profile configs
 │   ├── packages/
 │   │   ├── macos/              # macOS package lists
 │   │   │   ├── formulae/       # CLI tools
 │   │   │   ├── casks/          # GUI apps
-│   │   │   └── mas/            # App Store apps
+│   │   │   ├── mas/            # App Store apps
+│   │   │   └── installers/     # Apps installed by script
 │   │   ├── linux/              # Linux package lists
 │   │   │   └── apt/            # APT packages
-│   │   └── windows/            # Windows package lists (winget, GitHub releases, ComfyUI nodes)
+│   │   └── windows/            # Windows package lists
+│   │       ├── winget/         # winget packages
 │   │       ├── github/         # GitHub release installers
+│   │       ├── installers/     # Apps installed by script
 │   │       └── comfynodes/     # ComfyUI custom nodes
-│   └── dotfiles/               # Configuration files and manifests
+│   ├── dcc/                    # Blender and Houdini config
+│   ├── dotfiles/               # Configuration files and manifests
+│   ├── wallpapers/             # Desktop pictures
+│   └── presets.txt             # App groups Loadout launches together
 └── platforms/
     ├── macos/                  # macOS-specific scripts
     │   ├── setup.sh            # Orchestrator
     │   ├── homebrew.sh         # Package installer
-    │   ├── dotfiles.sh         # Symlink installer
     │   ├── defaults.sh         # Preferences loader
-    │   └── defaults/           # Individual preference scripts
+    │   ├── defaults/           # Individual preference scripts
+    │   └── installers/         # Installer scripts
     ├── linux/                  # Linux-specific scripts
     │   ├── setup.sh            # Orchestrator
     │   ├── packages.sh         # APT package installer
     │   ├── repositories.sh     # Third-party repos (NodeSource, etc.)
-    │   ├── extras.sh           # Extra tools (starship, eza, etc.)
-    │   └── dotfiles.sh         # Symlink installer
+    │   └── extras.sh           # Extra tools (starship, eza, etc.)
     └── windows/                # Windows-specific scripts
         ├── setup.ps1           # Orchestrator
-        ├── packages.ps1        # GitHub releases + ComfyUI custom nodes
+        ├── packages.ps1        # winget, GitHub releases + ComfyUI custom nodes
         ├── dotfiles.ps1        # Symlink installer
         ├── defaults.ps1        # Preferences loader
         ├── defaults/           # Individual preference scripts
+        ├── installers/         # Installer scripts
         └── debloat.ps1         # Bloatware removal
 ```
 
@@ -325,16 +341,13 @@ the missing ones by shelling out to the same package managers `setup.sh` uses.
 ./setup.sh launcher dev     # run against the local checkout
 ```
 
-Each runs `npm install` first (Tauri CLI only, no frontend dependencies) and
-needs `node` and `rust` from `./setup.sh formulae`.
-
-The bundle is unsigned, so the first launch of `Loadout.app` needs
-right-click -> Open rather than a double-click.
+Each installs Homebrew, `node` and `rust` if they are missing, then runs
+`npm install` (Tauri CLI only, no frontend dependencies).
 
 It finds this repo through `OPS_LOADOUT_DIR`, then the path saved in its own
 config directory, then the checkout it was built from, then
-`~/Developer/ops/ops-loadout`, and asks with a folder picker if none of those
-work. Package lists are read at runtime: edit a `.txt` and hit refresh.
+`~/Developer/ops/ops-loadout`, then the copy seeded from its own bundle, and
+asks with a folder picker if none of those work. Package lists are read at runtime: edit a `.txt` and hit refresh.
 
 ## Security
 
@@ -357,21 +370,14 @@ folder is more than one level away from anything that exists, which usually
 means the owning app isn't installed yet (Windows Terminal is the common case).
 Install it and re-run, or pass `-Force` to create the tree anyway.
 
-**ComfyUI still shows no models** - The model config is only written once
-ComfyUI Desktop has run its first-time setup. Launch it once, then re-run
-`.\setup.ps1 defaults`, then restart ComfyUI. Note that Desktop reads
-`%APPDATA%\ComfyUI\extra_models_config.yaml`, not the `extra_model_paths.yaml`
-that portable-install guides describe.
-
-**ComfyUI models missing after a reboot** - If `COMFYUI_MODEL_PATH` is a network
-share, it must be reachable when ComfyUI starts. The setup warns if the path
-can't be reached at the time it runs.
+**ComfyUI doesn't see the model library** - `windows.conf` leaves
+`COMFYUI_MODEL_PATH` empty, so the library is set up by hand in ComfyUI. When
+it is set, the `extra_model_paths.yaml` for it is written with every ComfyUI
+install or update (from Loadout or `.\setup.ps1 packages`), and only once
+ComfyUI Desktop has run its first-time setup and the path is reachable. Launch
+ComfyUI once, update it from Loadout, then restart ComfyUI.
 
 **Windows power/telemetry settings skipped** - `defaults` writes those to HKLM.
 Run PowerShell as Administrator to apply them.
 
 **Preferences not applying** - Some preferences require a logout/login or restart to take effect. `.\setup.ps1 defaults -Force` restarts Explorer for you.
-
-## License
-
-MIT License - See [LICENSE](LICENSE) for details.
