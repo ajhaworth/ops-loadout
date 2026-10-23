@@ -30,7 +30,7 @@
 #
 #
 # Options:
-#   --profile <name>    Use specified profile (personal, work)
+#   --profile <name>    Use specified profile (personal, workstation, linux)
 #   --dry-run           Show what would be done without making changes
 #   --force             Skip confirmation prompts
 #   --help              Show this help message
@@ -89,7 +89,7 @@ Commands:
     packages ls         List system packages and status
 
 Options:
-    --profile <name>    Use specified profile (personal, work)
+    --profile <name>    Use specified profile (personal, workstation, linux)
     --dry-run           Show what would be done without making changes
     --force             Skip confirmation prompts
     --help              Show this help message

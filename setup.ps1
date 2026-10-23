@@ -41,7 +41,7 @@ Usage: .\setup.ps1 [command] [subcommand] [options]
 
 Commands:
   (none)              Full setup
-  packages            Install GitHub-release apps + ComfyUI custom nodes
+  packages            Install winget, GitHub-release apps + ComfyUI nodes
   dotfiles            Symlink dotfiles
   defaults            Apply system preferences
   debloat             Remove Windows bloatware
