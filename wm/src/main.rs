@@ -192,12 +192,14 @@ pub struct Win<W> {
     pub frame: Rect,
 }
 
-/// Where each window should go. `first` remembers each `first` rule's window across calls.
+/// Where each window should go. `first` remembers each `first` rule's window across calls. `dropped` is a window
+/// the user just dragged (or Swish snapped): in a split it takes the column its center was dropped in.
 pub fn plan<W: Clone + PartialEq>(
     rules: &[Rule],
     wins: &[Win<W>],
     screens: &[Screen],
     first: &mut HashMap<usize, W>,
+    dropped: Option<&W>,
 ) -> Vec<(W, Rect)> {
     let mut out = Vec::new();
     if screens.is_empty() {
@@ -226,6 +228,14 @@ pub fn plan<W: Clone + PartialEq>(
                     let mut here: Vec<&&Win<W>> =
                         mine.iter().filter(|w| screen_of(w.frame, screens) == si).collect();
                     here.sort_by(|a, b| a.frame.x.total_cmp(&b.frame.x));
+                    // The others sit in their columns, so their order stands; the dropped one moves to its slot.
+                    if let Some(i) = here.iter().position(|w| Some(&w.id) == dropped) {
+                        let w = here.remove(i);
+                        let n = here.len() + 1;
+                        let cx = w.frame.x + w.frame.w / 2.0 - s.area.x;
+                        let slot = ((cx / (s.area.w / n as f64)).floor().max(0.0) as usize).min(n - 1);
+                        here.insert(slot, w);
+                    }
                     let cols = columns(s.area, rule.padding * s.scale, here.len());
                     out.extend(here.iter().zip(cols).map(|(w, r)| (w.id.clone(), r)));
                 }
@@ -283,7 +293,7 @@ mod tests {
     #[test]
     fn fill_insets_by_scaled_padding_on_the_window_screen() {
         let rules = parse("a\n");
-        let got = plan(&rules, &[win(1, 0, 10.0), win(2, 0, 1100.0)], &screens(), &mut HashMap::new());
+        let got = plan(&rules, &[win(1, 0, 10.0), win(2, 0, 1100.0)], &screens(), &mut HashMap::new(), None);
         assert_eq!(got[0], (1, Rect { x: 8.0, y: 38.0, w: 984.0, h: 584.0 }));
         assert_eq!(got[1], (2, Rect { x: 1016.0, y: 46.0, w: 968.0, h: 568.0 }));
     }
@@ -292,22 +302,38 @@ mod tests {
     fn first_keeps_its_window_until_it_closes() {
         let rules = parse("a | | first\n");
         let mut first = HashMap::new();
-        assert_eq!(plan(&rules, &[win(1, 0, 0.0)], &screens(), &mut first)[0].0, 1);
-        let got = plan(&rules, &[win(2, 0, 0.0), win(1, 0, 0.0)], &screens(), &mut first);
+        assert_eq!(plan(&rules, &[win(1, 0, 0.0)], &screens(), &mut first, None)[0].0, 1);
+        let got = plan(&rules, &[win(2, 0, 0.0), win(1, 0, 0.0)], &screens(), &mut first, None);
         assert_eq!(got.iter().map(|g| g.0).collect::<Vec<_>>(), [1]);
-        assert_eq!(plan(&rules, &[win(2, 0, 0.0)], &screens(), &mut first)[0].0, 2);
+        assert_eq!(plan(&rules, &[win(2, 0, 0.0)], &screens(), &mut first, None)[0].0, 2);
     }
 
     #[test]
     fn split_orders_by_x_with_padding_between() {
         let rules = parse("a | | split | 10\n");
-        let got = plan(&rules, &[win(1, 0, 500.0), win(2, 0, 0.0), win(3, 0, 300.0)], &screens(), &mut HashMap::new());
+        let got = plan(&rules, &[win(1, 0, 500.0), win(2, 0, 0.0), win(3, 0, 300.0)], &screens(), &mut HashMap::new(), None);
         assert_eq!(got.iter().map(|g| g.0).collect::<Vec<_>>(), [2, 3, 1]);
         let w: f64 = (1000.0 - 40.0) / 3.0;
         assert_eq!(got[0].1, Rect { x: 10.0, y: 40.0, w: w.round(), h: 580.0 });
         assert_eq!(got[1].1.x, (20.0 + w).round());
         assert_eq!(got[2].1.x + got[2].1.w, 990.0);
         assert_eq!(columns(AREA, 10.0, 1)[0], Rect { x: 10.0, y: 40.0, w: 980.0, h: 580.0 });
+    }
+
+    #[test]
+    fn a_dropped_window_takes_the_column_it_lands_in() {
+        let rules = parse("a | | split\n");
+        let col = |x: f64| Win { id: 0, rule: 0, frame: Rect { x, y: 38.0, w: 488.0, h: 584.0 } };
+        let ids = |wins: &[Win<u32>], dropped| {
+            plan(&rules, wins, &screens(), &mut HashMap::new(), dropped).iter().map(|g| g.0).collect::<Vec<_>>()
+        };
+        // Two columns; the right one dragged until its center is over the left column: they swap.
+        let wins = [Win { id: 1, ..col(8.0) }, Win { id: 2, ..col(150.0) }];
+        assert_eq!(ids(&wins, None), [1, 2]);
+        assert_eq!(ids(&wins, Some(&2)), [2, 1]);
+        // Three columns; the left one dropped in the middle third moves there.
+        let wins = [Win { id: 1, ..col(250.0) }, Win { id: 2, ..col(340.0) }, Win { id: 3, ..col(670.0) }];
+        assert_eq!(ids(&wins, Some(&1)), [2, 1, 3]);
     }
 
     #[test]

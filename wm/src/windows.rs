@@ -141,9 +141,10 @@ fn place(hwnd: HWND, r: Rect) {
     }
 }
 
-/// Lays out every listed window. Skipped when already running: moving another process's window can deliver our
-/// own hook callbacks re-entrantly, and the delayed pass catches up.
-fn pass() {
+/// Lays out every listed window; `dropped` is a window the user just finished dragging, which in a split takes the
+/// column it was dropped in. Skipped when already running: moving another process's window can deliver our own
+/// hook callbacks re-entrantly, and the delayed pass catches up.
+fn pass(dropped: Option<HWND>) {
     STATE.with(|cell| {
         let Ok(mut st) = cell.try_borrow_mut() else { return };
         let st = &mut *st;
@@ -166,7 +167,8 @@ fn pass() {
             })
             .collect();
         st.known = wins.iter().map(|w| w.id).collect();
-        for (h, r) in plan(&st.rules.list, &wins, &screens, &mut st.first) {
+        let dropped = dropped.map(|h| h as isize);
+        for (h, r) in plan(&st.rules.list, &wins, &screens, &mut st.first, dropped.as_ref()) {
             place(h as HWND, r);
         }
     });
@@ -174,12 +176,12 @@ fn pass() {
 
 unsafe extern "system" fn on_timer(_: HWND, _: u32, id: usize, _: u32) {
     KillTimer(ptr::null_mut(), id);
-    pass();
+    pass(None);
 }
 
 /// Lays out now and again shortly after: a new window often moves itself once more right after it appears.
 fn soon() {
-    pass();
+    pass(None);
     unsafe { SetTimer(ptr::null_mut(), 0, 400, Some(on_timer)) };
 }
 
@@ -193,7 +195,9 @@ unsafe extern "system" fn on_event(_: HWINEVENTHOOK, event: u32, hwnd: HWND, obj
         }
         _ => is_normal(hwnd),
     };
-    if relevant {
+    if event == EVENT_SYSTEM_MOVESIZEEND {
+        pass(Some(hwnd));
+    } else if relevant {
         soon();
     }
 }

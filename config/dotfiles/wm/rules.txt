@@ -10,7 +10,8 @@
 #   title    optional; only windows whose title contains it (Blender's main window, not Preferences).
 #   layout   fill (default): every normal window fills the screen, stacked.
 #            first: only the first window fills; later ones (a compose window) float.
-#            split: side-by-side columns, ordered by where they sit; they rebalance when one closes.
+#            split: side-by-side columns; they rebalance when one closes. Drag a window (or Swish it) over
+#            another column to swap them.
 #   padding  px around (and, for split, between) windows; default 8, the same as aerospace.toml's inner and
 #            outer gaps and the margin macOS's own tiling leaves.
 

@@ -190,15 +190,16 @@ struct State {
     first: HashMap<usize, Ref>,
     /// When each app's windows were last moved by us, so the move notifications that causes are not taken for a drag.
     placed: HashMap<i32, Instant>,
-    /// Apps with a drag being waited out, so a drag's stream of move notifications schedules one check.
-    dragging: HashSet<i32>,
+    /// Apps with a drag being waited out (so a drag's stream of move notifications schedules one check), and the
+    /// window being dragged.
+    dragging: HashMap<i32, Ref>,
 }
 
 thread_local! {
     static STATE: RefCell<State> = RefCell::default();
 }
 
-extern "C" fn on_ax(_observer: CFTypeRef, _element: CFTypeRef, name: CFTypeRef, pid: *mut c_void) {
+extern "C" fn on_ax(_observer: CFTypeRef, element: CFTypeRef, name: CFTypeRef, pid: *mut c_void) {
     let pid = pid as isize as i32;
     let moved = [cfstr("AXWindowMoved"), cfstr("AXWindowResized")].iter().any(|n| unsafe { CFEqual(name, n.0) });
     if !moved {
@@ -208,7 +209,11 @@ extern "C" fn on_ax(_observer: CFTypeRef, _element: CFTypeRef, name: CFTypeRef, 
     // dragging or Swish snapping: once the mouse is up, a listed window snaps back and another gets the padding.
     let start = STATE.with_borrow_mut(|st| {
         let ours = st.placed.get(&pid).is_some_and(|t| t.elapsed() < Duration::from_millis(500));
-        !ours && st.dragging.insert(pid)
+        if ours || st.dragging.contains_key(&pid) {
+            return false;
+        }
+        st.dragging.insert(pid, Ref(unsafe { CFRetain(element) }));
+        true
     });
     if start {
         after(Duration::from_millis(100), -pid);
@@ -285,9 +290,10 @@ fn screens() -> Vec<Screen> {
         .collect()
 }
 
-/// Places a listed app's windows. With `snapped` (a move just ended), an unlisted window lying flush on screen
-/// fractions also gets the padding.
-fn layout(pid: i32, snapped: bool) {
+/// Places a listed app's windows. With `dropped` (the window whose move just ended), a split puts it in the column
+/// it was dropped in, and an unlisted window lying flush on screen fractions gets the padding.
+fn layout(pid: i32, dropped: Option<Ref>) {
+    let snapped = dropped.is_some();
     STATE.with_borrow_mut(|st| {
         let Some(app) = st.apps.get(&pid) else { return };
         let names = [app.names[0].as_str(), app.names[1].as_str()];
@@ -329,7 +335,7 @@ fn layout(pid: i32, snapped: bool) {
             }
         }
         if app.listed {
-            moves.extend(plan(&st.rules.list, &wins, &screens, &mut st.first));
+            moves.extend(plan(&st.rules.list, &wins, &screens, &mut st.first, dropped.as_ref()));
         }
         for (w, r) in moves {
             if frame(w.0) != Some(r) {
@@ -347,10 +353,10 @@ extern "C" fn later(pid: *mut c_void) {
         // A drag: check again until the mouse is up, then snap back.
         drag if drag < 0 && mouse_down() => after(Duration::from_millis(100), drag),
         drag if drag < 0 => {
-            STATE.with_borrow_mut(|st| st.dragging.remove(&-drag));
-            layout(-drag, true);
+            let dropped = STATE.with_borrow_mut(|st| st.dragging.remove(&-drag));
+            layout(-drag, dropped);
         }
-        pid => layout(pid, false),
+        pid => layout(pid, None),
     }
 }
 
@@ -363,7 +369,7 @@ fn after(delay: Duration, pid: i32) {
 
 /// Lays an app out now and again shortly after: a new window often moves itself once more right after it appears.
 fn soon(pid: i32) {
-    layout(pid, false);
+    layout(pid, None);
     after(Duration::from_millis(400), pid);
 }
 

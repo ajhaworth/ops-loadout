@@ -10,7 +10,7 @@ empty-workspace focus fix, parked windows, Mission Control grouping and GlazeWM'
 - **`src/main.rs`** is the platform-neutral part, unit-tested with `cargo test`:
   - The rules parser (`app | title contains | layout | padding`).
   - `plan`, which turns windows and screens into target frames. `fill` fills every window, `first` fills only
-    the remembered first window, and `split` makes equal columns sorted by current x.
+    the remembered first window, and `split` makes equal columns sorted by current x, except that a window just dragged or snapped (`dropped`) takes the column its center landed in. That's how you swap or reorder.
   - The rules file is re-read when its mtime changes, so edits apply on the next event.
 - **"Normal window" is the OS's call, not a rule.** That's how dialogs, panels and sheets float:
   - macOS: `AXSubrole == AXStandardWindow`, or `AXDialog` with a full-screen button (Mail's viewer calls itself a
