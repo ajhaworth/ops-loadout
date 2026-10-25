@@ -19,6 +19,9 @@ apply_dock() {
     defaults_set com.apple.WindowManager EnableTilingByEdgeDrag bool false "Don't tile windows dragged to screen edges"
     defaults_set com.apple.WindowManager EnableTopTilingByEdgeDrag bool false "Don't fill the screen when dragging to the top"
     defaults_set com.apple.WindowManager EnableTilingOptionAccelerator bool false "Don't tile windows on Option-drag"
+    # Windows tiled from the Window menu (and by Swish's native snapping, swish.sh) keep macOS's 8 px margins, the
+    # padding Loadout WM uses.
+    defaults_set com.apple.WindowManager EnableTiledWindowMargins bool true "Tiled windows have margins"
     # Ctrl-Cmd-drag moves a window from anywhere in it (applies after logout): swaps AeroSpace tiles by dropping one on
     # another, without hunting for a title bar in Blender or Houdini.
     defaults_set NSGlobalDomain NSWindowShouldDragOnGesture bool true "Ctrl-Cmd-drag moves windows from anywhere"
