@@ -16,7 +16,7 @@ cursor-style = block
 macos-titlebar-style = tabs
 # Linux/GTK only; macOS hides the bar at one tab natively
 window-show-tab-bar = auto
-background-opacity = 0.7
+background-opacity = 0.85
 background-blur = 20
 
 # Aesthetic Padding
