@@ -17,7 +17,7 @@ macos-titlebar-style = tabs
 # Linux/GTK only; macOS hides the bar at one tab natively
 window-show-tab-bar = auto
 background-opacity = 0.85
-background-blur = 20
+background-blur = 40
 
 # Aesthetic Padding
 window-padding-x = 10
