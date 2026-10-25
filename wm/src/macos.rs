@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{c_char, c_void};
 use std::ptr::{self, NonNull};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use block2::RcBlock;
 use objc2::MainThreadMarker;
@@ -83,6 +83,11 @@ extern "C" {
     fn CFRunLoopGetMain() -> CFTypeRef;
     fn CFRunLoopAddSource(rl: CFTypeRef, source: CFTypeRef, mode: CFTypeRef);
     fn CFRunLoopRemoveSource(rl: CFTypeRef, source: CFTypeRef, mode: CFTypeRef);
+}
+
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    fn CGEventSourceButtonState(state: i32, button: u32) -> bool;
 }
 
 extern "C" {
@@ -181,14 +186,36 @@ struct State {
     rules: Rules,
     apps: HashMap<i32, App>,
     first: HashMap<usize, Ref>,
+    /// When each app's windows were last moved by us, so the move notifications that causes are not taken for a drag.
+    placed: HashMap<i32, Instant>,
+    /// Apps with a drag being waited out, so a drag's stream of move notifications schedules one check.
+    dragging: HashSet<i32>,
 }
 
 thread_local! {
     static STATE: RefCell<State> = RefCell::default();
 }
 
-extern "C" fn on_ax(_observer: CFTypeRef, _element: CFTypeRef, _name: CFTypeRef, pid: *mut c_void) {
-    soon(pid as isize as i32);
+extern "C" fn on_ax(_observer: CFTypeRef, _element: CFTypeRef, name: CFTypeRef, pid: *mut c_void) {
+    let pid = pid as isize as i32;
+    let moved = [cfstr("AXWindowMoved"), cfstr("AXWindowResized")].iter().any(|n| unsafe { CFEqual(name, n.0) });
+    if !moved {
+        return soon(pid);
+    }
+    // A move or resize we did not cause (an app clamping our size also lands inside this window) is the user
+    // dragging: snap back once the mouse is up.
+    let start = STATE.with_borrow_mut(|st| {
+        let ours = st.placed.get(&pid).is_some_and(|t| t.elapsed() < Duration::from_millis(500));
+        !ours && st.dragging.insert(pid)
+    });
+    if start {
+        after(Duration::from_millis(100), -pid);
+    }
+}
+
+fn mouse_down() -> bool {
+    // kCGEventSourceStateCombinedSessionState, left button.
+    unsafe { CGEventSourceButtonState(0, 0) }
 }
 
 fn watch(pid: i32, names: [String; 2]) -> Option<App> {
@@ -274,16 +301,17 @@ fn layout(pid: i32) {
                 }
                 let Some(rule) = rule_for(&st.rules.list, &names, &string_attr(w.0, "AXTitle")) else { continue };
                 let Some(frame) = frame(w.0) else { continue };
-                // Closing it then lays the app out again (split rebalances, first hands over). Already registered
-                // is an error AX returns and we ignore.
-                unsafe {
-                    AXObserverAddNotification(app.observer.0, w.0, cfstr("AXUIElementDestroyed").0, pid as isize as *mut c_void);
+                // Closing it lays the app out again (split rebalances, first hands over); dragging it snaps it back.
+                // Already registered is an error AX returns and we ignore.
+                for n in ["AXUIElementDestroyed", "AXWindowMoved", "AXWindowResized"] {
+                    unsafe { AXObserverAddNotification(app.observer.0, w.0, cfstr(n).0, pid as isize as *mut c_void) };
                 }
                 wins.push(Win { id: w, rule, frame });
             }
         }
         for (w, r) in plan(&st.rules.list, &wins, &screens(), &mut st.first) {
             if frame(w.0) != Some(r) {
+                st.placed.insert(pid, Instant::now());
                 set_frame(w.0, r);
             }
         }
@@ -293,6 +321,12 @@ fn layout(pid: i32) {
 extern "C" fn later(pid: *mut c_void) {
     match pid as isize as i32 {
         0 => refresh(),
+        // A drag: check again until the mouse is up, then snap back.
+        drag if drag < 0 && mouse_down() => after(Duration::from_millis(100), drag),
+        drag if drag < 0 => {
+            STATE.with_borrow_mut(|st| st.dragging.remove(&-drag));
+            layout(-drag);
+        }
         pid => layout(pid),
     }
 }

@@ -18,8 +18,11 @@ empty-workspace focus fix, parked windows, Mission Control grouping and GlazeWM'
 - **`src/macos.rs`** uses raw AX and CoreFoundation FFI, plus objc2 for NSWorkspace, NSScreen and NSApplication.
   - Each listed app gets an `AXObserver` for `AXWindowCreated`. Every laid-out window also gets
     `AXUIElementDestroyed`, so closing one rebalances `split` and hands `first` over.
-  - NSWorkspace launch and quit events trigger a resync. Activating an app relays out its windows, which is the
-    snap-back. A screen-parameters change relays out every app.
+  - NSWorkspace launch and quit events trigger a resync. Activating an app relays out its windows. A screen-parameters change relays out every app.
+  - **Drag snap-back:** each laid-out window also gets `AXWindowMoved` and `AXWindowResized`. A move we didn't make
+    (within 500 ms of our own `set_frame` counts as ours, which also covers an app clamping our size) polls every
+    100 ms until the mouse is up (`CGEventSourceButtonState`), then relays out the app. `dragging` makes a drag's
+    stream of notifications schedule only one poll.
   - Each layout runs twice, once at once and again 400 ms later (`dispatch_after_f`), because a new window often
     moves itself again right after it appears.
   - Frames are AX top-left points. `NSScreen.visibleFrame` is flipped against the primary screen's height.
@@ -33,6 +36,7 @@ empty-workspace focus fix, parked windows, Mission Control grouping and GlazeWM'
     exact.
   - A pass already running is skipped (`try_borrow_mut`): moving another process's window can re-enter the hook,
     and the delayed `SetTimer` pass catches up.
+  - `EVENT_SYSTEM_MOVESIZEEND` (sent only for a user's drag or resize) gives the drag snap-back.
   - Display changes have no hook, so the next foreground event fixes them.
 
 **Install.** `release.yml` builds `wm/` on both runners and attaches `loadout-wm-macos.zip` (`Loadout WM.app`,

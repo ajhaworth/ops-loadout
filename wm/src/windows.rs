@@ -20,7 +20,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     DispatchMessageW, EnumWindows, GetMessageW, GetWindow, GetWindowLongW, GetWindowRect, GetWindowTextW,
     GetWindowThreadProcessId, IsIconic, IsWindowVisible, IsZoomed, KillTimer, SetTimer, SetWindowPos, ShowWindow,
     TranslateMessage, CHILDID_SELF, EVENT_OBJECT_DESTROY, EVENT_OBJECT_HIDE,
-    EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_MINIMIZEEND, GWL_EXSTYLE, GWL_STYLE, GW_OWNER, MSG, OBJID_WINDOW,
+    EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MOVESIZEEND, GWL_EXSTYLE, GWL_STYLE, GW_OWNER, MSG, OBJID_WINDOW,
     SWP_NOACTIVATE, SWP_NOZORDER, SW_RESTORE, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WS_CAPTION,
     WS_EX_TOOLWINDOW, WS_THICKFRAME,
 };
@@ -209,6 +209,8 @@ pub fn run() {
         for (min, max) in [
             (EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND),
             (EVENT_SYSTEM_MINIMIZEEND, EVENT_SYSTEM_MINIMIZEEND),
+            // The end of a user's drag or resize (never ours: SetWindowPos does not send it), so it snaps back.
+            (EVENT_SYSTEM_MOVESIZEEND, EVENT_SYSTEM_MOVESIZEEND),
             (EVENT_OBJECT_DESTROY, EVENT_OBJECT_HIDE), // destroy, show, hide
         ] {
             SetWinEventHook(min, max, ptr::null_mut(), Some(on_event), 0, 0, flags);
