@@ -4,3 +4,4 @@
 fork    | Fork    | https://git-fork.com
 ghostty | Ghostty | https://ghostty.org
 aerospace | AeroSpace | https://github.com/nikitabobko/AeroSpace
+loadout-wm | Loadout WM | https://github.com/ajhaworth/ops-loadout

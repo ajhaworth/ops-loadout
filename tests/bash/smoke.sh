@@ -674,6 +674,23 @@ test_tasks_apply_unknown_id() {
     assert_contains "$RUN_OUTPUT" "Unknown id"
 }
 
+test_loadout_wm_versions() {
+    local sh="$REPO_ROOT/platforms/macos/installers/loadout-wm.sh"
+    local psm="$REPO_ROOT/lib/windows/loadout-wm.psm1"
+    local crate sh_v ps_v
+
+    [[ -x "$sh" ]] || fail "loadout-wm.sh is not executable"
+    bash -n "$sh" || fail "loadout-wm.sh has a syntax error"
+
+    # The installers replace Loadout WM only when the version differs, and refuse a release built from another
+    # version, so they must name exactly the version release.yml builds from wm/Cargo.toml.
+    crate="$(sed -n 's/^version = "\(.*\)"/\1/p' "$REPO_ROOT/wm/Cargo.toml" | head -1)"
+    sh_v="$(sed -n 's/^WM_VERSION="\(.*\)"/\1/p' "$sh")"
+    ps_v="$(sed -n "s/^\$script:WmVersion = '\(.*\)'/\1/p" "$psm")"
+    [[ -n "$crate" && "$sh_v" == "$crate" ]] || fail "loadout-wm.sh WM_VERSION '$sh_v' != wm/Cargo.toml '$crate'"
+    [[ "$ps_v" == "$crate" ]] || fail "loadout-wm.psm1 WmVersion '$ps_v' != wm/Cargo.toml '$crate'"
+}
+
 test_mismatched_profile_rejected
 test_supported_dry_runs
 test_symlink_safety
@@ -688,5 +705,6 @@ test_cleanup_houdini_builds
 test_json_str_escaping
 test_defaults_compare
 test_tasks_apply_unknown_id
+test_loadout_wm_versions
 
 echo "bash smoke tests passed"

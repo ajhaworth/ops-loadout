@@ -23,3 +23,6 @@ config/dotfiles/wezterm/wezterm.lua|.wezterm.lua|DOTFILES_WEZTERM
 # GlazeWM, a port of aerospace.toml. GlazeWM creates .glzr\glazewm on first
 # launch; until then this entry is skipped (two directory levels missing).
 config/dotfiles/glazewm/config.yaml|.glzr\glazewm\config.yaml|DOTFILES_GLAZEWM
+
+# Loadout WM rules (wm/), shared with the Mac
+config/dotfiles/wm/rules.txt|.loadout-wm.txt|DOTFILES_WM

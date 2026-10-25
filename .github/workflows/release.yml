@@ -1,8 +1,8 @@
 # Builds Loadout and attaches it to a GitHub Release.
 # Trigger: push a tag like v0.1.0, or run it by hand from the Actions tab.
-# A release carries only the two installers - the macOS dmg and the Windows
-# NSIS exe - and the `prune` job deletes every older release and tag, so only
-# the latest one exists.
+# A release carries the two installers - the macOS dmg and the Windows NSIS
+# exe - plus Loadout WM for each (loadout-wm-{macos,windows}.zip), and the
+# `prune` job deletes every older release and tag, so only the latest exists.
 # The app is unsigned (no Apple Developer ID), so a downloaded copy needs
 # System Settings > Privacy & Security > Open Anyway, or
 #   xattr -dr com.apple.quarantine "/Applications/Loadout.app"
@@ -39,7 +39,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: app/src-tauri
+          workspaces: |
+            app/src-tauri
+            wm
       - run: npm ci
         working-directory: app
       - uses: tauri-apps/tauri-action@v0
@@ -55,11 +57,46 @@ jobs:
             Standalone macOS build, not notarized. If macOS says the app is damaged, drag it to Applications and run once:
 
                 xattr -dr com.apple.quarantine "/Applications/Loadout.app"
+      # Loadout WM (wm/) rides along as its own asset, under a fixed name so the installers can fetch it from
+      # releases/latest/download without the API. The version inside the zip is what they compare.
+      - name: Build Loadout WM (macOS)
+        if: runner.os == 'macOS'
+        working-directory: wm
+        run: |
+          cargo build --release
+          v=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          app="dist/Loadout WM.app"
+          mkdir -p "$app/Contents/MacOS"
+          cp Info.plist "$app/Contents/"
+          plutil -insert CFBundleShortVersionString -string "$v" "$app/Contents/Info.plist"
+          cp target/release/loadout-wm "$app/Contents/MacOS/"
+          codesign --force --sign - --identifier dev.alx.loadout-wm "$app"
+          (cd dist && ditto -c -k --keepParent "Loadout WM.app" ../loadout-wm-macos.zip)
+      - name: Build Loadout WM (Windows)
+        if: runner.os == 'Windows'
+        working-directory: wm
+        shell: pwsh
+        run: |
+          cargo build --release
+          $v = (Select-String -Path Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1).Matches.Groups[1].Value
+          New-Item -ItemType Directory dist | Out-Null
+          Copy-Item target/release/loadout-wm.exe dist/
+          Set-Content -Path dist/version.txt -Value $v -NoNewline
+          Compress-Archive -Path dist/* -DestinationPath loadout-wm-windows.zip
+      - name: Attach Loadout WM
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: wm
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" loadout-wm-*.zip --clobber
       - uses: actions/upload-artifact@v4
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           name: Loadout-${{ runner.os }}
-          path: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}
+            wm/loadout-wm-*.zip
 
   prune:
     needs: build

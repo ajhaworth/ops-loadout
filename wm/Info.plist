@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Loadout WM.app's plist. release.yml adds CFBundleShortVersionString from Cargo.toml. -->
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key><string>loadout-wm</string>
+    <key>CFBundleIdentifier</key><string>dev.alx.loadout-wm</string>
+    <key>CFBundleName</key><string>Loadout WM</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>LSUIElement</key><true/>
+    <key>LSMinimumSystemVersion</key><string>13.0</string>
+</dict>
+</plist>

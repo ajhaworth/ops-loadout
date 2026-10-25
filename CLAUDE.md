@@ -57,6 +57,7 @@ Subsystem notes live in nested `CLAUDE.md` files, loaded when you work under tha
 - `platforms/macos/installers/CLAUDE.md` - macOS installer-script contract, `houdini.sh`, `blender.sh` install/update
 - `config/dcc/CLAUDE.md` - Blender and Houdini config (portable prefs, `setup.py`, keymap, extensions, Loadout tab, asset library)
 - `config/dotfiles/aerospace/CLAUDE.md` - AeroSpace workspace rules, Caps Lock leader, `follow.sh`/`center.js`
+- `wm/CLAUDE.md` - Loadout WM, the repo's own window manager (AeroSpace/GlazeWM replacement): rules, AX/WinEvent backends, install, version rule
 
 Rules that hold even before you open those files:
 

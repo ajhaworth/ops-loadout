@@ -274,6 +274,7 @@ ops-loadout/
 ├── setup.sh                    # Entry point (macOS/Linux)
 ├── setup.ps1                   # Entry point (Windows)
 ├── app/                        # Loadout (Tauri desktop app)
+├── wm/                         # Loadout WM (window manager, macOS + Windows)
 ├── lib/                        # Shared libraries
 │   ├── common.sh               # Colors, logging
 │   ├── detect.sh               # OS detection
@@ -348,6 +349,17 @@ It finds this repo through `OPS_LOADOUT_DIR`, then the path saved in its own
 config directory, then the checkout it was built from, then
 `~/Developer/ops/ops-loadout`, then the copy seeded from its own bundle, and
 asks with a folder picker if none of those work. Package lists are read at runtime: edit a `.txt` and hit refresh.
+
+## Loadout WM
+
+`wm/` is a small window manager for macOS and Windows. Apps listed in
+`config/dotfiles/wm/rules.txt` get their normal windows filled to the screen
+with a padding, either stacked (`fill`), only the first one (`first`) or side by side (`split`).
+Everything else floats untouched. There are no virtual workspaces: each listed
+app is its own, reached by switching to it as usual. Install it from its
+Loadout tile (it ships with each release), apply the `wm` dotfile, allow it
+under Accessibility on macOS, and quit AeroSpace/GlazeWM first. Edits to the
+rules apply without a restart.
 
 ## Security
 

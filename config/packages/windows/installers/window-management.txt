@@ -1,0 +1,4 @@
+# Format: token | display-name | homepage
+# Each token is platforms/windows/installers/<token>.ps1 (status|install|update|reinstall|configure|uninstall).
+# Loadout WM is this repo's own window manager (wm/), built by release.yml.
+loadout-wm | Loadout WM | https://github.com/ajhaworth/ops-loadout

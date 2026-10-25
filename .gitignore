@@ -29,3 +29,6 @@ app/src-tauri/gen/
 
 # Staged copy of config/lib/platforms, rebuilt by app/scripts/bundle-repo.js
 app/src-tauri/bundled/
+
+# loadout-wm build output
+wm/target/

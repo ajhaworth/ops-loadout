@@ -22,5 +22,8 @@ config/dotfiles/aerospace/center.js|~/.config/aerospace/center.js||DOTFILES_AERO
 config/dotfiles/aerospace/follow.sh|~/.config/aerospace/follow.sh||DOTFILES_AEROSPACE
 config/dotfiles/aerospace/capslock-f18.plist|~/Library/LaunchAgents/dev.alx.capslock-f18.plist||DOTFILES_AEROSPACE
 
+# Loadout WM rules (wm/): listed apps fill the screen, everything else floats
+config/dotfiles/wm/rules.txt|~/.loadout-wm.txt||DOTFILES_WM
+
 # Git configuration
 config/dotfiles/git/config|~/.gitconfig||DOTFILES_GIT

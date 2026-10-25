@@ -1,0 +1,60 @@
+# loadout-wm rules (-> ~/.loadout-wm.txt on macOS and Windows). Each listed app is its own workspace: its normal
+# windows fill the screen, inset by the padding, and switching to the app (Dock, Cmd-Tab, taskbar) brings them
+# forward. Every other window - and a listed app's dialogs, panels and sheets - floats untouched. Edits apply on
+# the next window event, no restart.
+#
+# app | title contains | layout | padding
+#   app      macOS bundle id or app name, Windows exe name without .exe; case-insensitive. A line for the other
+#            platform never matches, so both live here.
+#   title    optional; only windows whose title contains it (Blender's main window, not Preferences).
+#   layout   fill (default): every normal window fills the screen, stacked.
+#            first: only the first window fills; later ones (a compose window) float.
+#            split: side-by-side columns, ordered by where they sit; they rebalance when one closes.
+#   padding  px around (and, for split, between) windows; default 8, the same as aerospace.toml's inner and
+#            outer gaps and the margin macOS's own tiling leaves.
+
+# DCC and engines: the main window only.
+org.blenderfoundation.blender  | - Blender
+blender                        | - Blender
+com.sidefx.HoudiniApprentice   | - Houdini
+com.sidefx.HoudiniIndie        | - Houdini
+com.sidefx.HoudiniFX           | - Houdini
+com.sidefx.HoudiniEscape       | - Houdini
+houdini                        | - Houdini
+happrentice                    | - Houdini
+hindie                         | - Houdini
+houdinifx                      | - Houdini
+houdinicore                    | - Houdini
+org.godotengine.godot          | Godot Engine
+# ponytail: Godot's Windows exe carries its version (Godot_v4.7-stable_win64); add yours here.
+com.epicgames.UnrealEditor     | - Unreal Editor
+UnrealEditor                   | - Unreal Editor
+
+# Terminals.
+com.mitchellh.ghostty          |               | split
+wezterm-gui                    |               | split
+
+# Everyday apps.
+app.zen-browser.zen
+zen
+com.apple.Safari
+com.apple.mail                 |               | first
+com.apple.iCal
+dev.alx.Agenda
+dev.alx.Digest
+dev.alx.Pulse
+com.openai.codex
+com.anthropic.claudefordesktop
+claude
+com.tinyspeck.slackmacgap
+md.obsidian
+com.spotify.client
+spotify
+com.DanPristupov.Fork
+
+# Windows only. Steam's main window is titled just "Steam" (friends and chat float); Explorer's file windows
+# fill, the taskbar and desktop are not normal windows.
+comfyui
+p4v
+steamwebhelper                 | Steam
+explorer
