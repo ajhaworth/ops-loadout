@@ -14,8 +14,10 @@ empty-workspace focus fix, parked windows, Mission Control grouping and GlazeWM'
     the remembered first window, and `split` makes equal columns sorted by current x, except that a window just dragged or snapped (`dropped`) takes the column its center landed in. That's how you swap or reorder.
   - The rules file is re-read when its mtime changes, so edits apply on the next event.
 - **"Normal window" is the OS's call, not a rule.** That's how dialogs, panels and sheets float:
-  - macOS: `AXSubrole == AXStandardWindow`, or `AXDialog` with a full-screen button (Mail's viewer calls itself a
-    dialog; System Settings has no such button), not minimised or full screen.
+  - macOS: `AXSubrole` is `AXStandardWindow` or `AXDialog` and the window isn't `AXModal`, not minimised, and not in
+    native full screen. Mail, Calendar and Agenda main windows report `AXDialog`, so only a modal one counts as a
+    real dialog. Full screen means `AXFullScreen` *and* a frame covering a whole screen including the menu bar, because
+    Zen reports `AXFullScreen` for a window Swish merely maximized.
   - Windows: visible, unowned, has `WS_CAPTION` and `WS_THICKFRAME`, not a tool window, not cloaked.
 - **`src/macos.rs`** uses raw AX and CoreFoundation FFI, plus objc2 for NSWorkspace, NSScreen and NSApplication.
   - Every regular app (not just listed ones) gets an `AXObserver` for `AXWindowCreated`, so snapped windows of

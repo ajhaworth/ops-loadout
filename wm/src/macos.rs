@@ -224,6 +224,7 @@ extern "C" fn on_ax(_observer: CFTypeRef, element: CFTypeRef, name: CFTypeRef, p
     // dragging or Swish snapping: once the mouse is up, a listed window snaps back and another gets the padding.
     let start = STATE.with_borrow_mut(|st| {
         let ours = st.placed.get(&pid).is_some_and(|t| t.elapsed() < Duration::from_millis(500));
+        debug(|| format!("moved pid {pid}: ours {ours}, already waiting {}", st.dragging.contains_key(&pid)));
         if ours || st.dragging.contains_key(&pid) {
             return false;
         }
@@ -311,6 +312,24 @@ fn screens() -> Vec<Screen> {
 
 /// Places a listed app's windows. With `dropped` (the window whose move just ended), a split puts it in the column
 /// it was dropped in, and an unlisted window lying flush on screen fractions gets the padding.
+/// Whether a window is really in a native full-screen Space: it covers a whole screen, menu bar included. Zen
+/// reports AXFullScreen for a window Swish merely maximized under the menu bar, which this does not count.
+fn native_fullscreen(element: CFTypeRef, frame: Rect) -> bool {
+    let Some(mtm) = MainThreadMarker::new() else { return false };
+    let all = NSScreen::screens(mtm);
+    let Some(primary) = all.firstObject() else { return false };
+    let top = primary.frame().size.height;
+    bool_attr(element, "AXFullScreen")
+        && all.iter().any(|s| {
+            let f = s.frame();
+            let y = top - f.origin.y - f.size.height;
+            (frame.x - f.origin.x).abs() <= 2.0
+                && (frame.y - y).abs() <= 2.0
+                && (frame.w - f.size.width).abs() <= 2.0
+                && (frame.h - f.size.height).abs() <= 2.0
+        })
+}
+
 fn layout(pid: i32, dropped: Option<Ref>) {
     let snapped = dropped.is_some();
     STATE.with_borrow_mut(|st| {
@@ -330,18 +349,21 @@ fn layout(pid: i32, dropped: Option<Ref>) {
                 }
                 let Some(frame) = frame(w.0) else { continue };
                 let title = string_attr(w.0, "AXTitle");
-                // Dialogs, sheets, panels and picture-in-picture have other subroles, so they float. Some main
-                // windows call themselves dialogs (Mail's viewer is AXDialog); those still have a full-screen button,
-                // which real dialogs (System Settings) do not.
+                // Panels, sheets and picture-in-picture have other subroles, so they float. Many main windows call
+                // themselves dialogs (Mail, Calendar and Agenda report AXDialog, Agenda without even a close
+                // button), so only a modal one counts as a real dialog (alerts, panels). A listed app's other
+                // stray windows are what title filters and `first` are for.
                 let subrole = string_attr(w.0, "AXSubrole");
-                let main = subrole == "AXStandardWindow"
-                    || (subrole == "AXDialog" && attr(w.0, "AXFullScreenButton").is_some());
-                let main = main && !bool_attr(w.0, "AXMinimized") && !bool_attr(w.0, "AXFullScreen");
+                let main = (subrole == "AXStandardWindow" || subrole == "AXDialog") && !bool_attr(w.0, "AXModal");
+                let main = main && !bool_attr(w.0, "AXMinimized") && !native_fullscreen(w.0, frame);
                 if main && first_main.is_none() {
                     first_main = Some((w.clone(), frame));
                 }
                 let rule = if main { rule_for(&st.rules.list, &names, &title) } else { None };
-                debug(|| format!("{} {subrole} {title:?} {frame:?} rule {rule:?}", names[0]));
+                debug(|| {
+                    let flags = ["AXModal", "AXMinimized", "AXFullScreen"].map(|f| format!("{f}={}", bool_attr(w.0, f)));
+                    format!("{} {subrole} {title:?} {frame:?} {} rule {rule:?}", names[0], flags.join(" "))
+                });
                 match rule {
                     Some(rule) => wins.push(Win { id: w, rule, frame }),
                     None if snapped && !screens.is_empty() => {
@@ -394,6 +416,7 @@ extern "C" fn later(pid: *mut c_void) {
         // A drag: check again until the mouse is up, then snap back.
         drag if drag < 0 && mouse_down() => after(Duration::from_millis(100), drag),
         drag if drag < 0 => {
+            debug(|| format!("move ended pid {}", -drag));
             let dropped = STATE.with_borrow_mut(|st| st.dragging.remove(&-drag));
             layout(-drag, dropped);
         }
