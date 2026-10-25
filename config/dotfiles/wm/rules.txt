@@ -1,7 +1,8 @@
 # loadout-wm rules (-> ~/.loadout-wm.txt on macOS and Windows). Each listed app is its own workspace: its normal
 # windows fill the screen, inset by the padding, and switching to the app (Dock, Cmd-Tab, taskbar) brings them
 # forward. Every other window - and a listed app's dialogs, panels and sheets - floats untouched. Edits apply on
-# the next window event, no restart.
+# the next window event, no restart. A window of any app snapped flush to a screen half, third or quarter (Swish)
+# gets the same padding, using the first rule's padding, so it lines up with the filled ones.
 #
 # app | title contains | layout | padding
 #   app      macOS bundle id or app name, Windows exe name without .exe; case-insensitive. A line for the other

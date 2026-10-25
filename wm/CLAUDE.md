@@ -13,16 +13,25 @@ empty-workspace focus fix, parked windows, Mission Control grouping and GlazeWM'
     the remembered first window, and `split` makes equal columns sorted by current x.
   - The rules file is re-read when its mtime changes, so edits apply on the next event.
 - **"Normal window" is the OS's call, not a rule.** That's how dialogs, panels and sheets float:
-  - macOS: `AXSubrole == AXStandardWindow`, not minimised or full screen.
+  - macOS: `AXSubrole == AXStandardWindow`, or `AXDialog` with a full-screen button (Mail's viewer calls itself a
+    dialog; System Settings has no such button), not minimised or full screen.
   - Windows: visible, unowned, has `WS_CAPTION` and `WS_THICKFRAME`, not a tool window, not cloaked.
 - **`src/macos.rs`** uses raw AX and CoreFoundation FFI, plus objc2 for NSWorkspace, NSScreen and NSApplication.
-  - Each listed app gets an `AXObserver` for `AXWindowCreated`. Every laid-out window also gets
+  - Every regular app (not just listed ones) gets an `AXObserver` for `AXWindowCreated`, so snapped windows of
+    unlisted apps can be padded too (below). Every laid-out window also gets
     `AXUIElementDestroyed`, so closing one rebalances `split` and hands `first` over.
   - NSWorkspace launch and quit events trigger a resync. Activating an app relays out its windows. A screen-parameters change relays out every app.
   - **Drag snap-back:** each laid-out window also gets `AXWindowMoved` and `AXWindowResized`. A move we didn't make
     (within 500 ms of our own `set_frame` counts as ours, which also covers an app clamping our size) polls every
     100 ms until the mouse is up (`CGEventSourceButtonState`), then relays out the app. `dragging` makes a drag's
     stream of notifications schedule only one poll.
+  - **Snapped-window padding:** Swish snaps flush with no gaps (its "native snapping" option didn't add macOS's
+    margins either when tried). So when a move ends on a window no rule covers, `gapped` checks whether all four
+    edges sit on screen fractions (0, 1/4, 1/3, 1/2, 2/3, 3/4, 1, with 2 px of slack). If they do, the window gets
+    the padding: full at screen edges and half on each side of inner edges. Two halves then sit 8 px apart and line
+    up with filled windows. A window placed by hand is never on that grid, so it's left alone. The padding is the
+    first rule's (`Rules::padding`).
+  - `LOADOUT_WM_DEBUG=1` logs every window seen (subrole, title, frame, rule) and every move made.
   - Each layout runs twice, once at once and again 400 ms later (`dispatch_after_f`), because a new window often
     moves itself again right after it appears.
   - Frames are AX top-left points. `NSScreen.visibleFrame` is flipped against the primary screen's height.

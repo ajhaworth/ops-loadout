@@ -18,7 +18,7 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSNotification, NSNotificationCenter};
 
-use crate::{app_listed, plan, rule_for, Rect, Rules, Screen, Win};
+use crate::{app_listed, debug, gapped, plan, rule_for, screen_of, Rect, Rules, Screen, Win};
 
 type CFTypeRef = *const c_void;
 type AXObserverCallback = extern "C" fn(CFTypeRef, CFTypeRef, CFTypeRef, *mut c_void);
@@ -166,11 +166,13 @@ fn set_frame(element: CFTypeRef, r: Rect) {
     }
 }
 
-/// A listed app being watched: its AX element, its observer, and the names rules match against.
+/// A watched app: its AX element, its observer, and the names rules match against. Every regular app is watched,
+/// listed or not, so a window snapped flush by Swish gets the padding too.
 struct App {
     element: Ref,
     observer: Ref,
     names: [String; 2],
+    listed: bool,
 }
 
 impl Drop for App {
@@ -203,7 +205,7 @@ extern "C" fn on_ax(_observer: CFTypeRef, _element: CFTypeRef, name: CFTypeRef, 
         return soon(pid);
     }
     // A move or resize we did not cause (an app clamping our size also lands inside this window) is the user
-    // dragging: snap back once the mouse is up.
+    // dragging or Swish snapping: once the mouse is up, a listed window snaps back and another gets the padding.
     let start = STATE.with_borrow_mut(|st| {
         let ours = st.placed.get(&pid).is_some_and(|t| t.elapsed() < Duration::from_millis(500));
         !ours && st.dragging.insert(pid)
@@ -218,7 +220,7 @@ fn mouse_down() -> bool {
     unsafe { CGEventSourceButtonState(0, 0) }
 }
 
-fn watch(pid: i32, names: [String; 2]) -> Option<App> {
+fn watch(pid: i32, names: [String; 2], listed: bool) -> Option<App> {
     let element = Ref(unsafe { AXUIElementCreateApplication(pid) });
     let mut observer = ptr::null();
     if unsafe { AXObserverCreate(pid, on_ax, &mut observer) } != 0 {
@@ -230,15 +232,16 @@ fn watch(pid: i32, names: [String; 2]) -> Option<App> {
         AXObserverAddNotification(observer.0, element.0, cfstr("AXWindowCreated").0, pid as isize as *mut c_void)
     };
     if err != 0 {
+        debug(|| format!("cannot watch {} yet (AX error {err})", names[0]));
         return None;
     }
     unsafe {
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer.0), kCFRunLoopDefaultMode);
     }
-    Some(App { element, observer, names })
+    Some(App { element, observer, names, listed })
 }
 
-/// Rereads the rules and starts watching listed apps not yet watched. Returns the pids to lay out: new apps, or
+/// Rereads the rules and starts watching regular apps not yet watched. Returns the pids to lay out: new apps, or
 /// every app when the rules changed.
 fn sync(st: &mut State) -> Vec<i32> {
     if st.rules.reload() {
@@ -250,15 +253,13 @@ fn sync(st: &mut State) -> Vec<i32> {
     for app in unsafe { NSWorkspace::sharedWorkspace().runningApplications() }.iter() {
         let pid = unsafe { app.processIdentifier() };
         alive.insert(pid);
-        if st.apps.contains_key(&pid) {
+        if st.apps.contains_key(&pid) || unsafe { app.activationPolicy() } != NSApplicationActivationPolicy::Regular {
             continue;
         }
         let id = unsafe { app.bundleIdentifier() }.map(|s| s.to_string()).unwrap_or_default();
         let name = unsafe { app.localizedName() }.map(|s| s.to_string()).unwrap_or_default();
-        if !app_listed(&st.rules.list, &[&id, &name]) {
-            continue;
-        }
-        if let Some(watched) = watch(pid, [id, name]) {
+        let listed = app_listed(&st.rules.list, &[&id, &name]);
+        if let Some(watched) = watch(pid, [id, name], listed) {
             st.apps.insert(pid, watched);
             fresh.push(pid);
         }
@@ -284,33 +285,55 @@ fn screens() -> Vec<Screen> {
         .collect()
 }
 
-fn layout(pid: i32) {
+/// Places a listed app's windows. With `snapped` (a move just ended), an unlisted window lying flush on screen
+/// fractions also gets the padding.
+fn layout(pid: i32, snapped: bool) {
     STATE.with_borrow_mut(|st| {
         let Some(app) = st.apps.get(&pid) else { return };
         let names = [app.names[0].as_str(), app.names[1].as_str()];
+        let screens = screens();
         let mut wins = Vec::new();
+        let mut moves = Vec::new();
         if let Some(list) = attr(app.element.0, "AXWindows") {
             for i in 0..unsafe { CFArrayGetCount(list.0) } {
                 let w = Ref(unsafe { CFRetain(CFArrayGetValueAtIndex(list.0, i)) });
-                // Dialogs, sheets, panels and picture-in-picture have other subroles, so they float.
-                if string_attr(w.0, "AXSubrole") != "AXStandardWindow"
-                    || bool_attr(w.0, "AXMinimized")
-                    || bool_attr(w.0, "AXFullScreen")
-                {
-                    continue;
-                }
-                let Some(rule) = rule_for(&st.rules.list, &names, &string_attr(w.0, "AXTitle")) else { continue };
-                let Some(frame) = frame(w.0) else { continue };
-                // Closing it lays the app out again (split rebalances, first hands over); dragging it snaps it back.
-                // Already registered is an error AX returns and we ignore.
+                // Closing it lays the app out again (split rebalances, first hands over); moving it snaps it back
+                // or pads it. Already registered is an error AX returns and we ignore.
                 for n in ["AXUIElementDestroyed", "AXWindowMoved", "AXWindowResized"] {
                     unsafe { AXObserverAddNotification(app.observer.0, w.0, cfstr(n).0, pid as isize as *mut c_void) };
                 }
-                wins.push(Win { id: w, rule, frame });
+                let Some(frame) = frame(w.0) else { continue };
+                let title = string_attr(w.0, "AXTitle");
+                // Dialogs, sheets, panels and picture-in-picture have other subroles, so they float. Some main
+                // windows call themselves dialogs (Mail's viewer is AXDialog); those still have a full-screen button,
+                // which real dialogs (System Settings) do not.
+                let subrole = string_attr(w.0, "AXSubrole");
+                let main = subrole == "AXStandardWindow"
+                    || (subrole == "AXDialog" && attr(w.0, "AXFullScreenButton").is_some());
+                let rule = if main && !bool_attr(w.0, "AXMinimized") && !bool_attr(w.0, "AXFullScreen") {
+                    rule_for(&st.rules.list, &names, &title)
+                } else {
+                    None
+                };
+                debug(|| format!("{} {subrole} {title:?} {frame:?} rule {rule:?}", names[0]));
+                match rule {
+                    Some(rule) => wins.push(Win { id: w, rule, frame }),
+                    None if snapped && !screens.is_empty() => {
+                        let pad = st.rules.padding();
+                        if let Some(r) = gapped(frame, screens[screen_of(frame, &screens)].area, pad) {
+                            moves.push((w, r));
+                        }
+                    }
+                    None => {}
+                }
             }
         }
-        for (w, r) in plan(&st.rules.list, &wins, &screens(), &mut st.first) {
+        if app.listed {
+            moves.extend(plan(&st.rules.list, &wins, &screens, &mut st.first));
+        }
+        for (w, r) in moves {
             if frame(w.0) != Some(r) {
+                debug(|| format!("{} -> {r:?}", names[0]));
                 st.placed.insert(pid, Instant::now());
                 set_frame(w.0, r);
             }
@@ -325,9 +348,9 @@ extern "C" fn later(pid: *mut c_void) {
         drag if drag < 0 && mouse_down() => after(Duration::from_millis(100), drag),
         drag if drag < 0 => {
             STATE.with_borrow_mut(|st| st.dragging.remove(&-drag));
-            layout(-drag);
+            layout(-drag, true);
         }
-        pid => layout(pid),
+        pid => layout(pid, false),
     }
 }
 
@@ -340,7 +363,7 @@ fn after(delay: Duration, pid: i32) {
 
 /// Lays an app out now and again shortly after: a new window often moves itself once more right after it appears.
 fn soon(pid: i32) {
-    layout(pid);
+    layout(pid, false);
     after(Duration::from_millis(400), pid);
 }
 

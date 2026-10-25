@@ -91,6 +91,11 @@ pub struct Rules {
 }
 
 impl Rules {
+    /// The padding for windows no rule covers (snapped ones): the first rule's, or the default 8.
+    pub fn padding(&self) -> f64 {
+        self.list.first().map_or(8.0, |r| r.padding)
+    }
+
     /// True when the rules changed.
     pub fn reload(&mut self) -> bool {
         let path = rules_path();
@@ -144,6 +149,40 @@ pub fn columns(area: Rect, pad: f64, n: usize) -> Vec<Rect> {
             h: (area.h - 2.0 * pad).round(),
         })
         .collect()
+}
+
+/// For a window snapped flush to screen fractions (Swish's halves, thirds and quarters, which leave no gaps), the
+/// same frame with the padding added: `pad` at the screen's edges, half of it on each side of an inner edge, so
+/// two snapped windows end up `pad` apart, lined up with filled ones. None when any edge is off the grid.
+pub fn gapped(frame: Rect, area: Rect, pad: f64) -> Option<Rect> {
+    const FRACTIONS: [f64; 7] = [0.0, 0.25, 1.0 / 3.0, 0.5, 2.0 / 3.0, 0.75, 1.0];
+    // Each edge as its fraction of the area, or None off the grid (2 px of slack for rounding).
+    let snap = |pos: f64, origin: f64, len: f64| {
+        FRACTIONS.iter().copied().find(|f| (pos - (origin + f * len)).abs() <= 2.0)
+    };
+    let inset = |f: f64| if f == 0.0 || f == 1.0 { pad } else { pad / 2.0 };
+    let l = snap(frame.x, area.x, area.w)?;
+    let r = snap(frame.x + frame.w, area.x, area.w)?;
+    let t = snap(frame.y, area.y, area.h)?;
+    let b = snap(frame.y + frame.h, area.y, area.h)?;
+    if l >= r || t >= b {
+        return None;
+    }
+    let x = area.x + l * area.w + inset(l);
+    let y = area.y + t * area.h + inset(t);
+    Some(Rect {
+        x: x.round(),
+        y: y.round(),
+        w: (area.x + r * area.w - inset(r) - x).round(),
+        h: (area.y + b * area.h - inset(b) - y).round(),
+    })
+}
+
+/// Logs to stderr when LOADOUT_WM_DEBUG is set.
+pub fn debug(msg: impl FnOnce() -> String) {
+    if std::env::var_os("LOADOUT_WM_DEBUG").is_some() {
+        eprintln!("loadout-wm: {}", msg());
+    }
 }
 
 /// A normal window of a listed app, as the platform sees it.
@@ -269,6 +308,24 @@ mod tests {
         assert_eq!(got[1].1.x, (20.0 + w).round());
         assert_eq!(got[2].1.x + got[2].1.w, 990.0);
         assert_eq!(columns(AREA, 10.0, 1)[0], Rect { x: 10.0, y: 40.0, w: 980.0, h: 580.0 });
+    }
+
+    #[test]
+    fn snapped_windows_get_the_padding_and_others_are_left_alone() {
+        let area = Rect { x: 0.0, y: 33.0, w: 1512.0, h: 949.0 };
+        let left = gapped(Rect { x: 0.0, y: 33.0, w: 756.0, h: 949.0 }, area, 8.0).unwrap();
+        let right = gapped(Rect { x: 756.0, y: 33.0, w: 756.0, h: 949.0 }, area, 8.0).unwrap();
+        assert_eq!(left, Rect { x: 8.0, y: 41.0, w: 744.0, h: 933.0 });
+        assert_eq!(right.x - (left.x + left.w), 8.0);
+        assert_eq!(right.x + right.w, 1504.0);
+        // A maximized window lines up with a filled one.
+        assert_eq!(gapped(area, area, 8.0), Some(columns(area, 8.0, 1)[0]));
+        // A top-right quarter.
+        let q = gapped(Rect { x: 1134.0, y: 33.0, w: 378.0, h: 474.5 }, area, 8.0).unwrap();
+        assert_eq!((q.x, q.y, q.x + q.w), (1138.0, 41.0, 1504.0));
+        // Already gapped, or placed by hand: untouched.
+        assert_eq!(gapped(left, area, 8.0), None);
+        assert_eq!(gapped(Rect { x: 117.0, y: 130.0, w: 756.0, h: 949.0 }, area, 8.0), None);
     }
 
     #[test]
