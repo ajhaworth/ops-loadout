@@ -38,6 +38,9 @@ empty-workspace focus fix, parked windows, Mission Control grouping and GlazeWM'
     lifts it just under the active app's windows without activating it. The pair ends, and the survivor goes back
     to its rule, when a paired window closes after having been placed, or when either app quits. Blender's Claude
     Code button is the user (`dcc_claude.py`).
+  - A menu bar icon (SF Symbol `rectangle.split.2x1`) shows the version and has Quit, which is NSApp's
+    `terminate:`, so no target class is needed. A clean exit isn't restarted by the LaunchAgent, since its
+    KeepAlive only applies after a crash.
   - `LOADOUT_WM_DEBUG=1` logs every window seen (subrole, title, frame, rule) and every move made.
   - Each layout runs twice, once at once and again 400 ms later (`dispatch_after_f`), because a new window often
     moves itself again right after it appears.
@@ -78,4 +81,4 @@ Windows from a Mac with rustup's toolchain, since Homebrew's cargo has no Window
 `RUSTC=~/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc ~/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo check --target x86_64-pc-windows-msvc`.
 
 **Not built yet:** Caps Lock bindings, centered narrow windows (Messages, Simulator, Loadout), split resizing and
-a tray icon. GlazeWM is still configured on Windows until the Windows backend has been run there.
+a Windows tray icon (on Windows, quit it from Task Manager). GlazeWM is still configured on Windows until the Windows backend has been run there.

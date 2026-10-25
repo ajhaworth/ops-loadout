@@ -10,9 +10,10 @@ use std::ptr::{self, NonNull};
 use std::time::{Duration, Instant};
 
 use block2::RcBlock;
-use objc2::MainThreadMarker;
+use objc2::{sel, MainThreadMarker};
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSApplicationDidChangeScreenParametersNotification, NSScreen,
+    NSApplication, NSApplicationActivationPolicy, NSApplicationDidChangeScreenParametersNotification, NSImage, NSMenu,
+    NSMenuItem, NSScreen, NSStatusBar, NSVariableStatusItemLength,
     NSWorkspace, NSWorkspaceDidActivateApplicationNotification, NSWorkspaceDidLaunchApplicationNotification,
     NSWorkspaceDidTerminateApplicationNotification,
 };
@@ -516,6 +517,31 @@ pub fn run() {
             ),
         ]
     };
+
+    // Menu bar icon, the only way to see it is running and to quit it. Quit is NSApp's terminate:, so it needs no
+    // target class; a clean exit is not restarted by the LaunchAgent (KeepAlive is crash-only).
+    let status = unsafe { NSStatusBar::systemStatusBar().statusItemWithLength(NSVariableStatusItemLength) };
+    unsafe {
+        if let Some(button) = status.button(mtm) {
+            let name = NSString::from_str("rectangle.split.2x1");
+            let image = NSImage::imageWithSystemSymbolName_accessibilityDescription(&name, Some(&NSString::from_str("Loadout WM")));
+            button.setImage(image.as_deref());
+        }
+        let menu = NSMenu::new(mtm);
+        let title = format!("Loadout WM {}", env!("CARGO_PKG_VERSION"));
+        let about = NSMenuItem::initWithTitle_action_keyEquivalent(mtm.alloc(), &NSString::from_str(&title), None, &NSString::new());
+        about.setEnabled(false);
+        menu.addItem(&about);
+        menu.addItem(&NSMenuItem::separatorItem(mtm));
+        menu.addItem(&NSMenuItem::initWithTitle_action_keyEquivalent(
+            mtm.alloc(),
+            &NSString::from_str("Quit Loadout WM"),
+            Some(sel!(terminate:)),
+            &NSString::from_str("q"),
+        ));
+        menu.setAutoenablesItems(false);
+        status.setMenu(Some(&menu));
+    }
 
     refresh();
     app.run();

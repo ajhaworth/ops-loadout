@@ -11,7 +11,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 
-WM_VERSION="0.2.0"
+WM_VERSION="0.3.0"
 APP="$HOME/Applications/Loadout WM.app"
 LABEL="dev.alx.loadout-wm"
 AGENT="$HOME/Library/LaunchAgents/$LABEL.plist"
