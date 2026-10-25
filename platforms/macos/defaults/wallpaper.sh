@@ -4,8 +4,7 @@
 # wallpaper_jxa get <path>: exit 0 when every screen shows <path>
 # wallpaper_jxa set <path>: put <path> on every screen
 # NSWorkspace runs in-process, so unlike System Events it needs no Automation
-# permission. It covers the current Space on each display, which is all
-# AeroSpace uses.
+# permission. It covers the current Space on each display.
 wallpaper_jxa() {
     osascript -l JavaScript -e '
 function run(argv) {

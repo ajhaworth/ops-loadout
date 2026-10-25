@@ -226,7 +226,7 @@ no console) and MCP. The `.configured` stamp drives `outdated` as on macOS.
 dir** (`Remove-Junction`): Windows PowerShell can follow it into the repo.
 Module functions run under the global `Continue` error preference, not the
 calling script's `Stop` - wrap calls whose failure must be counted in
-try/catch. `dcc_claude.py`'s Ghostty/AeroSpace button is macOS-only.
+try/catch. `dcc_claude.py`'s Ghostty button is macOS-only.
 
 **Houdini on Windows** (`houdini.psm1`), a port of `houdini.sh`. Same SideFX
 API and `config/sidefx.local` (written single-quoted by Settings, which

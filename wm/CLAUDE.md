@@ -1,6 +1,7 @@
 # wm (Loadout WM)
 
-This repo's own window manager, replacing AeroSpace (macOS) and GlazeWM (Windows). The normal windows of apps
+This repo's own window manager. It replaced AeroSpace on macOS and is meant to replace GlazeWM on Windows. The
+normal windows of apps
 listed in `config/dotfiles/wm/rules.txt` (-> `~/.loadout-wm.txt` on both platforms, `DOTFILES_WM`) fill their
 screen, inset by a padding. Every other window is never touched, so it floats. **There are no virtual
 workspaces.** An app is its own workspace, and you reach it by switching apps the normal way, which brings its
@@ -64,12 +65,11 @@ ad-hoc signed, with the version inserted into `Info.plist`) and `loadout-wm-wind
 - The installers refuse a downloaded build whose version isn't the expected one. That happens when the release
   with the new version hasn't finished building yet.
 
-**Develop.** Run `cargo run` from `wm/`. The terminal running it needs Accessibility, and AeroSpace or GlazeWM
+**Develop.** Run `cargo run` from `wm/`. The terminal running it needs Accessibility, and on Windows GlazeWM
 must be quit, or they fight over windows. To try it without touching your real apps, point `HOME` at a scratch
 directory whose `.loadout-wm.txt` lists only TextEdit, then read the frames back with System Events. Type-check
 Windows from a Mac with rustup's toolchain, since Homebrew's cargo has no Windows std:
 `RUSTC=~/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc ~/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo check --target x86_64-pc-windows-msvc`.
 
 **Not built yet:** Caps Lock bindings, centered narrow windows (Messages, Simulator, Loadout), split resizing and
-a tray icon. AeroSpace and GlazeWM are still configured alongside it until the switch is made. Removing them also
-means removing `AERO_TILE` from `dcc_claude.py`.
+a tray icon. GlazeWM is still configured on Windows until the Windows backend has been run there.

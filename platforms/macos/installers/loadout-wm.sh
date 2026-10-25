@@ -99,7 +99,7 @@ do_install() {
     start_wm
 
     echo "Loadout WM $got installed and running at login. Allow it under Privacy & Security > Accessibility when"
-    echo "asked, and apply the wm dotfile (Updates tab). Quit AeroSpace first: the two would fight over windows."
+    echo "asked, and apply the wm dotfile (Updates tab)."
 }
 
 do_uninstall() {

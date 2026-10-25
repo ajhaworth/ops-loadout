@@ -7,8 +7,8 @@
 #
 # - Long paths: ComfyUI node venvs, Houdini packages and git checkouts nest
 #   deep enough to pass MAX_PATH.
-# - Caps Lock -> F18 is GlazeWM's leader key, the Windows counterpart of
-#   config/dotfiles/aerospace/capslock-f18.plist. Scancode Map is read at boot,
+# - Caps Lock -> F18 is GlazeWM's leader key (as it was AeroSpace's on the
+#   Mac). Scancode Map is read at boot,
 #   so it takes a reboot, and it applies to every user. A game that binds Caps
 #   Lock (push-to-talk) sees F18 instead.
 

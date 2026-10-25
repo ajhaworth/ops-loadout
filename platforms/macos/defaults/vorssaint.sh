@@ -39,12 +39,11 @@ apply_vorssaint() {
     defaults_set $d featureAvailable.quitWindowProtection bool false "No quit protection (Cmd-Q quits at once)"
     defaults_set $d bluetoothSleepEnabled bool true "Bluetooth off during sleep, back on wake"
 
-    # Caps Lock is AeroSpace's leader key.
-    defaults_set $d featureAvailable.superKey bool false "No Super key (AeroSpace owns Caps Lock)"
-    # AeroSpace places and focuses windows.
+    defaults_set $d featureAvailable.superKey bool false "No Super key"
+    # Loadout WM places windows.
     for entry in "windowLayout|Window layout" "windowMaximizer|Maximize windows" \
                  "focusFollowsMouse|Focus follows mouse" "autoQuit|Quit on close"; do
-        defaults_set $d "featureAvailable.${entry%%|*}" bool false "No ${entry#*|} (AeroSpace manages windows)"
+        defaults_set $d "featureAvailable.${entry%%|*}" bool false "No ${entry#*|} (Loadout WM manages windows)"
     done
     # Raycast keeps clipboard history, snippets and the launcher.
     for entry in "clipboardHistory|Clipboard history" "textSnippets|Text snippets" \

@@ -13,18 +13,13 @@ apply_dock() {
     defaults_set com.apple.dock orientation string bottom "Position on screen (left, bottom, right)"
     defaults_set com.apple.dock showhidden bool true "Make Dock icons of hidden applications translucent"
     defaults_set com.apple.dock mru-spaces bool false "Don't rearrange Spaces based on most recent use"
-    # AeroSpace (Blender + Claude Code tiling) and Stage Manager both hide and show window groups, and fight.
-    defaults_set com.apple.WindowManager GloballyEnabled bool false "Stage Manager off (AeroSpace manages windows)"
-    # macOS's own tiling snaps a dragged window to an edge, which AeroSpace then fights over.
+    # Stage Manager moves windows into and out of its strip, which Loadout WM would take for drags and undo.
+    defaults_set com.apple.WindowManager GloballyEnabled bool false "Stage Manager off (Loadout WM manages windows)"
+    # Swish snaps windows (and Loadout WM pads its snaps); macOS's own edge tiling would compete with it.
     defaults_set com.apple.WindowManager EnableTilingByEdgeDrag bool false "Don't tile windows dragged to screen edges"
     defaults_set com.apple.WindowManager EnableTopTilingByEdgeDrag bool false "Don't fill the screen when dragging to the top"
     defaults_set com.apple.WindowManager EnableTilingOptionAccelerator bool false "Don't tile windows on Option-drag"
-    # Ctrl-Cmd-drag moves a window from anywhere in it (applies after logout): swaps AeroSpace tiles by dropping one on
-    # another, without hunting for a title bar in Blender or Houdini.
+    # Ctrl-Cmd-drag moves a window from anywhere in it (applies after logout): swaps Loadout WM split columns by
+    # dropping one on another, without hunting for a title bar in Blender or Houdini.
     defaults_set NSGlobalDomain NSWindowShouldDragOnGesture bool true "Ctrl-Cmd-drag moves windows from anywhere"
-    # AeroSpace parks other workspaces' windows in a screen corner; grouped by app, Mission Control stays readable.
-    defaults_set com.apple.dock expose-group-apps bool true "Group windows by app in Mission Control"
-    # AeroSpace's docs: focus goes to the wrong window, or snaps back, while displays have separate Spaces, even with one
-    # display. Applies after logout.
-    defaults_set com.apple.spaces spans-displays bool true "Displays share one Space (AeroSpace focus bugs)"
 }

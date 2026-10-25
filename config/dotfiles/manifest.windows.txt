@@ -20,7 +20,7 @@ config/dotfiles/git/config|.gitconfig|DOTFILES_GIT
 # WezTerm (Ghostty has no Windows build)
 config/dotfiles/wezterm/wezterm.lua|.wezterm.lua|DOTFILES_WEZTERM
 
-# GlazeWM, a port of aerospace.toml. GlazeWM creates .glzr\glazewm on first
+# GlazeWM, a port of the Mac's former AeroSpace config. GlazeWM creates .glzr\glazewm on first
 # launch; until then this entry is skipped (two directory levels missing).
 config/dotfiles/glazewm/config.yaml|.glzr\glazewm\config.yaml|DOTFILES_GLAZEWM
 

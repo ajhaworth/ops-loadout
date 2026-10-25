@@ -116,7 +116,7 @@ visible signal while the app runs as an Accessory.
 launches a group of apps from a button row on the Apps tab or the quick panel.
 Ids the profile drops or that are not installed are skipped; a preset with none
 left is hidden. All but the first open with `open -g`; the first opens last so
-it takes focus, and AeroSpace follows focus to its workspace.
+it ends up in front.
 
 **Quick-panel actions.** While the tray panel's search box has text it also
 lists actions (Update all, Reapply Blender settings, Pull repo, Open repo in

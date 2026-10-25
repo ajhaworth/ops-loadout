@@ -1,4 +1,4 @@
-# GlazeWM on the Windows box, a port of config/dotfiles/aerospace/aerospace.toml: each everyday app gets its own
+# GlazeWM on the Windows box, a port of the Mac's former AeroSpace config: each everyday app gets its own
 # workspace, where its main window tiles to fill the screen like a macOS full-screen Space - Blender, Houdini, Godot,
 # Unreal, WezTerm (Ghostty's stand-in), Zen, Claude, Spotify, ComfyUI, P4V, Steam and Explorer. Every other window
 # floats, Loadout included: unlike on the Mac it gets no workspace of its own and opens centered over whatever is
@@ -26,7 +26,7 @@ general:
   # way macOS focus pulls AeroSpace to an app's workspace.
   show_all_in_taskbar: true
 
-# The margin macOS's own window tiling leaves, as in aerospace.toml.
+# The margin macOS's own window tiling leaves, as Loadout WM uses (config/dotfiles/wm/rules.txt).
 gaps:
   scale_with_dpi: true
   inner_gap: '8px'

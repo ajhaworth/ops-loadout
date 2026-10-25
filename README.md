@@ -96,7 +96,7 @@ Full installation for personal macOS devices including all package categories, M
 
 ### Workstation (`--profile workstation`)
 
-Work Mac, driven from Loadout: Blender, Houdini, ComfyUI Desktop, Fork, Ghostty, AeroSpace, Swish and Vorssaint (installer scripts) plus the core and shell CLI formulae, no casks, no MAS apps, no system preferences. Terminal dotfiles (zsh, bash, starship, Ghostty) and the AeroSpace config apply, with the existing zshrc backed up and `~/.zshrc.local` for work-only lines; gitconfig is left alone.
+Work Mac, driven from Loadout: Blender, Houdini, ComfyUI Desktop, Fork, Ghostty, Loadout WM, Swish and Vorssaint (installer scripts) plus the core and shell CLI formulae, no casks, no MAS apps, no system preferences. Terminal dotfiles (zsh, bash, starship, Ghostty) and the Loadout WM rules apply, with the existing zshrc backed up and `~/.zshrc.local` for work-only lines; gitconfig is left alone.
 
 ### Linux (`--profile linux`)
 
@@ -358,7 +358,7 @@ with a padding, either stacked (`fill`), only the first one (`first`) or side by
 Everything else floats untouched. There are no virtual workspaces: each listed
 app is its own, reached by switching to it as usual. Install it from its
 Loadout tile (it ships with each release), apply the `wm` dotfile, allow it
-under Accessibility on macOS, and quit AeroSpace/GlazeWM first. Edits to the
+under Accessibility on macOS, and on Windows quit GlazeWM first. Edits to the
 rules apply without a restart.
 
 ## Security

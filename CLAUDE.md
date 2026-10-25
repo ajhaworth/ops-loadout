@@ -18,7 +18,7 @@ work headlessly.
 Profiles (`config/profiles/*.conf`) control what gets installed. Profile variables are bash-style `KEY="value"` pairs parsed by both bash (source) and PowerShell (regex).
 
 - `personal.conf` - Full installation for personal macOS devices
-- `workstation.conf` - Work macOS device: Blender, Houdini, ComfyUI Desktop, Fork, Ghostty, AeroSpace, Swish, Vorssaint and core CLI tools, from Loadout
+- `workstation.conf` - Work macOS device: Blender, Houdini, ComfyUI Desktop, Fork, Ghostty, Loadout WM, Swish, Vorssaint and core CLI tools, from Loadout
 - `linux.conf` - Full dev station setup for Linux (Debian/Ubuntu)
 - `windows.conf` - Gaming workstation setup for Windows
 
@@ -30,7 +30,7 @@ never sees a "command not found". `INSTALLERS_<CATEGORY>` gates
 `config/packages/macos/installers/<category>.txt` the same way `CASKS_*` gates
 casks. `workstation.conf` keeps Homebrew (core and shell formulae only, no
 casks, no MAS) and leaves `installers/3D.txt` (Blender, Houdini, ComfyUI Desktop) and
-`installers/development.txt` (Fork, Ghostty, AeroSpace) and `installers/power-user.txt`
+`installers/development.txt` (Fork, Ghostty, Loadout WM) and `installers/power-user.txt`
 (Swish, Vorssaint) visible; `personal.conf` turns `INSTALLERS_POWER_USER` off since it
 gets both from their casks; the user installs those
 by hand from the Loadout tiles. Apps added for the work Mac go in as installer
@@ -56,8 +56,7 @@ Subsystem notes live in nested `CLAUDE.md` files, loaded when you work under tha
 - `platforms/windows/CLAUDE.md` - Windows defaults modules and the registry helpers
 - `platforms/macos/installers/CLAUDE.md` - macOS installer-script contract, `houdini.sh`, `blender.sh` install/update
 - `config/dcc/CLAUDE.md` - Blender and Houdini config (portable prefs, `setup.py`, keymap, extensions, Loadout tab, asset library)
-- `config/dotfiles/aerospace/CLAUDE.md` - AeroSpace workspace rules, Caps Lock leader, `follow.sh`/`center.js`
-- `wm/CLAUDE.md` - Loadout WM, the repo's own window manager (AeroSpace/GlazeWM replacement): rules, AX/WinEvent backends, install, version rule
+- `wm/CLAUDE.md` - Loadout WM, the repo's own window manager (replaced AeroSpace; GlazeWM on Windows until it is proven there): rules, AX/WinEvent backends, install, version rule
 
 Rules that hold even before you open those files:
 
@@ -175,7 +174,7 @@ Dotfiles use symlinks managed via two platform-specific manifests:
 - Windows manages git, WezTerm (`.wezterm.lua`, Ghostty has no Windows build)
   and GlazeWM only. No shell profile or prompt: that box isn't terminal-driven.
   Don't add them without asking.
-- `glazewm/config.yaml` is a port of `aerospace.toml`: one workspace per app,
+- `glazewm/config.yaml` is a port of the Mac's former AeroSpace config: one workspace per app,
   everything else floats (`initial_state`, since GlazeWM runs *every* matching
   rule, so a catch-all floating rule would undo the tiling ones), Caps Lock ->
   F18 leader with the same `window`/`repeat` modes. The remap is a `Scancode

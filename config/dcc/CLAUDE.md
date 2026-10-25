@@ -39,15 +39,9 @@ replace it rather than `rm -rf`-ing someone else's app.
   sidebar tab "Loadout" for the repo's own tools; any panel with
   `bl_category = 'Loadout'` joins it, so each tool keeps its own startup script.
   Its first button opens a fresh Ghostty (`open -na`, `--window-save-state=never`)
-  running `claude` at the .blend's git root and tiles Ghostty 1/4 : Blender 3/4.
-  With AeroSpace running it tiles there (`AERO_TILE`, see below); otherwise it
-  falls back to `osascript` + System Events, which needs Blender allowed under
-  Accessibility. The fallback must address every window by process id
-  (`first application process whose unix id is n`): a saved process reference
-  collapses to `application process "ghostty"`, which hits whichever Ghostty is
-  already open. Tiling runs non-blocking - Blender's own window cannot answer
-  Accessibility queries while its main thread waits - and a failure pops up a
-  warning while Ghostty still opens.
+  running `claude` at the .blend's git root. Loadout WM places it (it joins
+  Ghostty's split); the 1/4 : 3/4 tiling beside Blender went with AeroSpace,
+  since Loadout WM would snap a resized Blender back to full screen.
 - **Keymap viewer.** `keymap.html`/`keymap.js` are served by Loadout at
   `loadout://localhost/dcc/blender/keymap.html` (`serve_ui` maps `dcc/*` to
   `config/dcc/*`) and opened from the Blender tile's Keymap menu item. They read
@@ -62,7 +56,7 @@ the closest stock preset — never justify a setting or a key by "that's how May
 or Max does it", justify it by what it does for environment work. Target engine
 is Unreal (scene displays centimeters, 1 BU stays 1 m).
 
-The installers themselves (`blender.sh`, `houdini.sh`) are documented in `platforms/macos/installers/CLAUDE.md`; the Windows ports in `lib/windows/CLAUDE.md`. AeroSpace tiling (used by the Loadout tab) is in `config/dotfiles/aerospace/CLAUDE.md`.
+The installers themselves (`blender.sh`, `houdini.sh`) are documented in `platforms/macos/installers/CLAUDE.md`; the Windows ports in `lib/windows/CLAUDE.md`.
 
 **Houdini.** `platforms/macos/installers/houdini.sh` writes
 `~/Library/Preferences/houdini/<X.Y>/packages/loadout.json` pointing at
