@@ -16,9 +16,9 @@ use objc2_app_kit::{
     NSWorkspace, NSWorkspaceDidActivateApplicationNotification, NSWorkspaceDidLaunchApplicationNotification,
     NSWorkspaceDidTerminateApplicationNotification,
 };
-use objc2_foundation::{NSNotification, NSNotificationCenter};
+use objc2_foundation::{NSDistributedNotificationCenter, NSNotification, NSNotificationCenter, NSString};
 
-use crate::{app_listed, debug, gapped, plan, rule_for, screen_of, Rect, Rules, Screen, Win};
+use crate::{app_listed, debug, gapped, pair_rects, plan, rule_for, screen_of, Rect, Rules, Screen, Win};
 
 type CFTypeRef = *const c_void;
 type AXObserverCallback = extern "C" fn(CFTypeRef, CFTypeRef, CFTypeRef, *mut c_void);
@@ -48,6 +48,7 @@ extern "C" {
     fn AXUIElementCreateApplication(pid: i32) -> CFTypeRef;
     fn AXUIElementCopyAttributeValue(element: CFTypeRef, attr: CFTypeRef, value: *mut CFTypeRef) -> i32;
     fn AXUIElementSetAttributeValue(element: CFTypeRef, attr: CFTypeRef, value: CFTypeRef) -> i32;
+    fn AXUIElementPerformAction(element: CFTypeRef, action: CFTypeRef) -> i32;
     fn AXValueCreate(kind: u32, value: *const c_void) -> CFTypeRef;
     fn AXValueGetValue(value: CFTypeRef, kind: u32, out: *mut c_void) -> bool;
     fn AXObserverCreate(pid: i32, callback: AXObserverCallback, observer: *mut CFTypeRef) -> i32;
@@ -183,8 +184,21 @@ impl Drop for App {
     }
 }
 
+/// Two apps' main windows side by side, from `loadout-wm pair` (Blender's Claude Code button: Ghostty left, Blender
+/// right). Their rules step aside for those two windows until one closes or its app quits.
+struct Pair {
+    pids: [i32; 2],
+    fraction: f64,
+    /// Each side's window once it has been placed; switching to one app raises the other's.
+    windows: [Option<Ref>; 2],
+}
+
+/// The distributed notification `loadout-wm pair` posts to the running instance.
+const PAIR: &str = "dev.alx.loadout-wm.pair";
+
 #[derive(Default)]
 struct State {
+    pair: Option<Pair>,
     rules: Rules,
     apps: HashMap<i32, App>,
     first: HashMap<usize, Ref>,
@@ -270,6 +284,10 @@ fn sync(st: &mut State) -> Vec<i32> {
         }
     }
     st.apps.retain(|pid, _| alive.contains(pid));
+    // A paired app quit: unpair, and its partner goes back to its rule.
+    if let Some(pair) = st.pair.take_if(|p| p.pids.iter().any(|pid| !alive.contains(pid))) {
+        fresh.extend(pair.pids.iter().filter(|pid| alive.contains(pid)));
+    }
     fresh
 }
 
@@ -300,6 +318,7 @@ fn layout(pid: i32, dropped: Option<Ref>) {
         let screens = screens();
         let mut wins = Vec::new();
         let mut moves = Vec::new();
+        let mut first_main = None;
         if let Some(list) = attr(app.element.0, "AXWindows") {
             for i in 0..unsafe { CFArrayGetCount(list.0) } {
                 let w = Ref(unsafe { CFRetain(CFArrayGetValueAtIndex(list.0, i)) });
@@ -316,11 +335,11 @@ fn layout(pid: i32, dropped: Option<Ref>) {
                 let subrole = string_attr(w.0, "AXSubrole");
                 let main = subrole == "AXStandardWindow"
                     || (subrole == "AXDialog" && attr(w.0, "AXFullScreenButton").is_some());
-                let rule = if main && !bool_attr(w.0, "AXMinimized") && !bool_attr(w.0, "AXFullScreen") {
-                    rule_for(&st.rules.list, &names, &title)
-                } else {
-                    None
-                };
+                let main = main && !bool_attr(w.0, "AXMinimized") && !bool_attr(w.0, "AXFullScreen");
+                if main && first_main.is_none() {
+                    first_main = Some((w.clone(), frame));
+                }
+                let rule = if main { rule_for(&st.rules.list, &names, &title) } else { None };
                 debug(|| format!("{} {subrole} {title:?} {frame:?} rule {rule:?}", names[0]));
                 match rule {
                     Some(rule) => wins.push(Win { id: w, rule, frame }),
@@ -333,6 +352,27 @@ fn layout(pid: i32, dropped: Option<Ref>) {
                     None => {}
                 }
             }
+        }
+        let mut unpair = None;
+        if let Some(pair) = st.pair.as_mut().filter(|_| !screens.is_empty()) {
+            if let Some(side) = pair.pids.iter().position(|&p| p == pid) {
+                // The app's ruled main window if it has one (Blender's, not its Preferences), else its first.
+                match wins.first().map(|w| (w.id.clone(), w.frame)).or(first_main) {
+                    Some((w, frame)) => {
+                        wins.retain(|x| x.id != w);
+                        let s = &screens[screen_of(frame, &screens)];
+                        moves.push((w.clone(), pair_rects(s.area, st.rules.padding() * s.scale, pair.fraction)[side]));
+                        pair.windows[side] = Some(w);
+                    }
+                    // Its window has closed: the partner goes back to its rule. (None yet just means not open yet.)
+                    None if pair.windows[side].is_some() => unpair = Some(pair.pids[1 - side]),
+                    None => {}
+                }
+            }
+        }
+        if let Some(partner) = unpair {
+            st.pair = None;
+            after(Duration::from_millis(1), partner);
         }
         if app.listed {
             moves.extend(plan(&st.rules.list, &wins, &screens, &mut st.first, dropped.as_ref()));
@@ -412,7 +452,17 @@ pub fn run() {
     let activated = RcBlock::new(|_: NonNull<NSNotification>| {
         refresh();
         if let Some(front) = unsafe { NSWorkspace::sharedWorkspace().frontmostApplication() } {
-            soon(unsafe { front.processIdentifier() });
+            let pid = unsafe { front.processIdentifier() };
+            soon(pid);
+            // Switching to one of a pair brings its partner up too, right under it, without activating it.
+            let partner = STATE.with_borrow(|st| {
+                let pair = st.pair.as_ref()?;
+                let side = pair.pids.iter().position(|&p| p == pid)?;
+                pair.windows[1 - side].clone()
+            });
+            if let Some(w) = partner {
+                unsafe { AXUIElementPerformAction(w.0, cfstr("AXRaise").0) };
+            }
         }
     });
     let screens_changed = RcBlock::new(|_: NonNull<NSNotification>| {
@@ -420,6 +470,15 @@ pub fn run() {
         for pid in STATE.with_borrow(|st| st.apps.keys().copied().collect::<Vec<_>>()) {
             soon(pid);
         }
+    });
+    let paired = RcBlock::new(|n: NonNull<NSNotification>| {
+        let text = unsafe { n.as_ref().object() }.and_then(|o| o.downcast::<NSString>().ok());
+        let Some(pair) = text.and_then(|t| parse_pair(&t.to_string())) else { return };
+        debug(|| format!("pair {:?} at {}", pair.pids, pair.fraction));
+        let pids = pair.pids;
+        STATE.with_borrow_mut(|st| st.pair = Some(pair));
+        refresh();
+        pids.into_iter().for_each(soon);
     });
     let workspace = unsafe { NSWorkspace::sharedWorkspace().notificationCenter() };
     // The centers hold the blocks for as long as the observer tokens live, which is the life of the process.
@@ -449,9 +508,40 @@ pub fn run() {
                 None,
                 &screens_changed,
             ),
+            NSDistributedNotificationCenter::defaultCenter().addObserverForName_object_queue_usingBlock(
+                Some(&NSString::from_str(PAIR)),
+                None,
+                None,
+                &paired,
+            ),
         ]
     };
 
     refresh();
     app.run();
+}
+
+/// `<left pid> <right pid> <fraction of the width for the left>`.
+fn parse_pair(text: &str) -> Option<Pair> {
+    let f: Vec<&str> = text.split_whitespace().collect();
+    let [l, r, frac] = f[..] else { return None };
+    let fraction: f64 = frac.parse().ok().filter(|f| *f > 0.0 && *f < 1.0)?;
+    Some(Pair { pids: [l.parse().ok()?, r.parse().ok()?], fraction, windows: [None, None] })
+}
+
+/// `loadout-wm pair <left pid> <right pid> <fraction>`: hands the pair to the running instance and exits.
+pub fn post_pair(args: Vec<String>) {
+    let text = args.join(" ");
+    if parse_pair(&text).is_none() {
+        eprintln!("usage: loadout-wm pair <left pid> <right pid> <fraction, 0-1>");
+        std::process::exit(2);
+    }
+    unsafe {
+        NSDistributedNotificationCenter::defaultCenter().postNotificationName_object_userInfo_deliverImmediately(
+            &NSString::from_str(PAIR),
+            Some(&NSString::from_str(&text)),
+            None,
+            true,
+        );
+    }
 }

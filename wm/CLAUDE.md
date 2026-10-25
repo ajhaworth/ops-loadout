@@ -32,6 +32,12 @@ empty-workspace focus fix, parked windows, Mission Control grouping and GlazeWM'
     the padding: full at screen edges and half on each side of inner edges. Two halves then sit 8 px apart and line
     up with filled windows. A window placed by hand is never on that grid, so it's left alone. The padding is the
     first rule's (`Rules::padding`).
+  - **Pairs:** `loadout-wm pair <left pid> <right pid> <fraction>` posts the distributed notification
+    `dev.alx.loadout-wm.pair` and exits. The running instance then places each app's main window (its ruled one
+    if it has one) with `pair_rects`, ahead of its rule. Activating either app `AXRaise`s the other's window, which
+    lifts it just under the active app's windows without activating it. The pair ends, and the survivor goes back
+    to its rule, when a paired window closes after having been placed, or when either app quits. Blender's Claude
+    Code button is the user (`dcc_claude.py`).
   - `LOADOUT_WM_DEBUG=1` logs every window seen (subrole, title, frame, rule) and every move made.
   - Each layout runs twice, once at once and again 400 ms later (`dispatch_after_f`), because a new window often
     moves itself again right after it appears.

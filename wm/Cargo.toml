@@ -2,7 +2,7 @@
 name = "loadout-wm"
 # Bumping this is what makes installers/loadout-wm.{sh,ps1} replace the installed copy (and, on macOS, ask for
 # Accessibility again), so bump it only when wm/ changes. Keep WM_VERSION in both scripts in step (smoke.sh checks).
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Fills the screen with the windows of listed apps; everything else floats"
 publish = false
@@ -10,7 +10,7 @@ publish = false
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6"
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", features = ["NSNotification", "NSString", "NSOperation", "block2"] }
+objc2-foundation = { version = "0.3", features = ["NSNotification", "NSDistributedNotificationCenter", "NSDictionary", "NSString", "NSOperation", "block2"] }
 objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSResponder", "NSRunningApplication", "NSScreen", "NSWorkspace", "objc2-core-foundation"] }
 
 [target.'cfg(windows)'.dependencies]

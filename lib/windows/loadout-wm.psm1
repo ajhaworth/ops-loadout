@@ -14,7 +14,7 @@
 
 Import-Module (Join-Path $PSScriptRoot "common.psm1") -Global -Force
 
-$script:WmVersion = '0.1.0'
+$script:WmVersion = '0.2.0'
 $script:Dir = Join-Path $env:LOCALAPPDATA 'Programs\LoadoutWM'
 $script:Exe = Join-Path $script:Dir 'loadout-wm.exe'
 $script:VersionFile = Join-Path $script:Dir 'version.txt'

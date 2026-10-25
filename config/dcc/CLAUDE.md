@@ -39,9 +39,12 @@ replace it rather than `rm -rf`-ing someone else's app.
   sidebar tab "Loadout" for the repo's own tools; any panel with
   `bl_category = 'Loadout'` joins it, so each tool keeps its own startup script.
   Its first button opens a fresh Ghostty (`open -na`, `--window-save-state=never`)
-  running `claude` at the .blend's git root. Loadout WM places it (it joins
-  Ghostty's split); the 1/4 : 3/4 tiling beside Blender went with AeroSpace,
-  since Loadout WM would snap a resized Blender back to full screen.
+  running `claude` at the .blend's git root, then a thread waits for the new
+  Ghostty pid and runs `loadout-wm pair <ghostty> <blender> 0.25` (the
+  installed app, else `wm/target/release` in this checkout). Loadout WM then
+  keeps Ghostty on the left quarter and Blender on the rest, raising the other
+  whenever one is switched to, until the Claude window closes. Without Loadout
+  WM, Ghostty just opens.
 - **Keymap viewer.** `keymap.html`/`keymap.js` are served by Loadout at
   `loadout://localhost/dcc/blender/keymap.html` (`serve_ui` maps `dcc/*` to
   `config/dcc/*`) and opened from the Blender tile's Keymap menu item. They read

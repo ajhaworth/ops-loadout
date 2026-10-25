@@ -178,6 +178,15 @@ pub fn gapped(frame: Rect, area: Rect, pad: f64) -> Option<Rect> {
     })
 }
 
+/// A pair's two frames side by side across `area`: the left one `fraction` of the width, `pad` around and between.
+pub fn pair_rects(area: Rect, pad: f64, fraction: f64) -> [Rect; 2] {
+    let split = area.x + (area.w * fraction).round();
+    let (y, h) = ((area.y + pad).round(), (area.h - 2.0 * pad).round());
+    let left = Rect { x: area.x + pad, y, w: (split - pad / 2.0 - area.x - pad).round(), h };
+    let right_x = (split + pad / 2.0).round();
+    [left, Rect { x: right_x, y, w: area.x + area.w - pad - right_x, h }]
+}
+
 /// Logs to stderr when LOADOUT_WM_DEBUG is set.
 pub fn debug(msg: impl FnOnce() -> String) {
     if std::env::var_os("LOADOUT_WM_DEBUG").is_some() {
@@ -246,6 +255,12 @@ pub fn plan<W: Clone + PartialEq>(
 }
 
 fn main() {
+    // `loadout-wm pair <left pid> <right pid> <fraction>` asks the running instance to put the two apps' main
+    // windows side by side (Blender's Claude Code button does), then exits.
+    #[cfg(target_os = "macos")]
+    if std::env::args().nth(1).as_deref() == Some("pair") {
+        return macos::post_pair(std::env::args().skip(2).collect());
+    }
     #[cfg(target_os = "macos")]
     macos::run();
     #[cfg(windows)]
@@ -334,6 +349,14 @@ mod tests {
         // Three columns; the left one dropped in the middle third moves there.
         let wins = [Win { id: 1, ..col(250.0) }, Win { id: 2, ..col(340.0) }, Win { id: 3, ..col(670.0) }];
         assert_eq!(ids(&wins, Some(&1)), [2, 1, 3]);
+    }
+
+    #[test]
+    fn a_pair_splits_at_its_fraction_with_padding_between() {
+        let [l, r] = pair_rects(Rect { x: 0.0, y: 33.0, w: 1512.0, h: 949.0 }, 8.0, 0.25);
+        assert_eq!(l, Rect { x: 8.0, y: 41.0, w: 366.0, h: 933.0 });
+        assert_eq!(r.x - (l.x + l.w), 8.0);
+        assert_eq!((r.x + r.w, r.y, r.h), (1504.0, 41.0, 933.0));
     }
 
     #[test]
