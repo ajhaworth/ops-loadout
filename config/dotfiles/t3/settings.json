@@ -1,0 +1,23 @@
+{
+  "defaultModelSelection": {
+    "instanceId": "claudeAgent",
+    "model": "claude-opus-5-5",
+    "options": [{ "id": "effort", "value": "high" }]
+  },
+  "defaultRuntimeMode": "auto",
+  "textGenerationModelSelection": {
+    "instanceId": "claudeAgent",
+    "model": "claude-haiku-5-5"
+  },
+  "projectSettingsFolded": true,
+  "providerInstances": {
+    "claudeAgent": {
+      "driver": "claudeAgent",
+      "enabled": true,
+      "config": { "launchArgs": "--chrome" }
+    },
+    "codex": { "driver": "codex", "enabled": false, "config": {} },
+    "grok": { "driver": "grok", "enabled": false, "config": {} },
+    "opencode": { "driver": "opencode", "enabled": false, "config": {} }
+  }
+}

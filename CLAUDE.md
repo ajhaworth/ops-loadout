@@ -184,6 +184,12 @@ Dotfiles use symlinks managed via two platform-specific manifests:
 
 Both manifests: condition is a profile variable name; entry is skipped when that variable is `"false"`.
 
+`config/dotfiles/t3/settings.json` is T3 Code's server settings (personal Mac
+only, `DOTFILES_T3`). T3 writes through the symlink and saves only non-default
+keys, so a change made in its UI shows up in `git status` here. Before
+committing one, check it for `sourceControlHosts`/`deviceHosts` entries, which
+can name private hosts. Secrets stay in `~/.t3/userdata/secrets/`.
+
 ### macOS Defaults
 
 System preferences are set via `defaults write` commands in `platforms/macos/defaults/*.sh`. Each file defines an `apply_<name>()` function that is dynamically discovered and invoked.

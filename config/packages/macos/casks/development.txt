@@ -2,3 +2,4 @@
 
 claude              # Claude desktop app
 chatgpt             # ChatGPT desktop app
+t3-code             # T3 Code: GUI for Claude Code / Codex

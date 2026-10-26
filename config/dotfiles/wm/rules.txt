@@ -45,6 +45,7 @@ com.apple.iCal
 dev.alx.Agenda
 dev.alx.Digest
 dev.alx.Pulse
+com.t3tools.t3code
 com.openai.codex
 com.anthropic.claudefordesktop
 claude

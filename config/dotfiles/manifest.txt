@@ -16,6 +16,9 @@ config/dotfiles/starship/starship.toml|~/.config/starship.toml||DOTFILES_SHELL
 config/dotfiles/ghostty/config|~/.config/ghostty/config||DOTFILES_GHOSTTY
 config/dotfiles/herdr/config.toml|~/.config/herdr/config.toml||DOTFILES_HERDR
 
+# T3 Code (Claude Code GUI). T3 writes through the link, so UI changes land here
+config/dotfiles/t3/settings.json|~/.t3/userdata/settings.json||DOTFILES_T3
+
 # Loadout WM rules (wm/): listed apps fill the screen, everything else floats
 config/dotfiles/wm/rules.txt|~/.loadout-wm.txt||DOTFILES_WM
 
