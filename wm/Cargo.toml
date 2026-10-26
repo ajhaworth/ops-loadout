@@ -2,7 +2,7 @@
 name = "loadout-wm"
 # Bumping this is what makes installers/loadout-wm.{sh,ps1} replace the installed copy (and, on macOS, ask for
 # Accessibility again), so bump it only when wm/ changes. Keep WM_VERSION in both scripts in step (smoke.sh checks).
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 description = "Fills the screen with the windows of listed apps; everything else floats"
 publish = false

@@ -153,7 +153,8 @@ pub fn columns(area: Rect, pad: f64, n: usize) -> Vec<Rect> {
 
 /// For a window snapped flush to screen fractions (Swish's halves, thirds and quarters, which leave no gaps), the
 /// same frame with the padding added: `pad` at the screen's edges, half of it on each side of an inner edge, so
-/// two snapped windows end up `pad` apart, lined up with filled ones. None when any edge is off the grid.
+/// two snapped windows end up `pad` apart, lined up with filled ones. None when any edge is off the grid, and for a
+/// maximized window: Swish only counts a flush one as maximized, so padding it broke its swipe-up.
 pub fn gapped(frame: Rect, area: Rect, pad: f64) -> Option<Rect> {
     const FRACTIONS: [f64; 7] = [0.0, 0.25, 1.0 / 3.0, 0.5, 2.0 / 3.0, 0.75, 1.0];
     // Each edge as its fraction of the area, or None off the grid (2 px of slack for rounding).
@@ -165,7 +166,7 @@ pub fn gapped(frame: Rect, area: Rect, pad: f64) -> Option<Rect> {
     let r = snap(frame.x + frame.w, area.x, area.w)?;
     let t = snap(frame.y, area.y, area.h)?;
     let b = snap(frame.y + frame.h, area.y, area.h)?;
-    if l >= r || t >= b {
+    if l >= r || t >= b || (l, r, t, b) == (0.0, 1.0, 0.0, 1.0) {
         return None;
     }
     let x = area.x + l * area.w + inset(l);
@@ -367,8 +368,8 @@ mod tests {
         assert_eq!(left, Rect { x: 8.0, y: 41.0, w: 744.0, h: 933.0 });
         assert_eq!(right.x - (left.x + left.w), 8.0);
         assert_eq!(right.x + right.w, 1504.0);
-        // A maximized window lines up with a filled one.
-        assert_eq!(gapped(area, area, 8.0), Some(columns(area, 8.0, 1)[0]));
+        // A maximized window stays flush, as Swish left it.
+        assert_eq!(gapped(area, area, 8.0), None);
         // A top-right quarter.
         let q = gapped(Rect { x: 1134.0, y: 33.0, w: 378.0, h: 474.5 }, area, 8.0).unwrap();
         assert_eq!((q.x, q.y, q.x + q.w), (1138.0, 41.0, 1504.0));

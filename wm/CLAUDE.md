@@ -32,8 +32,9 @@ empty-workspace focus fix, parked windows, Mission Control grouping and GlazeWM'
     margins either when tried). So when a move ends on a window no rule covers, `gapped` checks whether all four
     edges sit on screen fractions (0, 1/4, 1/3, 1/2, 2/3, 3/4, 1, with 2 px of slack). If they do, the window gets
     the padding: full at screen edges and half on each side of inner edges. Two halves then sit 8 px apart and line
-    up with filled windows. A window placed by hand is never on that grid, so it's left alone. The padding is the
-    first rule's (`Rules::padding`).
+    up with filled windows. A window placed by hand is never on that grid, so it's left alone. A maximized window
+    (all four edges on the screen's) stays flush: Swish only counts a flush window as maximized, so its swipe-up
+    looked broken when the WM padded it. The padding is the first rule's (`Rules::padding`).
   - **Pairs:** `loadout-wm pair <left pid> <right pid> <fraction>` posts the distributed notification
     `dev.alx.loadout-wm.pair` and exits. The running instance then places each app's main window (its ruled one
     if it has one) with `pair_rects`, ahead of its rule. Activating either app `AXRaise`s the other's window, which
