@@ -14,7 +14,10 @@
     "claudeAgent": {
       "driver": "claudeAgent",
       "enabled": true,
-      "config": { "launchArgs": "--chrome" }
+      "config": { "launchArgs": "--chrome" },
+      "environment": [
+        { "name": "AGENDA_SYNC_TOKEN", "value": "", "sensitive": true, "valueRedacted": true }
+      ]
     },
     "codex": { "driver": "codex", "enabled": false, "config": {} },
     "grok": { "driver": "grok", "enabled": false, "config": {} },
