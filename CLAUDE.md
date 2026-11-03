@@ -55,7 +55,7 @@ Subsystem notes live in nested `CLAUDE.md` files, loaded when you work under tha
 - `lib/windows/CLAUDE.md` - winget, GitHub releases, ComfyUI (nodes, LAN access, auth, model library), Windows installer scripts, Blender/Houdini on Windows
 - `platforms/windows/CLAUDE.md` - Windows defaults modules and the registry helpers
 - `platforms/macos/installers/CLAUDE.md` - macOS installer-script contract, `houdini.sh`, `blender.sh` install/update
-- `config/dcc/CLAUDE.md` - Blender and Houdini config (portable prefs, `setup.py`, keymap, extensions, Loadout tab, asset library)
+- `config/dcc/CLAUDE.md` - Blender and Houdini config (portable prefs, `setup.py`, keymap, extensions, asset library)
 - `wm/CLAUDE.md` - Loadout WM, the repo's own window manager (replaced AeroSpace; GlazeWM on Windows until it is proven there): rules, AX/WinEvent backends, install, version rule
 
 Rules that hold even before you open those files:

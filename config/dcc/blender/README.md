@@ -35,12 +35,3 @@ Everything Blender saves lands in `portable/`, so it shows up in `git status`:
 `setup.py` reapplies the managed startup file/preferences (Industry Compatible keymap, no timeline, environment-art workspaces). Install, Update, and Reinstall run it automatically.
 
 Extensions install into `portable/extensions/` (ignored); the source of truth is `extensions.txt`.
-
-## Claude Code
-
-Viewport sidebar (N) → **Loadout** tab → **Launch Claude Code**. It opens Ghostty running `claude` at the
-.blend's git root (else its folder, else `~`) and tiles Ghostty 1/4 left, Blender 3/4 right. Every click starts a
-fresh Ghostty; one you already have open is never moved. Claude talks to
-the open scene through the blender MCP. Window tiling needs a one-time grant: System Settings → Privacy &
-Security → Accessibility → allow Blender (macOS asks on the first click). New repo tools go in the same tab:
-give their panel `bl_category = 'Loadout'`.

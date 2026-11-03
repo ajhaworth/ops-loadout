@@ -462,8 +462,7 @@ async fn pull_repo(handle: AppHandle, store: State<'_, Store>) -> Result<(), Str
 }
 
 /// Opens the repo in an installed app (Fork, Ghostty). Ghostty takes a folder
-/// only as `--working-directory`, in a new instance - the same invocation
-/// `dcc_claude.py` uses.
+/// only as `--working-directory`, in a new instance.
 #[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
 #[tauri::command]
 async fn open_repo_in(handle: AppHandle, store: State<'_, Store>, id: String) -> Result<(), String> {
