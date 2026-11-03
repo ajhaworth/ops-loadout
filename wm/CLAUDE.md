@@ -35,12 +35,6 @@ empty-workspace focus fix, parked windows, Mission Control grouping and GlazeWM'
     up with filled windows. A window placed by hand is never on that grid, so it's left alone. A maximized window
     (all four edges on the screen's) stays flush: Swish only counts a flush window as maximized, so its swipe-up
     looked broken when the WM padded it. The padding is the first rule's (`Rules::padding`).
-  - **Pairs:** `loadout-wm pair <left pid> <right pid> <fraction>` posts the distributed notification
-    `dev.alx.loadout-wm.pair` and exits. The running instance then places each app's main window (its ruled one
-    if it has one) with `pair_rects`, ahead of its rule. Activating either app `AXRaise`s the other's window, which
-    lifts it just under the active app's windows without activating it. The pair ends, and the survivor goes back
-    to its rule, when a paired window closes after having been placed, or when either app quits. Nothing in the
-    repo calls it now (its one user, Blender's Claude Code button, was removed in 0.29.6).
   - A menu bar icon (SF Symbol `rectangle.split.2x1`) shows the version and has Quit, which is NSApp's
     `terminate:`, so no target class is needed. A clean exit isn't restarted by the LaunchAgent, since its
     KeepAlive only applies after a crash.
