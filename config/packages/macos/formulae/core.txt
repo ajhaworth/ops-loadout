@@ -11,7 +11,5 @@ htop
 tree
 watch
 coreutils
-findutils
 gnu-sed
 gawk
-zip

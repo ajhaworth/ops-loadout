@@ -7,4 +7,3 @@ macos-fuse-t/cask/fuse-t-sshfs  # SSHFS via fuse-t
 vorssaint
 grandperspective    # Disk usage map
 wifiman             # Ubiquiti network diagnostics
-crossover           # Run Windows apps

@@ -4,9 +4,10 @@
 node
 python
 rust
+rustup              # Extra targets (Windows, iOS) for Loadout WM cross-checks
 go
 uv
-openjdk
+openjdk@21          # Gradle (moonlight) needs 21; plain openjdk is too new
 pnpm
 
 # Build tools
@@ -18,8 +19,6 @@ shellcheck
 
 # Dev tools
 gh                  # GitHub CLI
-graphviz
-doxygen
 hugo
 git-filter-repo     # Rewrite git history
 ollama              # Local LLM runtime

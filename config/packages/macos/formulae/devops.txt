@@ -8,7 +8,6 @@ age
 sops
 sshpass
 ansible-lint
-yamllint
 ipmitool
 wakeonlan
 miniupnpc
@@ -18,9 +17,7 @@ docker
 docker-buildx
 docker-compose
 colima
-cliclick
 wimlib
 rom-tools
-llmfit
 herdr
 mole
