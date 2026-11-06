@@ -2,3 +2,4 @@
 
 google-chrome       # Primary browser
 zen                 # Privacy-focused browser
+firefox             # Mozilla Firefox

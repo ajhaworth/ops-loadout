@@ -270,7 +270,7 @@ is_formula_installed() {
 
 # Check if a cask is installed
 is_cask_installed() {
-    local cask="$1"
+    local cask="${1##*/}"  # tap-qualified names list as bare names
     if [[ -z "$INSTALLED_CASKS" ]] && command -v brew &>/dev/null; then
         INSTALLED_CASKS=$(brew list --cask 2>/dev/null || true)
     fi

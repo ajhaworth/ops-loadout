@@ -3,5 +3,8 @@
 keka                # Archive utility
 balenaetcher        # USB/SD image writer
 fuse-t              # FUSE without kernel extension
-fuse-t-sshfs        # SSHFS via fuse-t
+macos-fuse-t/cask/fuse-t-sshfs  # SSHFS via fuse-t
 vorssaint
+grandperspective    # Disk usage map
+wifiman             # Ubiquiti network diagnostics
+crossover           # Run Windows apps

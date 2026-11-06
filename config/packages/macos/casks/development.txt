@@ -5,3 +5,6 @@ chatgpt             # ChatGPT desktop app
 t3-code             # T3 Code: GUI for Claude Code / Codex
 codex               # OpenAI Codex CLI
 antigravity-cli     # Google Antigravity CLI (agy), replaces Gemini CLI
+google-gemini       # Gemini desktop app
+android-commandlinetools  # Android SDK command-line tools (sdkmanager, avdmanager)
+android-platform-tools    # adb and fastboot

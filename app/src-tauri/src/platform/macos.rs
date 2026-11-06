@@ -63,6 +63,11 @@ fn lines_of(cmd: &str, args: &[&str]) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// A brew token without its tap: `hashicorp/tap/terraform` -> `terraform`.
+fn bare_token(token: &str) -> &str {
+    token.rsplit('/').next().unwrap_or(token)
+}
+
 /// The `.app` a cask installs, from `artifacts[].app[0]`.
 fn cask_app_name(cask: &Value) -> Option<String> {
     cask.get("artifacts")?.as_array()?.iter().find_map(|a| {
@@ -415,6 +420,7 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, _resources: &Pat
             .iter()
             .find(|e| {
                 e.get("token").and_then(Value::as_str) == Some(token)
+                    || e.get("full_token").and_then(Value::as_str) == Some(token)
                     || e.get("full_name").and_then(Value::as_str) == Some(token)
                     || e.get("name").and_then(Value::as_str) == Some(token)
             })
@@ -422,6 +428,9 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, _resources: &Pat
     };
 
     for app in apps.iter_mut() {
+        // `brew list` and `brew outdated` report bare names, so a
+        // tap-qualified token (`xykong/tap/flux-markdown`) matches on its tail.
+        let bare = bare_token(&app.token).to_string();
         match app.kind.as_str() {
             "cask" => {
                 if let Some(c) = find(&cask_info, "casks", &app.token) {
@@ -436,9 +445,9 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, _resources: &Pat
                         app.target = Some(app_file);
                     }
                 } else {
-                    app.installed = installed_casks.contains(&app.token);
+                    app.installed = installed_casks.contains(&bare);
                 }
-                app.outdated = app.installed && outdated_casks.contains(&app.token);
+                app.outdated = app.installed && outdated_casks.contains(&bare);
                 if app.installed {
                     if let Some(bundle) = app.target.as_deref().and_then(bundle_path) {
                         mark_launchable(app, &bundle, cache_dir);
@@ -457,9 +466,9 @@ pub fn hydrate(apps: &mut [App], cache_dir: &Path, repo: &Path, _resources: &Pat
                         .map(str::to_string);
                     app.license = f.get("license").and_then(Value::as_str).map(str::to_string);
                 } else {
-                    app.installed = installed_formulae.contains(&app.token);
+                    app.installed = installed_formulae.contains(&bare);
                 }
-                app.outdated = app.installed && outdated_formulae.contains(&app.token);
+                app.outdated = app.installed && outdated_formulae.contains(&bare);
             }
             "mas" => {
                 app.installed = installed_mas.contains(&app.token);
@@ -719,8 +728,15 @@ pub fn open_url(url: &str, _resources: &Path) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{artwork_urls, github_slug};
+    use super::{artwork_urls, bare_token, github_slug};
     use serde_json::json;
+
+    #[test]
+    fn bare_token_drops_the_tap() {
+        assert_eq!(bare_token("xykong/tap/flux-markdown"), "flux-markdown");
+        assert_eq!(bare_token("hashicorp/tap/terraform"), "terraform");
+        assert_eq!(bare_token("raycast"), "raycast");
+    }
 
     #[test]
     fn artwork_urls_keys_by_track_id() {

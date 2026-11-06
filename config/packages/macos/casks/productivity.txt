@@ -1,5 +1,5 @@
 # productivity.txt - Core productivity applications
 
 1password           # Password manager
-obsidian            # Note-taking
-flux-markdown       # Markdown editor
+xykong/tap/flux-markdown  # Markdown previews in Finder QuickLook
+openwhispr          # Voice-to-text dictation

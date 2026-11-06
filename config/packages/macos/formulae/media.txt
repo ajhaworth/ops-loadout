@@ -5,4 +5,5 @@ imagemagick
 poppler
 potrace
 colmap
+whisper.cpp         # Local speech-to-text
 bjarneo/cliamp/cliamp  # Terminal music player
