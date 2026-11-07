@@ -89,6 +89,7 @@ command -v direnv &>/dev/null && eval "$(direnv hook bash)"
 PS1='\[\e[1;32m\]\u@\h\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\]\$ '
 
 # Starship prompt (overrides PS1 if available)
+export STARSHIP_CONFIG="$HOME/.config/shell/starship.toml"
 command -v starship &>/dev/null && eval "$(starship init bash)"
 
 # ============================================================================

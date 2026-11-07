@@ -95,7 +95,7 @@ create_symlink() {
 
     # Create the symlink
     if ! is_dry_run; then
-        ln -sf "$source" "$destination"
+        ln -sfn "$source" "$destination"
     fi
 
     # Display result

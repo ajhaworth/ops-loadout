@@ -5,11 +5,11 @@
 # backup: yes/no (optional, defaults to yes)
 # condition: profile variable name (optional, entry skipped if variable is "false")
 
-# Shell configuration
-config/dotfiles/shell/zshrc|~/.zshrc||DOTFILES_ZSHRC
-config/dotfiles/shell/bashrc|~/.bashrc||DOTFILES_SHELL
-config/dotfiles/shell/colors.zsh|~/.config/shell/colors.zsh||DOTFILES_SHELL
-config/dotfiles/starship/starship.toml|~/.config/starship.toml||DOTFILES_SHELL
+# Shell configuration. ~/.config/shell is one directory link: colors.zsh
+# (sourced by both rc files) and starship.toml (via STARSHIP_CONFIG)
+config/dotfiles/zsh/zshrc|~/.zshrc||DOTFILES_ZSHRC
+config/dotfiles/bash/bashrc|~/.bashrc||DOTFILES_BASHRC
+config/dotfiles/shell|~/.config/shell||DOTFILES_SHELL
 
 # Ghostty terminal
 config/dotfiles/ghostty/config|~/.config/ghostty/config||DOTFILES_GHOSTTY
