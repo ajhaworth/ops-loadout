@@ -16,6 +16,12 @@ on:
 permissions:
   contents: write
 
+# One release run at a time: a newer tag's prune would otherwise delete the
+# release an older run is still uploading to ("release not found").
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   build:
     strategy:
