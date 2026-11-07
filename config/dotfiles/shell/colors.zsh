@@ -1,5 +1,5 @@
 # Terminal colors configuration
-# Cross-platform: macOS, Linux (Debian), Ghostty, tmux
+# Cross-platform: macOS, Linux (Debian), Ghostty
 # Vesper-inspired color palette
 
 # ============================================================================
@@ -161,7 +161,7 @@ ow=34;42:\
 export LSCOLORS="ExGxFxdaCxDaDahbadacec"
 
 # ============================================================================
-# Colored man pages (works in all terminals including tmux)
+# Colored man pages (works in all terminals)
 # ============================================================================
 
 export LESS_TERMCAP_mb=$'\e[1;31m'      # begin bold

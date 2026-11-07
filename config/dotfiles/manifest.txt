@@ -12,11 +12,6 @@ config/dotfiles/shell/tab-colors.zsh|~/.config/shell/tab-colors.zsh||DOTFILES_SH
 config/dotfiles/shell/colors.zsh|~/.config/shell/colors.zsh||DOTFILES_SHELL
 config/dotfiles/starship/starship.toml|~/.config/starship.toml||DOTFILES_SHELL
 
-# tmux (status bar runs gitmux and git-stats.sh)
-config/dotfiles/tmux/tmux.conf|~/.tmux.conf||DOTFILES_TMUX
-config/dotfiles/tmux/gitmux.conf|~/.config/tmux/gitmux.conf||DOTFILES_TMUX
-config/dotfiles/tmux/git-stats.sh|~/.config/tmux/git-stats.sh||DOTFILES_TMUX
-
 # Ghostty terminal
 config/dotfiles/ghostty/config|~/.config/ghostty/config||DOTFILES_GHOSTTY
 config/dotfiles/herdr/config.toml|~/.config/herdr/config.toml||DOTFILES_HERDR

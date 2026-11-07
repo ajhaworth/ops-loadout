@@ -113,10 +113,10 @@ dev() {
 }
 
 # ============================================================================
-# Terminal title (for tmux pane_title)
+# Terminal title
 # ============================================================================
 
-# Set terminal title (tmux constructs host:folder, we add command)
+# Set terminal title: shell name at the prompt, command while it runs
 function precmd_set_title() {
     print -Pn "\e]2;zsh\a"  # At prompt, just show shell name
 }

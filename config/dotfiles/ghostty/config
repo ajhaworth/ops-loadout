@@ -52,6 +52,5 @@ quick-terminal-position = top
 quick-terminal-autohide = false
 
 # TUI launchers in the command palette (cmd+shift+p), typed into the shell
-command-palette-entry = title:"tmux",description:"Attach to the main tmux session, or create it.",action:"text:tmux new -As main\n"
 command-palette-entry = title:"htop",description:"Process viewer.",action:"text:htop\n"
 command-palette-entry = title:"cliamp",description:"Terminal music player.",action:"text:cliamp\n"

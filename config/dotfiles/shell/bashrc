@@ -62,10 +62,10 @@ shopt -s extglob
 [[ -f ~/.config/shell/colors.zsh ]] && source ~/.config/shell/colors.zsh
 
 # ============================================================================
-# Terminal title (for tmux pane_title)
+# Terminal title
 # ============================================================================
 
-# Set terminal title to hostname (updates tmux status when SSH'd to remote)
+# Set terminal title to hostname (shows the remote host when SSH'd in)
 set_terminal_title() {
     printf '\e]2;%s\a' "$HOSTNAME"
 }
