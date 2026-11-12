@@ -95,8 +95,7 @@ Bump the same version in `app/src-tauri/tauri.conf.json`,
 verified, push main and the tag without asking.
 
 **Work directly on main.** No feature branches, worktrees or merge commits in
-this repo: commit to `main`, then bump, push and tag as above. This overrides the global
-branch/worktree doctrine here.
+this repo: commit to `main`, then bump, push and tag as above.
 
 ### Setup Tasks (Loadout)
 
