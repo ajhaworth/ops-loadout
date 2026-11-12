@@ -15,7 +15,7 @@ stable `"$Path\$Name"` (or bare `$Path` for `Remove-RegistryKey`) that
 Loadout's Setup tab uses to target one setting.
 
 A `-DryRun` write that would change something lands in `Pending` rather than
-`Skipped`, so Loadout's tasks-status (see "Setup Tasks (Loadout)") can
+`Skipped`, so Loadout's tasks-status (see "Setup Tasks (Loadout)" in `.claude/rules/setup-tasks.md`) can
 tell "already correct" from "would change this" without a second checker.
 Unelevated, a dry-run write under `HKLM:` or a `Policies` branch lands in
 `NeedsAdmin` instead (`Test-RegistryWriteNeedsAdmin`), since that is what the

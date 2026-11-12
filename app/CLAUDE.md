@@ -99,7 +99,7 @@ dmg on macOS and nsis on Windows, and its `prune` job deletes every other
 release and tag, so only the latest exists; GitHub's automatic "Source code"
 archives are attached to a release regardless and cannot be removed. Nothing is
 signed - neither by Apple nor minisign. The check compares against the running
-app's version, so an unbumped release is invisible to it - see Versioning.
+app's version, so an unbumped release is invisible to it - see the versioning rules in `.claude/bindings/ship.md`.
 
 **Background checks (macOS).** A thread started in `setup` waits 2 minutes, then
 every 4 hours runs `brew update` (only when the catalog has formulae/casks -

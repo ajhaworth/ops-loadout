@@ -3,6 +3,7 @@
 # A release carries the two installers - the macOS dmg and the Windows NSIS
 # exe - plus Loadout WM for each (loadout-wm-{macos,windows}.zip), and the
 # `prune` job deletes every older release and tag, so only the latest exists.
+# The `verify` job runs `make verify` first; no build starts unless it passes.
 # The app is unsigned (no Apple Developer ID), so a downloaded copy needs
 # System Settings > Privacy & Security > Open Anyway, or
 #   xattr -dr com.apple.quarantine "/Applications/Loadout.app"
@@ -23,7 +24,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The same gate as a local `make verify` (bash smoke, Python suites, smoke.ps1,
+  # cargo test for app/src-tauri and wm). Every build waits on it, so a tag
+  # whose checks fail publishes nothing.
+  verify:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            app/src-tauri
+            wm
+      - run: make verify
+
   build:
+    needs: verify
     strategy:
       fail-fast: false
       matrix:
